@@ -469,15 +469,351 @@ def generar_alertas(diag: dict, umbrales: dict | None = None) -> list[str]:
     return alertas
 
 
-# ------------------------------------------------------------------ pipeline
+# ============================================ PASO C: CEPSTRAL (MFCC) ============================================
+
+def cepstral_fingerprint(audio: np.ndarray, sr: int) -> dict:
+    """PASO C: Extrae 13 MFCC coefficients como fingerprint tímbrico.
+
+    Usa scipy.fftpack sin dependencias pesadas (librosa).
+
+    Returns:
+        {
+            "mfcc_mean": [13 floats],
+            "mfcc_std": [13 floats],
+            "timbral_content": 0.0-1.0,
+        }
+    """
+    from scipy.fftpack import dct
+
+    mono = audio.mean(axis=1) if audio.ndim > 1 else audio
+
+    # Preprocesamiento: normalización de amplitud
+    mono = mono / (np.max(np.abs(mono)) + 1e-9)
+
+    # Frame length y hop length
+    n_fft = min(2048, len(mono))
+    hop_length = n_fft // 4
+
+    # Espectro de potencia (Welch)
+    f, pxx = signal.welch(mono, sr, nperseg=n_fft, noverlap=n_fft-hop_length)
+
+    # Escala de mel (12 bandas)
+    n_mels = 12
+    mel_freqs = np.linspace(0, sr/2, n_mels + 2)
+
+    # Filtros mel
+    mel_bins = []
+    for i in range(1, n_mels + 1):
+        f_left, f_center, f_right = mel_freqs[i-1], mel_freqs[i], mel_freqs[i+1]
+        # Triángulo
+        left = (f >= f_left) & (f <= f_center)
+        right = (f >= f_center) & (f <= f_right)
+
+        filt = np.zeros_like(f)
+        if left.any():
+            filt[left] = (f[left] - f_left) / (f_center - f_left + 1e-9)
+        if right.any():
+            filt[right] = (f_right - f[right]) / (f_right - f_center + 1e-9)
+
+        mel_bins.append(filt)
+
+    # Aplicar filtros
+    mel_spec = np.zeros(n_mels)
+    for i, filt in enumerate(mel_bins):
+        mel_spec[i] = np.sum(pxx * filt)
+    mel_spec = np.maximum(mel_spec, 1e-10)
+
+    # DCT para MFCC (primeros 13 coeficientes)
+    mfcc_raw = dct(np.log(mel_spec), type=2, norm='ortho')[:13]
+
+    # Estadísticas
+    mfcc_mean = [float(x) for x in np.mean(mfcc_raw)]
+    mfcc_std = [float(x) for x in np.std(mfcc_raw)]
+
+    # Contenido tímbrico: varianza de MFCC normalizada
+    timbral_content = float(np.std(mfcc_raw) / (np.mean(np.abs(mfcc_raw)) + 1e-9))
+    timbral_content = float(np.clip(timbral_content, 0.0, 1.0))
+
+    return {
+        "mfcc_mean": mfcc_mean,
+        "mfcc_std": mfcc_std,
+        "timbral_content": round(timbral_content, 2),
+    }
+
+
+# ============================================ PASO D: LOUDNESS RANGE (LR) ============================================
+
+def loudness_range(audio: np.ndarray, sr: int, marcadores: list[dict] = None) -> dict:
+    """PASO D: Mide dinámica percibida (LR) en secciones.
+
+    Si hay marcadores, analiza LUFS por sección. Si no, divide en 4 partes.
+
+    Returns:
+        {
+            "lr_global": 4.2,
+            "secciones": {"verso": -12.5, "estribillo": -9.2},
+            "descripcion": "dinámica media",
+        }
+    """
+    meter = pyln.Meter(sr, block_size=0.400)
+
+    # Definir secciones
+    if not marcadores:
+        duracion_s = audio.shape[0] / sr
+        sec_len_s = duracion_s / 4
+        marcadores = [
+            {"nombre": f"Sección {i+1}", "inicio_s": i * sec_len_s, "fin_s": (i+1) * sec_len_s}
+            for i in range(4)
+        ]
+
+    lufs_secciones = {}
+    lufs_valores = []
+
+    for sec in marcadores:
+        ini = int(sec["inicio_s"] * sr)
+        fin = min(int(sec["fin_s"] * sr), audio.shape[0])
+        trozo = audio[ini:fin]
+
+        if trozo.shape[0] < sr // 2:
+            continue
+
+        try:
+            lufs_sec = float(meter.integrated_loudness(trozo))
+            if np.isfinite(lufs_sec):
+                lufs_secciones[sec["nombre"]] = round(lufs_sec, 1)
+                lufs_valores.append(lufs_sec)
+        except:
+            continue
+
+    # Calcular LR como percentil 95 - percentil 10
+    if lufs_valores:
+        lr_global = float(np.percentile(lufs_valores, 95) - np.percentile(lufs_valores, 10))
+    else:
+        lr_global = 0.0
+
+    # Descripción
+    if lr_global < 2.0:
+        desc = "dinámica muy comprimida"
+    elif lr_global < 4.0:
+        desc = "dinámica baja"
+    elif lr_global < 8.0:
+        desc = "dinámica media"
+    elif lr_global < 12.0:
+        desc = "dinámica alta"
+    else:
+        desc = "dinámica muy expansiva"
+
+    return {
+        "lr_global": round(lr_global, 1),
+        "secciones": lufs_secciones,
+        "descripcion": desc,
+    }
+
+
+# ============================================ PASO E: SPECTRAL FLUX ============================================
+
+def spectral_flux(audio: np.ndarray, sr: int) -> dict:
+    """PASO E: Calcula flujo espectral (cambio tímbrico en el tiempo).
+
+    Distancia euclidiana entre espectros adyacentes.
+    Frame: 2048 muestras, ventana Hann, hop 512.
+
+    Returns:
+        {
+            "flux_mean": 0.15,
+            "flux_max": 0.45,
+            "descripcion": "cambio tímbrico medio",
+        }
+    """
+    mono = audio.mean(axis=1) if audio.ndim > 1 else audio
+
+    n_fft = 2048
+    hop = n_fft // 4
+
+    # Espectrograma con ventana Hann
+    freqs, times, spec = signal.spectrogram(
+        mono, sr, window='hann', nperseg=n_fft, noverlap=n_fft-hop
+    )
+
+    # Flux: magnitud euclidiana entre espectros consecutivos
+    fluxes = []
+    for i in range(1, spec.shape[1]):
+        delta = spec[:, i] - spec[:, i-1]
+        flux = float(np.sqrt(np.sum(delta ** 2)))
+        fluxes.append(flux)
+
+    if not fluxes:
+        return {"flux_mean": 0.0, "flux_max": 0.0, "descripcion": "sin cambios"}
+
+    flux_mean = float(np.mean(fluxes))
+    flux_max = float(np.max(fluxes))
+
+    # Descripción
+    if flux_mean < 0.05:
+        desc = "cambio tímbrico bajo (timbre estable)"
+    elif flux_mean < 0.15:
+        desc = "cambio tímbrico medio"
+    else:
+        desc = "cambio tímbrico alto (dinámica tímbrica)"
+
+    return {
+        "flux_mean": round(flux_mean, 3),
+        "flux_max": round(flux_max, 3),
+        "descripcion": desc,
+    }
+
+
+# ============================================ PASO F: IMAGING TEMPORAL ============================================
+
+def _filtrar_banda(audio: np.ndarray, sr: int, f_lo: float, f_hi: float) -> np.ndarray:
+    """Filtra audio a una banda de frecuencias (ayudante para imaging)."""
+    sos = signal.butter(4, [f_lo, f_hi], 'bandpass', fs=sr, output='sos')
+    return signal.sosfilt(sos, audio)
+
+
+def analisis_estereo_temporal(audio: np.ndarray, sr: int, marcadores: list[dict] = None) -> dict:
+    """PASO F: Análisis estéreo por secciones (ancho temporal).
+
+    Mejora de `analisis_estereo()`: retorna ancho por banda EN SECCIONES.
+
+    Returns:
+        {
+            "secciones": {
+                "verso": {"sub": 0.1, "low": 0.3, ..., "air": 0.6},
+                "estribillo": {...},
+            }
+        }
+    """
+    if audio.shape[1] < 2:
+        return {"es_mono": True, "secciones": {}}
+
+    L, R = audio[:, 0], audio[:, 1]
+
+    # Definir secciones
+    if not marcadores:
+        duracion_s = audio.shape[0] / sr
+        sec_len_s = duracion_s / 4
+        marcadores = [
+            {"nombre": f"Sección {i+1}", "inicio_s": i * sec_len_s, "fin_s": (i+1) * sec_len_s}
+            for i in range(4)
+        ]
+
+    secciones_resultado = {}
+
+    for sec in marcadores:
+        ini = int(sec["inicio_s"] * sr)
+        fin = min(int(sec["fin_s"] * sr), audio.shape[0])
+        Ls = L[ini:fin]
+        Rs = R[ini:fin]
+
+        if Ls.shape[0] < sr // 2:
+            continue
+
+        ancho_banda = {}
+        for nombre, (f_lo, f_hi) in BANDAS_HZ.items():
+            Lbs = _filtrar_banda(Ls, sr, f_lo, f_hi)
+            Rbs = _filtrar_banda(Rs, sr, f_lo, f_hi)
+
+            mid = (Lbs + Rbs) / 2
+            side = (Lbs - Rbs) / 2
+            e_mid = float(np.mean(mid ** 2))
+            e_side = float(np.mean(side ** 2))
+            total = e_mid + e_side
+
+            ancho = e_side / total if total > 1e-12 else 0.0
+            ancho_banda[nombre] = round(float(ancho), 2)
+
+        secciones_resultado[sec["nombre"]] = ancho_banda
+
+    return {
+        "es_mono": False,
+        "secciones": secciones_resultado,
+    }
+
+
+# ============================================ PASO G: HEADROOM BUDGET ============================================
+
+def headroom_budget_vs_referencias(mezcla_path: Path, referencias_paths: list = None) -> dict:
+    """PASO G: Compara headroom (picos dBFS) de mezcla vs referencias.
+
+    Detecta si mezcla es sobre-conservadora vs el promedio de referencias.
+
+    Returns:
+        {
+            "tu_pico_dbfs": -6.0,
+            "ref_promedio_dbfs": -3.5,
+            "delta_conservador_db": 2.5,
+            "alerta": "Tu mezcla es 2.5 dB más baja que el promedio",
+        }
+    """
+    mezcla_path = Path(mezcla_path)
+
+    try:
+        audio_mezcla, sr_mezcla = cargar_audio(mezcla_path)
+        tu_pico = db(float(np.max(np.abs(audio_mezcla))))
+    except Exception as e:
+        log.error("Error cargando mezcla: %s", e)
+        return {"error": str(e), "tu_pico_dbfs": None}
+
+    # Si no hay referencias, retornar solo el pico
+    if not referencias_paths:
+        return {
+            "tu_pico_dbfs": tu_pico,
+            "ref_promedio_dbfs": None,
+            "delta_conservador_db": None,
+            "alerta": None,
+        }
+
+    if isinstance(referencias_paths, (str, Path)):
+        referencias_paths = [referencias_paths]
+
+    picos_refs = []
+    for ruta_ref in referencias_paths:
+        try:
+            audio_ref, sr_ref = cargar_audio(Path(ruta_ref))
+            pico_ref = db(float(np.max(np.abs(audio_ref))))
+            if np.isfinite(pico_ref):
+                picos_refs.append(pico_ref)
+        except:
+            continue
+
+    if not picos_refs:
+        return {
+            "tu_pico_dbfs": tu_pico,
+            "ref_promedio_dbfs": None,
+            "delta_conservador_db": None,
+            "alerta": "No se pudieron analizar referencias",
+        }
+
+    ref_promedio = float(np.mean(picos_refs))
+    delta = tu_pico - ref_promedio  # Si es negativo, eres más conservador
+
+    # Alerta si delta > 2 dB (sobre-conservador)
+    alerta = None
+    if delta > 2.0:
+        alerta = f"Tu mezcla es {abs(delta):.1f} dB más baja (sobre-conservadora)"
+    elif delta < -2.0:
+        alerta = f"Tu mezcla es {abs(delta):.1f} dB más fuerte que el promedio"
+
+    return {
+        "tu_pico_dbfs": round(tu_pico, 1),
+        "ref_promedio_dbfs": round(ref_promedio, 1),
+        "delta_conservador_db": round(delta, 1),
+        "alerta": alerta,
+    }
+
+
+# ================================================================== pipeline
 
 def analizar_wav(path_wav: Path, marcadores_txt: str = "",
                  path_referencia: Path | None = None,
+                 path_referencias_dinamicas: list = None,
                  version: str = "V01",
                  umbrales: dict | None = None,
                  progreso=None) -> dict:
-    """Pipeline completo de análisis. Devuelve el diagnóstico como dict.
+    """Pipeline completo de análisis (v0.5+). Devuelve el diagnóstico como dict.
 
+    Incluye PASOS C-G: cepstral, LR, flux, imaging temporal, headroom.
     `progreso` es un callable opcional (str) para reportar avance a la UI.
     """
     def avisar(msg: str):
@@ -507,10 +843,29 @@ def analizar_wav(path_wav: Path, marcadores_txt: str = "",
     estereo = analisis_estereo(audio, sr)
 
     secciones = []
+    marcas = []
     if marcadores_txt.strip():
         avisar("Analizando secciones…")
         marcas = parse_marcadores(marcadores_txt, duracion)
         secciones = analizar_secciones(audio, sr, marcas)
+
+    # ======================== PASOS C-G (v0.5+) ========================
+    avisar("Extrayendo MFCC (cepstral)…")
+    cepstral = cepstral_fingerprint(audio, sr)
+
+    avisar("Midiendo loudness range (dinámica)…")
+    lr = loudness_range(audio, sr, marcas if marcas else None)
+
+    avisar("Calculando spectral flux…")
+    flux = spectral_flux(audio, sr)
+
+    avisar("Analizando imaging temporal…")
+    imaging_temporal = analisis_estereo_temporal(audio, sr, marcas if marcas else None)
+
+    avisar("Calculando headroom budget…")
+    headroom = headroom_budget_vs_referencias(path_wav, path_referencias_dinamicas)
+
+    # ====================================================================
 
     diag = {
         "archivo": path_wav.name,
@@ -536,6 +891,11 @@ def analizar_wav(path_wav: Path, marcadores_txt: str = "",
         "secciones": secciones,
         "vs_referencia": None,
         "alertas": [],
+        "cepstral": cepstral,
+        "loudness_range": lr,
+        "spectral_flux": flux,
+        "imaging_temporal": imaging_temporal,
+        "headroom_budget": headroom,
     }
 
     if path_referencia:
