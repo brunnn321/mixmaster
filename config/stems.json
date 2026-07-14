@@ -1,0 +1,50 @@
+{
+  "pico_objetivo_dbfs": -6.0,
+  "orden_filtro": 2,
+  "tipos": [
+    {
+      "tipo": "bajo/kick",
+      "claves": [
+        "bass",
+        "bajo",
+        "kick",
+        "bombo",
+        "sub"
+      ],
+      "highpass_hz": 0
+    },
+    {
+      "tipo": "guitarra",
+      "claves": [
+        "gtr",
+        "guitar",
+        "guitarra"
+      ],
+      "highpass_hz": 80
+    },
+    {
+      "tipo": "voz",
+      "claves": [
+        "vox",
+        "voz",
+        "voice",
+        "vocal"
+      ],
+      "highpass_hz": 90
+    },
+    {
+      "tipo": "platos/OH",
+      "claves": [
+        "oh",
+        "overhead",
+        "platos",
+        "cymbal",
+        "crash",
+        "ride",
+        "hihat",
+        "hat"
+      ],
+      "highpass_hz": 150
+    }
+  ]
+}

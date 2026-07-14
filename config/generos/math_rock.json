@@ -1,0 +1,13 @@
+{
+  "nombre": "Math Rock",
+  "low_mid_delta_max_db": 2.0,
+  "crest_min_db": 12.0,
+  "sub_min_db": -30.0,
+  "correlacion_min": 0.7,
+  "lufs_max": -8.0,
+  "nota_low_mid": "revisar acumulación de guitarras en 200–500 Hz",
+  "nota_crest": "transientes comprimidos — vigilar",
+  "nota_sub": "bajo muy suave para este género",
+  "nota_correlacion": "imagen estéreo inestable",
+  "nota_lufs": "muy fuerte para math rock — riesgo de fatiga"
+}

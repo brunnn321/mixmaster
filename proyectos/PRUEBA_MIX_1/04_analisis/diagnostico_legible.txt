@@ -1,0 +1,43 @@
+══ DIAGNÓSTICO — wav mix.wav (V02) ══
+Fecha: 2026-07-13 20:16:47   Duración: 36.7 s   SR: 48000 Hz
+
+— GLOBAL —
+  LUFS integrado:  -15.1
+  LUFS short-term (máx): -14.0
+  True peak:       -1.0 dBTP
+  LRA:             2.3 LU
+  Crest factor:    16.1 dB
+  Clipping:        no
+
+— BALANCE ESPECTRAL (dB RMS por banda) —
+  air       -46.2
+  high_mid  -40.1
+  low       -18.7
+  low_mid   -27.0
+  mid       -35.0
+  sub       -25.7
+
+— ESTÉREO —
+  Correlación global: 0.87
+  Pérdida al sumar a mono: 0.1 dB
+  Ancho por banda (0=mono, 1=todo side):
+    air       ancho 0.03   corr 0.95
+    high_mid  ancho 0.16   corr 0.67
+    low       ancho 0.01   corr 0.99
+    low_mid   ancho 0.35   corr 0.31
+    mid       ancho 0.22   corr 0.55
+    sub       ancho 0.0   corr 1.0
+
+— VS REFERENCIA: Waterslide.mp3 (nivelada en loudness) —
+  Delta LUFS: -5.7
+  Delta por banda (mezcla - referencia):
+    air       -4.6 dB
+    high_mid  -8.8 dB
+    low       +1.0 dB
+    low_mid   -1.2 dB
+    mid       -5.6 dB
+    sub       +4.6 dB
+
+— ALERTAS —
+  ⚠ Correlación estéreo 0.55 en mid (<0.7) — imagen estéreo inestable
+  ⚠ Correlación estéreo 0.67 en high_mid (<0.7) — imagen estéreo inestable

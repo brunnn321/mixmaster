@@ -1,0 +1,19 @@
+{
+  "target_lufs_default": -8.5,
+  "eq_correctivo": {
+    "activo": true,
+    "max_correccion_db": 4.0,
+    "analizar_imagen_stereo": true,
+    "max_ajuste_ancho_db": 2.0
+  },
+  "densidad": {
+    "activo": true,
+    "umbral_reduccion_db": 3.0,
+    "drive": 1.5
+  },
+  "limitador": {
+    "ceiling_dbtp": -1.0,
+    "release_ms": 50,
+    "lookahead_ms": 5
+  }
+}
