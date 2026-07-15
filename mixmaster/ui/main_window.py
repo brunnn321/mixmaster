@@ -7,11 +7,12 @@ opcional) → PASO 3 Master final. El chat vive en el menú 💬 (ChatDialog).
 import json
 from pathlib import Path
 
-from PySide6.QtCore import QThread, Signal
+from PySide6.QtCore import QThread, QTimer, Signal
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QFileDialog, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMainWindow,
-    QMessageBox, QPushButton, QStackedWidget, QTextEdit, QVBoxLayout, QWidget,
+    QMessageBox, QPushButton, QStackedWidget, QStyle, QSystemTrayIcon,
+    QTextEdit, QVBoxLayout, QWidget,
 )
 
 from .. import __version__
@@ -130,6 +131,13 @@ class MainWindow(QMainWindow):
         self.etiqueta_sugerida: str = ""  # Etiqueta detectada de referencias
         self._chat: ChatDialog | None = None
         self._worker = None
+        self._notificado = False  # evita reentrada en closeEvent
+
+        # Icono de bandeja para notificaciones nativas (fiable en Win11)
+        self._tray = QSystemTrayIcon(self)
+        self._tray.setIcon(self.style().standardIcon(QStyle.SP_MediaVolume))
+        self._tray.setToolTip("MixMaster")
+        self._tray.show()
 
         self.setWindowTitle(f"MixMaster v{__version__}")
         self.resize(880, 680)
@@ -147,18 +155,24 @@ class MainWindow(QMainWindow):
     # -------------------------------------------------------- cierre de app
 
     def closeEvent(self, event):
-        """Notificación Windows al cerrar (v0.5)."""
-        try:
-            from win10toast import ToastNotifier
-            toaster = ToastNotifier()
-            toaster.show_toast(
-                "✓ MixMaster",
-                "Datos guardados",
-                duration=3,
-                threaded=True,
-            )
-        except Exception:
-            log.debug("Notificación Windows no disponible")
+        """Notificación nativa Qt al cerrar (fiable en Win11), luego cierra.
+
+        Muestra el toast, da 600 ms para que el SO lo renderice y recién
+        entonces cierra de verdad (si se cerrara al instante, el proceso
+        muere antes de que la notificación aparezca).
+        """
+        if not self._notificado:
+            self._notificado = True
+            try:
+                if QSystemTrayIcon.supportsMessages():
+                    self._tray.showMessage(
+                        "✓ MixMaster", "Datos guardados",
+                        QSystemTrayIcon.MessageIcon.Information, 3000)
+                    QTimer.singleShot(600, self.close)  # cierra tras mostrar
+                    event.ignore()
+                    return
+            except Exception:
+                log.debug("Notificación no disponible; cierre normal")
         event.accept()
 
     # ------------------------------------------------------------- menú y UI
