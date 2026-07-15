@@ -346,31 +346,39 @@ def main() -> int:
               not any("LUFS integrado" in a for a in generar_alertas(diag)))
 
         # --- v0.5: referencias dinámicas + análisis expandidos ---
+        # Usa etiquetas _test_* y limpia al final para no ensuciar la config real.
         from mixmaster.references import subir_referencia, listar_referencias_por_etiqueta, detectar_etiqueta_sugerida
+        from mixmaster.app_paths import REFERENCIAS_DIR
+        import shutil as _sh2
+        ET_A, ET_B = "_test_prog", "_test_djent"
 
         # PASO A: subir referencia
-        resultado_subida = subir_referencia(wav_ref, "prog")
+        resultado_subida = subir_referencia(wav_ref, ET_A)
         check("PASO A — subir referencia", resultado_subida.get("exito")
-              and resultado_subida.get("etiqueta") == "prog"
+              and resultado_subida.get("etiqueta") == ET_A
               and "referencia.wav" in resultado_subida.get("nombre_archivo", ""))
 
         # Subir otra con otra etiqueta
-        resultado_subida2 = subir_referencia(mp3_ref, "djent")
+        resultado_subida2 = subir_referencia(mp3_ref, ET_B)
         check("subir segunda referencia con etiqueta distinta",
-              resultado_subida2.get("exito") and resultado_subida2.get("etiqueta") == "djent")
+              resultado_subida2.get("exito") and resultado_subida2.get("etiqueta") == ET_B)
 
         # PASO B: listar referencias por etiqueta + detectar etiqueta sugerida
         refs_por_etiqueta = listar_referencias_por_etiqueta()
         check("PASO B — listar referencias por etiqueta",
-              "prog" in refs_por_etiqueta and "djent" in refs_por_etiqueta
-              and len(refs_por_etiqueta["prog"]) >= 1)
+              ET_A in refs_por_etiqueta and ET_B in refs_por_etiqueta
+              and len(refs_por_etiqueta[ET_A]) >= 1)
 
         # Detectar etiqueta sugerida
         deteccion = detectar_etiqueta_sugerida(wav_mix)
         check("detectar etiqueta sugerida (tiene refs cargadas)",
               deteccion.get("exito")
-              and deteccion.get("etiqueta_sugerida") in ["prog", "djent"]
+              and deteccion.get("etiqueta_sugerida") is not None
               and 0.0 <= deteccion.get("confianza", 0.0) <= 1.0)
+
+        # limpieza: borra las etiquetas de prueba para no contaminar la config real
+        _sh2.rmtree(REFERENCIAS_DIR / ET_A, ignore_errors=True)
+        _sh2.rmtree(REFERENCIAS_DIR / ET_B, ignore_errors=True)
 
         # PASO C: cepstral (MFCC 13 coeficientes)
         from mixmaster.audio_analysis import cepstral_fingerprint
