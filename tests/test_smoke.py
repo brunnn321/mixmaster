@@ -78,10 +78,11 @@ def main() -> int:
 
         # --- proyecto ---
         proyecto = crear_proyecto(tmp, "Cancion De Prueba v01")
-        check("estructura de carpetas (layout simple, on-demand)",
-              all((proyecto.root / d).is_dir() for d in
-                  ["entrada", "entrada/stems", "analisis"])
-              and not (proyecto.root / "salida").is_dir())  # salida/ on-demand
+        check("proyecto sin carpetas vacías (todo on-demand)",
+              proyecto.root.is_dir()
+              and not (proyecto.root / "entrada").exists()
+              and not (proyecto.root / "analisis").exists()
+              and not (proyecto.root / "salida").exists())
         check("decisiones-y-feedback.md creado", proyecto.decisiones_path.exists())
         # compatibilidad con proyectos viejos (carpetas numeradas)
         viejo_root = tmp / "proyecto_viejo"
@@ -94,6 +95,9 @@ def main() -> int:
               and viejo.dir_analisis.name == "04_analisis")
 
         # --- análisis completo con referencia y secciones ---
+        # (las subcarpetas ya no se crean solas: el test las crea al escribir)
+        proyecto.dir_originales.mkdir(parents=True, exist_ok=True)
+        proyecto.dir_referencias.mkdir(parents=True, exist_ok=True)
         wav_mix = proyecto.dir_originales / "mezcla.wav"
         wav_ref = proyecto.dir_referencias / "referencia.wav"
         wav_sintetico(wav_mix, gain=0.3)
@@ -383,6 +387,7 @@ def main() -> int:
         check("detección de tipo: sin match", detectar_tipo("sinte_pad.wav", cfg) == ("otro", 0.0))
 
         dir_stems = proyecto.dir_stems
+        dir_stems.mkdir(parents=True, exist_ok=True)  # on-demand
         n_s = int(5 * SR)
         t_s = np.arange(n_s) / SR
         rng2 = np.random.default_rng(7)

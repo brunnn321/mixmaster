@@ -10,9 +10,9 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
-    QFileDialog, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMainWindow,
-    QMessageBox, QPushButton, QStackedWidget, QStyle, QSystemTrayIcon,
-    QTextEdit, QVBoxLayout, QWidget,
+    QFileDialog, QFrame, QHBoxLayout, QInputDialog, QLabel, QLineEdit,
+    QMainWindow, QMessageBox, QProgressBar, QPushButton, QScrollArea,
+    QStackedWidget, QStyle, QSystemTrayIcon, QTextEdit, QVBoxLayout, QWidget,
 )
 
 from .. import __version__
@@ -55,6 +55,25 @@ _DROPZONE_HOVER = """
 def _es_audio(path: str) -> bool:
     """True si la ruta tiene extensión de audio soportada."""
     return Path(path).suffix.lower() in _EXTS_AUDIO
+
+
+class _ZonaDrop(QLabel):
+    """Etiqueta-zona clicable (para cargar audio/referencias con un clic)."""
+
+    clicked = Signal()
+
+    def __init__(self, texto: str = ""):
+        super().__init__(texto)
+        self.setAlignment(Qt.AlignCenter)
+        self.setWordWrap(True)
+        self.setStyleSheet(_DROPZONE_VACIA)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setMinimumHeight(90)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
 
 
 class AnalisisWorker(QThread):
@@ -139,12 +158,9 @@ class MainWindow(QMainWindow):
                     "Todos los archivos (*.*)")
 
     GUIA = [
-        "PASO 1 de 3 — FUENTE: carga tu mezcla («Cargar audio») o copia tus stems "
-        "a entrada/stems y pulsa «Procesar stems». Luego «Siguiente →».",
-        "PASO 2 de 3 — REFERENCIAS: elige 3–6 temas (biblioteca del género o archivos). "
-        "Opcional: «Analizar» para ver números y alertas. Luego «Siguiente →».",
-        "PASO 3 de 3 — MASTER: pulsa «🎵 Master final», elige el loudness (-8.5 default) "
-        "y en salida/ tendrás el WAV y el MP3 listos para subir.",
+        "PASO 1 · FUENTE — Carga tu audio o stems.",
+        "PASO 2 · REFERENCIAS — Añade 3–6 temas.",
+        "PASO 3 · MASTER — Pulsa «Master final».",
     ]
 
     def __init__(self, settings: Settings):
@@ -244,14 +260,9 @@ class MainWindow(QMainWindow):
         central = QWidget()
         raiz = QVBoxLayout(central)
 
-        fila_proj = QHBoxLayout()
         self.lbl_proyecto = QLabel("Proyecto activo: (ninguno)")
         self.lbl_proyecto.setStyleSheet("font-weight: bold; padding: 4px;")
-        self.btn_nuevo_proj = QPushButton("➕ Nuevo proyecto")
-        self.btn_nuevo_proj.clicked.connect(self._nuevo_proyecto)
-        fila_proj.addWidget(self.lbl_proyecto, stretch=1)
-        fila_proj.addWidget(self.btn_nuevo_proj)
-        raiz.addLayout(fila_proj)
+        raiz.addWidget(self.lbl_proyecto)
 
         self.lbl_guia = QLabel("")
         self.lbl_guia.setWordWrap(True)
@@ -262,46 +273,26 @@ class MainWindow(QMainWindow):
         # --- pila de pasos ---
         self.pila = QStackedWidget()
 
-        # PASO 1: fuente
+        # PASO 1: fuente — una sola caja (clic o arrastre)
         pag1 = QWidget()
         lay1 = QVBoxLayout(pag1)
-        fila1 = QHBoxLayout()
-        self.btn_cargar = QPushButton("Cargar audio")
-        self.btn_cargar.clicked.connect(self._cargar_audio)
-        self.btn_stems = QPushButton("Procesar stems")
-        self.btn_stems.setToolTip(
-            "Gain staging (picos a -6 dBFS) + highpass por tipo de pista.\n"
-            "Lee entrada/stems y escribe en salida/stems_niveladas (originales intactos).")
-        self.btn_stems.clicked.connect(self._procesar_stems)
-        fila1.addWidget(self.btn_cargar)
-        fila1.addWidget(self.btn_stems)
-        fila1.addStretch()
-        lay1.addLayout(fila1)
-        self.lbl_fuente = QLabel()
-        self.lbl_fuente.setAlignment(Qt.AlignCenter)
-        self.lbl_fuente.setWordWrap(True)
-        self.lbl_fuente.setStyleSheet(_DROPZONE_VACIA)
+        self.lbl_fuente = _ZonaDrop()
+        self.lbl_fuente.setMinimumHeight(150)
+        self.lbl_fuente.clicked.connect(self._cargar_fuente_dialogo)
         lay1.addWidget(self.lbl_fuente)
         lay1.addStretch()
         self.pila.addWidget(pag1)
 
-        # PASO 2: referencias + análisis opcional
+        # PASO 2: referencias — tarjetas (chips) + zona clicable
         pag2 = QWidget()
         lay2 = QVBoxLayout(pag2)
-        fila2 = QHBoxLayout()
-        self.btn_ref = QPushButton("Elegir referencias…")
-        self.btn_ref.clicked.connect(self._elegir_referencia)
-        self.btn_analizar = QPushButton("Analizar (opcional)")
-        self.btn_analizar.clicked.connect(self._analizar)
-        fila2.addWidget(self.btn_ref)
-        fila2.addWidget(self.btn_analizar)
-        fila2.addStretch()
-        lay2.addLayout(fila2)
-        self.lbl_refs = QLabel()
-        self.lbl_refs.setAlignment(Qt.AlignCenter)
-        self.lbl_refs.setWordWrap(True)
-        self.lbl_refs.setStyleSheet(_DROPZONE_VACIA)
-        lay2.addWidget(self.lbl_refs)
+        self.zona_refs = _ZonaDrop()
+        self.zona_refs.clicked.connect(self._elegir_referencia)
+        lay2.addWidget(self.zona_refs)
+        self.refs_contenedor = QWidget()
+        self.refs_layout = QVBoxLayout(self.refs_contenedor)
+        self.refs_layout.setContentsMargins(0, 0, 0, 0)
+        lay2.addWidget(self.refs_contenedor)
         self.ed_marcadores = QLineEdit()
         self.ed_marcadores.setPlaceholderText(
             "Marcadores para el análisis (opcional): Intro: 0:00, Riff A: 0:23")
@@ -352,10 +343,24 @@ class MainWindow(QMainWindow):
         self.txt_resultado.setFontFamily("Consolas")
         raiz.addWidget(self.txt_resultado, stretch=1)
 
+        self.barra = QProgressBar()
+        self.barra.setTextVisible(False)
+        self.barra.setMaximumHeight(8)
+        self.barra.setVisible(False)
+        raiz.addWidget(self.barra)
+
         self.lbl_estado = QLabel("")
         raiz.addWidget(self.lbl_estado)
 
         self.setCentralWidget(central)
+
+    def _barra_activa(self, activa: bool):
+        """Muestra/oculta la barra de progreso (modo actividad)."""
+        if activa:
+            self.barra.setRange(0, 0)  # indeterminada = "trabajando"
+            self.barra.setVisible(True)
+        else:
+            self.barra.setVisible(False)
 
     # ---------------------------------------------------------- estado de UI
 
@@ -379,10 +384,6 @@ class MainWindow(QMainWindow):
             f"Proyecto activo: {nombre}   ·   Género: {self.settings.genero_activo()}")
 
         idx = self.pila.currentIndex()
-        self.btn_cargar.setEnabled(True)  # crea el proyecto desde el archivo
-        self.btn_stems.setEnabled(hay_proyecto)
-        self.btn_ref.setEnabled(hay_proyecto)
-        self.btn_analizar.setEnabled(hay_proyecto and self.wav_activo is not None)
         self.btn_master.setEnabled(hay_proyecto and self._fuente_lista())
         self.btn_atras.setEnabled(idx > 0)
         self.btn_siguiente.setEnabled(
@@ -390,13 +391,12 @@ class MainWindow(QMainWindow):
 
         if not hay_proyecto:
             self.lbl_guia.setText(
-                "<b>EMPIEZA AQUÍ:</b> pulsa «Cargar audio» y elige tu mezcla — el "
-                "proyecto tomará el nombre del archivo. Para stems, usa «➕ Nuevo "
-                "proyecto» y ponle nombre.")
+                "<b>EMPIEZA AQUÍ — Carga tu audio o stems:</b> arrastra los archivos "
+                "a la caja o haz clic en ella. El proyecto toma el nombre del archivo.")
         else:
             self.lbl_guia.setText(f"<b>{self.GUIA[idx]}</b>")
 
-        # zonas de fuente y referencias (drag & drop)
+        # zona de fuente
         if self.wav_activo:
             self.lbl_fuente.setText(f"🎵  Mezcla cargada\n«{self.wav_activo.name}»")
             self.lbl_fuente.setStyleSheet(_DROPZONE_LLENA)
@@ -405,23 +405,59 @@ class MainWindow(QMainWindow):
             self.lbl_fuente.setText(f"🥁  {n} stems nivelados (suma virtual)")
             self.lbl_fuente.setStyleSheet(_DROPZONE_LLENA)
         else:
-            self.lbl_fuente.setText(
-                "🎵  Arrastra aquí tu mezcla\n(o pulsa «Cargar audio»)")
+            self.lbl_fuente.setText("⬇  Cargar audio o stems\nArrastra aquí o haz clic")
             self.lbl_fuente.setStyleSheet(_DROPZONE_VACIA)
 
+        self._refrescar_referencias()
+
+    def _refrescar_referencias(self):
+        """Reconstruye las tarjetas (chips) de referencias del PASO 2."""
+        # limpia los chips actuales
+        while self.refs_layout.count():
+            item = self.refs_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
         if not self.referencia:
-            self.lbl_refs.setText(
-                "📀  Arrastra aquí tus referencias\n(o pulsa «Elegir referencias…»)")
-            self.lbl_refs.setStyleSheet(_DROPZONE_VACIA)
-        elif len(self.referencia) == 1:
-            self.lbl_refs.setText(f"📀  Referencia:\n«{self.referencia[0].name}»")
-            self.lbl_refs.setStyleSheet(_DROPZONE_LLENA)
-        else:
-            nombres = " · ".join(r.name for r in self.referencia[:4])
-            extra = f"  (+{len(self.referencia) - 4} más)" if len(self.referencia) > 4 else ""
-            self.lbl_refs.setText(
-                f"📀  {len(self.referencia)} referencias (promedio/consenso)\n{nombres}{extra}")
-            self.lbl_refs.setStyleSheet(_DROPZONE_LLENA)
+            self.zona_refs.setText("⬇  Cargar referencias\nArrastra aquí o haz clic (3–6 temas)")
+            self.zona_refs.setStyleSheet(_DROPZONE_VACIA)
+            self.refs_contenedor.setVisible(False)
+            return
+
+        self.zona_refs.setText(
+            f"📀  {len(self.referencia)} referencia(s) — arrastra o haz clic para añadir")
+        self.zona_refs.setStyleSheet(_DROPZONE_LLENA)
+        self.refs_contenedor.setVisible(True)
+        for i, ref in enumerate(self.referencia):
+            self.refs_layout.addWidget(self._crear_chip(i, ref))
+
+    def _crear_chip(self, indice: int, ref: Path) -> QFrame:
+        """Una tarjeta de referencia: nombre + ✕ para quitarla."""
+        chip = QFrame()
+        chip.setStyleSheet(
+            "QFrame { border: 1px solid #3a7d4f; border-radius: 8px;"
+            " background: rgba(58,125,79,0.14); }")
+        fila = QHBoxLayout(chip)
+        fila.setContentsMargins(10, 4, 6, 4)
+        lbl = QLabel(f"📀  {ref.name}")
+        lbl.setStyleSheet("border: none; background: transparent;")
+        btn = QPushButton("✕")
+        btn.setFixedWidth(28)
+        btn.setToolTip("Quitar esta referencia")
+        btn.setStyleSheet("border: none; background: transparent; font-weight: bold;")
+        btn.clicked.connect(lambda: self._quitar_referencia(indice))
+        fila.addWidget(lbl, stretch=1)
+        fila.addWidget(btn)
+        return chip
+
+    def _quitar_referencia(self, indice: int):
+        """Quita la referencia #indice y refresca las tarjetas."""
+        if self.referencia and 0 <= indice < len(self.referencia):
+            quitada = self.referencia.pop(indice)
+            if not self.referencia:
+                self.referencia = None
+            self._status(f"Referencia quitada: {quitada.name}")
+            self._refrescar_referencias()
 
     def _status(self, msg: str):
         """Mensaje en la línea de estado inferior."""
@@ -549,14 +585,6 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------- paso 1: fuente
 
-    def _cargar_audio(self):
-        """Elige una mezcla por diálogo y crea el proyecto con su nombre."""
-        inicio = str(self.proyecto.dir_originales) if self.proyecto else ""
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Cargar audio", inicio, self.FILTRO_AUDIO)
-        if path:
-            self._cargar_audio_desde_path(path)
-
     def _cargar_audio_desde_path(self, path: str):
         """Carga una mezcla (de diálogo o drag&drop) y crea/reabre el proyecto.
 
@@ -587,7 +615,7 @@ class MainWindow(QMainWindow):
         if mime.hasUrls() and any(_es_audio(u.toLocalFile())
                                   for u in mime.urls() if u.isLocalFile()):
             event.acceptProposedAction()
-            zona = self.lbl_refs if self.pila.currentIndex() == 1 else self.lbl_fuente
+            zona = self.zona_refs if self.pila.currentIndex() == 1 else self.lbl_fuente
             zona.setStyleSheet(_DROPZONE_HOVER)
         else:
             event.ignore()
@@ -599,33 +627,69 @@ class MainWindow(QMainWindow):
     def dropEvent(self, event):
         """Enruta los archivos soltados según el paso actual.
 
-        PASO 2 (referencias) → los usa como referencias. Cualquier otro paso →
-        carga el primero como mezcla (crea el proyecto con su nombre).
+        PASO 2 → los añade como referencias. Otro paso → 1 archivo = mezcla,
+        varios = stems (crea proyecto, copia y nivela).
         """
         audios = [u.toLocalFile() for u in event.mimeData().urls()
                   if u.isLocalFile() and _es_audio(u.toLocalFile())]
         if not audios:
             self._refrescar_estado()
             return
-        if self.pila.currentIndex() == 1 and self.proyecto:
+        if self.pila.currentIndex() == 1:
             self._set_referencias_desde_paths(audios)
-        else:
+        elif len(audios) == 1:
             self._cargar_audio_desde_path(audios[0])
-            if len(audios) > 1:
-                self._status(f"Cargada «{Path(audios[0]).name}» "
-                             f"(se ignoraron {len(audios) - 1} archivos extra)")
+        else:
+            self._cargar_stems_desde_paths(audios)
+
+    def _cargar_fuente_dialogo(self):
+        """Clic en la caja: selector (multi). 1 archivo = mezcla, varios = stems."""
+        inicio = str(self.proyecto.dir_originales) if self.proyecto else ""
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "Cargar audio (1 archivo) o stems (varios)", inicio, self.FILTRO_AUDIO)
+        if not paths:
+            return
+        if len(paths) == 1:
+            self._cargar_audio_desde_path(paths[0])
+        else:
+            self._cargar_stems_desde_paths(paths)
+
+    def _cargar_stems_desde_paths(self, paths):
+        """Crea un proyecto con nombre derivado, copia los stems y los nivela."""
+        import os
+        import shutil
+        archivos = [Path(p) for p in paths]
+        # nombre del proyecto: prefijo común de los nombres, o carpeta padre
+        prefijo = os.path.commonprefix([a.stem for a in archivos]).strip(" -_·")
+        nombre = prefijo or archivos[0].parent.name or "stems"
+        try:
+            base = self.settings.ruta_proyectos
+            base.mkdir(parents=True, exist_ok=True)
+            destino = base / nombre_seguro(nombre)
+            proyecto = (abrir_proyecto(destino) if destino.is_dir()
+                        else crear_proyecto(base, nombre))
+            self._set_proyecto(proyecto)
+            proyecto.dir_stems.mkdir(parents=True, exist_ok=True)  # on-demand
+            for a in archivos:
+                shutil.copy2(str(a), str(proyecto.dir_stems / a.name))
+        except Exception as e:
+            log.exception("Error cargando stems")
+            QMessageBox.critical(self, "Error", f"No se pudieron cargar los stems:\n{e}")
+            return
+        self._status(f"Proyecto «{self.proyecto.nombre}» — {len(archivos)} stems copiados")
+        self._procesar_stems()  # nivela y avanza a referencias
 
     def _procesar_stems(self):
         """Gain staging + highpass de todos los stems de entrada/stems."""
         if not self.proyecto:
             return
-        if not any(self.proyecto.dir_stems.glob("*")):
+        if not self.proyecto.dir_stems.is_dir() or not any(self.proyecto.dir_stems.glob("*")):
             QMessageBox.information(
                 self, "Sin stems",
-                f"No hay archivos en:\n{self.proyecto.dir_stems}\n\n"
-                "Exporta tus pistas del DAW (WAV 48k/24) a esa carpeta y vuelve a pulsar.")
+                "No hay stems que procesar. Arrastra varios archivos de audio a la "
+                "caja del PASO 1 para cargarlos como stems.")
             return
-        self.btn_stems.setEnabled(False)
+        self._barra_activa(True)
         self._status("Procesando stems…")
         self._stems_worker = StemsWorker(self.proyecto)
         self._stems_worker.progreso.connect(self._status)
@@ -635,6 +699,7 @@ class MainWindow(QMainWindow):
 
     def _stems_ok(self, reporte: dict):
         """Muestra el reporte de gain staging."""
+        self._barra_activa(False)
         self.txt_resultado.append("\n" + reporte_stems_legible(reporte))
         self._status(f"Stems listos: {len(reporte['stems'])} nivelados")
         if reporte["stems"]:
@@ -643,6 +708,7 @@ class MainWindow(QMainWindow):
             self._refrescar_estado()
 
     def _stems_error(self, msg: str):
+        self._barra_activa(False)
         self._refrescar_estado()
         self._status("Procesamiento de stems fallido (ver app.log).")
         QMessageBox.critical(self, "Error", f"No se pudieron procesar los stems:\n{msg}")
@@ -651,6 +717,9 @@ class MainWindow(QMainWindow):
 
     def _elegir_referencia(self):
         """Biblioteca del género o archivos sueltos; varias = promedio."""
+        if not self.proyecto:
+            QMessageBox.information(self, "Referencias", "Carga primero tu audio o stems.")
+            return
         genero = self.settings.genero_activo()
         biblioteca = listar_referencias_genero(genero)
 
@@ -672,7 +741,7 @@ class MainWindow(QMainWindow):
                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
                 if seguir != QMessageBox.Yes:
                     return
-            self.referencia = biblioteca
+            nuevas = list(biblioteca)
         else:
             inicio = str(self.proyecto.dir_referencias) if self.proyecto else ""
             paths, _ = QFileDialog.getOpenFileNames(
@@ -680,14 +749,17 @@ class MainWindow(QMainWindow):
                 inicio, self.FILTRO_AUDIO)
             if not paths:
                 return
-            self.referencia = [Path(p) for p in paths]
+            nuevas = [Path(p) for p in paths]
 
-        self._set_referencias_desde_paths(self.referencia)
+        self._set_referencias_desde_paths(nuevas)
 
     def _set_referencias_desde_paths(self, refs):
-        """Fija las referencias (de diálogo o drag&drop), sugiere etiqueta y analiza."""
-        self.referencia = [Path(p) for p in refs]
-        self._status(f"{len(self.referencia)} referencia(s) elegidas.")
+        """Añade referencias (acumula, sin duplicar), sugiere etiqueta y analiza."""
+        existentes = self.referencia or []
+        rutas = {str(p) for p in existentes}
+        nuevas = [Path(p) for p in refs if str(Path(p)) not in rutas]
+        self.referencia = existentes + nuevas
+        self._status(f"{len(self.referencia)} referencia(s).")
 
         # Detectar etiqueta sugerida si hay mezcla cargada
         if self.wav_activo:
@@ -718,7 +790,7 @@ class MainWindow(QMainWindow):
 
     def _analizar_auto(self):
         """Análisis automático tras elegir referencias (sin diálogos)."""
-        self.btn_analizar.setEnabled(False)
+        self._barra_activa(True)
         self.txt_resultado.setPlainText("Analizando automáticamente contra tus referencias…")
         _, umbrales = self.settings.leer_genero_activo()
         self._worker = AnalisisWorker(
@@ -742,7 +814,7 @@ class MainWindow(QMainWindow):
             self, "Versión", "Etiqueta de versión para este análisis:", text="V01")
         if not ok:
             return
-        self.btn_analizar.setEnabled(False)
+        self._barra_activa(True)
         self.txt_resultado.setPlainText("Analizando…")
         _, umbrales = self.settings.leer_genero_activo()
         self._worker = AnalisisWorker(
@@ -755,6 +827,7 @@ class MainWindow(QMainWindow):
 
     def _analisis_ok(self, diag: dict):
         """Guarda y muestra el diagnóstico."""
+        self._barra_activa(False)
         self.diagnostico = diag
         try:
             path_json, _ = guardar_diagnostico(self.proyecto, diag)
@@ -766,6 +839,7 @@ class MainWindow(QMainWindow):
         self._refrescar_estado()
 
     def _analisis_error(self, msg: str):
+        self._barra_activa(False)
         self.txt_resultado.setPlainText(
             f"Error en el análisis:\n{msg}\n\n(Detalles en logs/app.log)")
         self._refrescar_estado()
@@ -810,6 +884,7 @@ class MainWindow(QMainWindow):
 
         version = self.diagnostico["version"] if self.diagnostico else "V01"
         self.btn_master.setEnabled(False)
+        self._barra_activa(True)
         self._status("Masterizando…")
         self._master_worker = MasterWorker(
             self.wav_activo, self.referencia, target,
@@ -822,6 +897,7 @@ class MainWindow(QMainWindow):
 
     def _master_ok(self, resumen: dict):
         """Muestra el resultado y abre la carpeta de salida."""
+        self._barra_activa(False)
         eq = resumen.get("eq_aplicado_db") or {}
         eq_txt = ("\n  EQ aplicado (dB): " + ", ".join(f"{b} {v:+.1f}" for b, v in eq.items())
                   if eq else "\n  (sin EQ: no había referencia)")
@@ -863,6 +939,7 @@ class MainWindow(QMainWindow):
             log.exception("No se pudo abrir la carpeta de salida")
 
     def _master_error(self, msg: str):
+        self._barra_activa(False)
         self._refrescar_estado()
         self._status("Masterizado fallido (ver app.log).")
         QMessageBox.critical(self, "Error", f"No se pudo masterizar:\n{msg}")

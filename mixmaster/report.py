@@ -10,7 +10,8 @@ log = get_logger("mixmaster.report")
 
 
 def guardar_diagnostico(proyecto: Project, diag: dict) -> tuple[Path, Path]:
-    """Escribe diagnostico_<version>.json y diagnostico_legible.txt en 04_analisis."""
+    """Escribe diagnostico_<version>.json y diagnostico_legible.txt en analisis/."""
+    proyecto.dir_analisis.mkdir(parents=True, exist_ok=True)  # on-demand
     version = diag.get("version", "V01").lower()
     path_json = proyecto.dir_analisis / f"diagnostico_{version}.json"
     path_txt = proyecto.dir_analisis / "diagnostico_legible.txt"

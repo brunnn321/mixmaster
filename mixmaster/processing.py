@@ -743,8 +743,10 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
 
     dir_masters.mkdir(parents=True, exist_ok=True)
     dir_entregables.mkdir(parents=True, exist_ok=True)
-    out_wav = dir_masters / f"master_{version.lower()}_{nombre_base}.wav"
-    out_mp3 = dir_entregables / f"master_{version.lower()}_{nombre_base}.mp3"
+    # el nombre lleva el loudness objetivo (marca lo específico del master, ej. -7)
+    base_nombre = f"master_{version.lower()}_{nombre_base}_{target_lufs:g}LUFS"
+    out_wav = dir_masters / f"{base_nombre}.wav"
+    out_mp3 = dir_entregables / f"{base_nombre}.mp3"
 
     avisar("Exportando WAV 24-bit y MP3…")
     sf.write(str(out_wav), audio, sr, subtype="PCM_24")
