@@ -40,8 +40,22 @@ def reporte_legible(diag: dict) -> str:
         f"  Crest factor:    {g['crest_factor_db']} dB",
         f"  Clipping:        {'SÍ ⚠' if diag.get('clipping_global') else 'no'}",
         "",
-        "— BALANCE ESPECTRAL (dB RMS por banda) —",
+        "— ANÁLISIS EXPANDIDOS (v0.5) —",
     ]
+    lr = diag.get("loudness_range")
+    if lr and isinstance(lr, dict):
+        lineas.append(f"  Loudness range: {lr.get('lr_global', 0):.1f} LU (dinámica: {lr.get('descripcion', '')})")
+    flux = diag.get("spectral_flux")
+    if flux and isinstance(flux, dict):
+        lineas.append(f"  Spectral flux: {flux.get('flux_mean', 0):.3f} (cambio tímbrico: {flux.get('descripcion', '')})")
+    cep = diag.get("cepstral")
+    if cep and isinstance(cep, dict) and cep.get("mfcc_mean"):
+        mfcc_norm = round(sum(abs(x) for x in cep["mfcc_mean"]) / len(cep["mfcc_mean"]), 3)
+        lineas.append(f"  Cepstral (13 MFCC): fingerprint={mfcc_norm} (tímbrico)")
+    hr = diag.get("headroom_budget")
+    if hr and isinstance(hr, dict) and "pico_mezcla_dbfs" in hr:
+        lineas.append(f"  Headroom budget: pico={hr.get('pico_mezcla_dbfs')} vs refs {hr.get('pico_refs_dbfs')}")
+    lineas += ["", "— BALANCE ESPECTRAL (dB RMS por banda) —"]
     for banda, valor in diag["bandas_db"].items():
         lineas.append(f"  {banda:<9} {valor}")
 

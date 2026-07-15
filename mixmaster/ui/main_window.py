@@ -20,6 +20,7 @@ from ..logger import get_logger
 from ..processing import cargar_config_master, masterizar
 from ..profiles import agregar_regla_genero, listar_referencias_genero
 from ..project import Project, abrir_proyecto, crear_proyecto
+from ..references import detectar_etiqueta_sugerida
 from ..report import guardar_diagnostico, reporte_legible
 from ..settings import Settings
 from ..stems import procesar_stems, reporte_stems_legible
@@ -126,6 +127,7 @@ class MainWindow(QMainWindow):
         self.wav_activo: Path | None = None
         self.referencia: list[Path] | None = None
         self.diagnostico: dict | None = None
+        self.etiqueta_sugerida: str = ""  # Etiqueta detectada de referencias
         self._chat: ChatDialog | None = None
         self._worker = None
 
@@ -141,6 +143,23 @@ class MainWindow(QMainWindow):
                 self._set_proyecto(abrir_proyecto(Path(ultimo)))
             except Exception:
                 log.exception("No se pudo reabrir el último proyecto")
+
+    # -------------------------------------------------------- cierre de app
+
+    def closeEvent(self, event):
+        """Notificación Windows al cerrar (v0.5)."""
+        try:
+            from win10toast import ToastNotifier
+            toaster = ToastNotifier()
+            toaster.show_toast(
+                "✓ MixMaster",
+                "Datos guardados",
+                duration=3,
+                threaded=True,
+            )
+        except Exception:
+            log.debug("Notificación Windows no disponible")
+        event.accept()
 
     # ------------------------------------------------------------- menú y UI
 
@@ -489,6 +508,23 @@ class MainWindow(QMainWindow):
             self.referencia = [Path(p) for p in paths]
 
         self._status(f"{len(self.referencia)} referencia(s) elegidas.")
+
+        # Detectar etiqueta sugerida si hay mezcla cargada
+        if self.wav_activo:
+            resultado = detectar_etiqueta_sugerida(self.wav_activo)
+            if resultado.get("exito") and resultado.get("etiqueta_sugerida"):
+                etiqueta = resultado["etiqueta_sugerida"]
+                confianza = int(resultado["confianza"] * 100)
+                if confianza >= 50:
+                    respuesta = QMessageBox.question(
+                        self, "Etiqueta sugerida",
+                        f"Detectamos similitud con «{etiqueta}» ({confianza}%).\n\n"
+                        f"¿Usamos esta etiqueta?",
+                        QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
+                    if respuesta == QMessageBox.Yes:
+                        self.etiqueta_sugerida = etiqueta
+                        self._status(f"Etiqueta: {etiqueta} ({confianza}%)")
+
         if self.wav_activo:
             self._analizar_auto()  # analiza solo y luego salta al master
         else:

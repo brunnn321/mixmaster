@@ -497,8 +497,8 @@ def cepstral_fingerprint(audio: np.ndarray, sr: int) -> dict:
     # Espectro de potencia (Welch)
     f, pxx = signal.welch(mono, sr, nperseg=n_fft, noverlap=n_fft-hop_length)
 
-    # Escala de mel (12 bandas)
-    n_mels = 12
+    # Escala de mel (13 bandas para extraer 13 MFCC)
+    n_mels = 13
     mel_freqs = np.linspace(0, sr/2, n_mels + 2)
 
     # Filtros mel

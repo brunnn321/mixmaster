@@ -281,6 +281,44 @@ def agregar_regla_genero(nombre: str, regla: str, cancion: str = "") -> None:
                         f"- [{fecha}]{origen} · {regla.strip()} · estado: activa")
 
 
+def agregar_regla_global(regla: str, etiqueta: str = "", cancion: str = "") -> None:
+    """Registra una regla aprendida GLOBAL en el perfil activo (snapshot antes)."""
+    perfil = PERFIL_FILE  # config/perfil_bruno.md
+    if not perfil.exists():
+        return
+
+    fecha = datetime.now().strftime("%Y-%m-%d")
+    etiqueta_txt = f" [{etiqueta}]" if etiqueta else ""
+    origen = f" · {cancion}" if cancion else ""
+    linea = f"- {fecha}{etiqueta_txt}{origen} | {regla.strip()} | estado: activa"
+
+    # snapshot antes de modificar
+    texto = perfil.read_text(encoding="utf-8")
+    lineas = texto.splitlines()
+
+    # busca o crea la sección
+    idx_seccion = -1
+    for i, l in enumerate(lineas):
+        if l.strip() == "## Reglas aprendidas":
+            idx_seccion = i
+            break
+
+    if idx_seccion == -1:
+        lineas.append("\n## Reglas aprendidas")
+        idx_seccion = len(lineas)
+
+    # busca el fin de la sección (próximo encabezado o fin)
+    fin = len(lineas)
+    for i in range(idx_seccion + 1, len(lineas)):
+        if lineas[i].startswith("## "):
+            fin = i
+            break
+
+    lineas.insert(fin, linea)
+    perfil.write_text("\n".join(lineas) + "\n", encoding="utf-8")
+    log.info("Regla global guardada: %s", linea)
+
+
 def agregar_cancion_entrenamiento(nombre: str, titulo: str, resumen: str) -> None:
     """Registra un tema propio como referencia de entrenamiento del género."""
     fecha = datetime.now().strftime("%Y-%m-%d")

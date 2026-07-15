@@ -344,6 +344,68 @@ def main() -> int:
         check("sin alerta con umbral default",
               not any("LUFS integrado" in a for a in generar_alertas(diag)))
 
+        # --- v0.5: referencias dinámicas + análisis expandidos ---
+        from mixmaster.references import subir_referencia, listar_referencias_por_etiqueta, detectar_etiqueta_sugerida
+
+        # PASO A: subir referencia
+        resultado_subida = subir_referencia(wav_ref, "prog")
+        check("PASO A — subir referencia", resultado_subida.get("exito")
+              and resultado_subida.get("etiqueta") == "prog"
+              and "referencia.wav" in resultado_subida.get("nombre_archivo", ""))
+
+        # Subir otra con otra etiqueta
+        resultado_subida2 = subir_referencia(mp3_ref, "djent")
+        check("subir segunda referencia con etiqueta distinta",
+              resultado_subida2.get("exito") and resultado_subida2.get("etiqueta") == "djent")
+
+        # PASO B: listar referencias por etiqueta + detectar etiqueta sugerida
+        refs_por_etiqueta = listar_referencias_por_etiqueta()
+        check("PASO B — listar referencias por etiqueta",
+              "prog" in refs_por_etiqueta and "djent" in refs_por_etiqueta
+              and len(refs_por_etiqueta["prog"]) >= 1)
+
+        # Detectar etiqueta sugerida
+        deteccion = detectar_etiqueta_sugerida(wav_mix)
+        check("detectar etiqueta sugerida (tiene refs cargadas)",
+              deteccion.get("exito")
+              and deteccion.get("etiqueta_sugerida") in ["prog", "djent"]
+              and 0.0 <= deteccion.get("confianza", 0.0) <= 1.0)
+
+        # PASO C: cepstral (MFCC 13 coeficientes)
+        from mixmaster.audio_analysis import cepstral_fingerprint
+        fp_cepstral = cepstral_fingerprint(audio_mix, SR)
+        check("PASO C — cepstral (13 MFCC)",
+              "mfcc_mean" in fp_cepstral and len(fp_cepstral["mfcc_mean"]) == 13
+              and "mfcc_std" in fp_cepstral,
+              f"coefs={len(fp_cepstral['mfcc_mean'])}")
+
+        # PASO D: loudness range (LR, dinámica por secciones)
+        lr = diag.get("loudness_range")
+        check("PASO D — loudness range (LR) en diagnóstico",
+              lr is not None and isinstance(lr, dict)
+              and lr.get("lr_global", 0) >= 0,
+              f"lr={lr.get('lr_global') if lr else None}")
+
+        # PASO E: spectral flux (cambio tímbrico)
+        flux = diag.get("spectral_flux")
+        check("PASO E — spectral flux (cambio tímbrico)",
+              flux is not None and isinstance(flux, dict)
+              and flux.get("flux_mean", 0) >= 0,
+              f"flux={flux.get('flux_mean') if flux else None}")
+
+        # PASO F: imaging temporal (ancho estéreo por banda EN SECCIONES)
+        img_temporal = diag.get("imaging_temporal")
+        check("PASO F — imaging temporal (ancho por sección)",
+              img_temporal is not None and isinstance(img_temporal, dict),
+              f"imaging_temporal={type(img_temporal).__name__}")
+
+        # PASO G: headroom budget (picos vs referencias)
+        hr = diag.get("headroom_budget")
+        check("PASO G — headroom budget",
+              hr is not None and isinstance(hr, dict)
+              and "tu_pico_dbfs" in hr,
+              str(hr))
+
         # --- contexto de chat ---
         settings = Settings()
         ctx = construir_contexto(settings, proyecto, diag, "¿Qué priorizo primero?")
