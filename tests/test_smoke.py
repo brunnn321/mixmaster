@@ -236,6 +236,52 @@ def main() -> int:
         check("mono-bass: cantidad 0 no toca la señal",
               bool(np.allclose(_mono_bass(est, SR, 100.0, 0.0), est)))
 
+        # Multibanda (v0.7.2): comprime la banda demasiado dinámica, deja la densa
+        from mixmaster.audio_analysis import crest_por_banda
+        from mixmaster.processing import _multibanda
+        n_mc = 3 * SR
+        t_mc = np.arange(n_mc) / SR
+        # mid (1 kHz): bed estable (domina el RMS) + picos Hann ESCASOS (0.12 s).
+        # Comprimir los picos baja el pico sin mover el RMS → el crest cae claro.
+        L_mc = int(0.12 * SR)
+        hann = 0.5 * (1 - np.cos(2 * np.pi * np.arange(L_mc) / L_mc))
+        bump = np.zeros(n_mc)
+        for c in (int(0.3 * SR), int(0.9 * SR), int(1.5 * SR), int(2.1 * SR), int(2.7 * SR)):
+            bump[c:c + L_mc] += 0.65 * hann
+        mid = (0.35 + bump) * np.sin(2 * np.pi * 1000 * t_mc)  # bed 0.35 + picos ~1.0
+        # low (120 Hz) denso, sin dinámica → NO debe tocarse
+        low = 0.4 * np.sin(2 * np.pi * 120 * t_mc)
+        señal_mc = np.stack([mid + low, mid + low], axis=1)
+        crest_antes = crest_por_banda(señal_mc, SR)
+
+        # 1) el compresor de banda atenúa los picos por encima del umbral
+        from mixmaster.processing import _comprimir_banda
+        banda_din = np.stack([mid, mid], axis=1)
+        rms_b = float(np.sqrt(np.mean(banda_din ** 2)))
+        pico_pre = float(np.max(np.abs(banda_din)))
+        comp_b = _comprimir_banda(banda_din, SR, ratio=3.0,
+                                  umbral_db=20 * np.log10(rms_b) + 3.0,
+                                  attack_ms=10.0, release_ms=80.0)
+        pico_post = float(np.max(np.abs(comp_b)))
+        check("multibanda: el compresor atenúa los picos", pico_post < pico_pre * 0.95,
+              f"pico {pico_pre:.3f}->{pico_post:.3f}")
+
+        # 2) _multibanda apunta a la banda dinámica (mid) y NO a la densa (low)
+        crest_ref = dict(crest_antes)
+        crest_ref["mid"] = crest_antes["mid"] - 8.0  # ref pide mid más denso
+        cfg_mc = {"activo": True, "umbral_crest_db": 2.0, "reduccion_max_db": 4.0,
+                  "ratio_max": 3.0, "attack_ms": 15.0, "release_ms": 120.0, "cantidad": 1.0}
+        _, aplicado = _multibanda(señal_mc, SR, crest_ref, cfg_mc)
+        check("multibanda: apunta a la banda muy dinámica (mid)",
+              "mid" in aplicado, f"aplicado={aplicado}")
+        check("multibanda: NO toca la banda ya densa (low)", "low" not in aplicado)
+
+        # 3) el split reconstruye la señal exactamente
+        from mixmaster.processing import _split_bandas
+        suma = sum(_split_bandas(señal_mc, SR).values())
+        check("multibanda: split suma exacta (reconstrucción)",
+              bool(np.allclose(suma, señal_mc, atol=1e-6)))
+
 
         # --- procesamiento de stems (gain staging + highpass) ---
         cfg = cargar_config_stems()

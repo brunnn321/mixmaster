@@ -687,6 +687,10 @@ class MainWindow(QMainWindow):
         ancho_txt = ("\n  Imagen estéreo (side dB): "
                      + ", ".join(f"{b} {v:+.1f}" for b, v in ancho.items())
                      if ancho else "")
+        mbanda = resumen.get("multibanda_db") or {}
+        mbanda_txt = ("\n  Multibanda (dB reducción): "
+                      + ", ".join(f"{b} -{v:g}" for b, v in mbanda.items())
+                      if mbanda else "")
         den_txt = "\n  Densidad extra: sí (empuje de loudness alto)" \
             if resumen.get("densidad_aplicada") else ""
         mb_hz = resumen.get("mono_bass_hz")
@@ -699,7 +703,7 @@ class MainWindow(QMainWindow):
             f"\n══ MASTER LISTO ({resumen.get('fuente', 'mezcla')}) ══{score_txt}\n"
             f"  LUFS final: {resumen['lufs_final']} (objetivo {resumen['target_lufs']})\n"
             f"  True peak: {resumen['true_peak_final']} dBTP   "
-            f"Crest: {resumen.get('crest_final', '?')} dB{eq_txt}{ancho_txt}{den_txt}{mb_txt}\n"
+            f"Crest: {resumen.get('crest_final', '?')} dB{eq_txt}{ancho_txt}{mbanda_txt}{den_txt}{mb_txt}\n"
             f"  WAV: {resumen['wav']}\n"
             f"  MP3 para subir: {resumen['mp3']}")
         self._refrescar_estado()

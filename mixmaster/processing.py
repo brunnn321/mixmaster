@@ -19,8 +19,9 @@ from scipy import signal
 
 from .app_paths import CONFIG_DIR
 from .audio_analysis import (
-    BANDAS_HZ, analisis_estereo, balance_bandas_db, cargar_audio, crest_factor_db,
-    db, espectro_suavizado, lufs_integrado, perfil_referencias, true_peak_db,
+    BANDAS_HZ, CRUCES_HZ, analisis_estereo, balance_bandas_db, cargar_audio,
+    crest_factor_db, crest_por_banda, db, espectro_suavizado, lufs_integrado,
+    perfil_referencias, true_peak_db,
 )
 from .logger import get_logger
 
@@ -43,6 +44,18 @@ CONFIG_MASTER_DEFAULT = {
         "activo": True,
         "freq_hz": 100.0,
         "cantidad": 1.0,
+    },
+    "multibanda": {
+        # compresión multibanda CONSERVADORA guiada por el crest-por-banda de
+        # la referencia. Solo comprime bandas > umbral_crest_db más dinámicas
+        # que la ref. cantidad 0..1 = intensidad global (0.6 = suave)
+        "activo": True,
+        "umbral_crest_db": 2.0,
+        "reduccion_max_db": 3.0,
+        "ratio_max": 2.5,
+        "attack_ms": 15.0,
+        "release_ms": 120.0,
+        "cantidad": 0.6,
     },
     "clipper": {
         # recorta solo los picos (transitorios de batería) antes del limitador:
@@ -277,6 +290,95 @@ def _mono_bass(audio: np.ndarray, sr: int, freq_hz: float, cantidad: float = 1.0
     return high + low_mix
 
 
+# --------------------------------------------- multibanda (v0.7 · Tier 2)
+
+def _split_bandas(audio: np.ndarray, sr: int) -> dict[str, np.ndarray]:
+    """Divide el audio ESTÉREO en las 7 bandas (suma exacta, fase cero).
+
+    Mismos cruces que `split_bandas_mono` del análisis → coherencia total entre
+    la medición de crest y el procesado.
+    """
+    nombres = list(BANDAS_HZ.keys())
+    bandas, resto = {}, audio
+    for i, fc in enumerate(CRUCES_HZ):
+        sos = signal.butter(4, min(fc, sr / 2 * 0.99), "low", fs=sr, output="sos")
+        low = signal.sosfiltfilt(sos, resto, axis=0)
+        bandas[nombres[i]] = low
+        resto = resto - low
+    bandas[nombres[-1]] = resto  # "air" = lo que queda por encima del último cruce
+    return bandas
+
+
+def _comprimir_banda(banda: np.ndarray, sr: int, ratio: float, umbral_db: float,
+                     attack_ms: float, release_ms: float) -> np.ndarray:
+    """Compresor de detección RMS suave para una banda estéreo (v0.7 · Tier 2).
+
+    Detector RMS con envolvente one-pole (program-dependent, estilo mastering):
+    controla la densidad MACRO y PRESERVA los transientes rápidos (no los caza),
+    que es justo lo deseable en un máster. Ganancia enlazada L/R (no rompe imagen).
+    """
+    mono = np.max(np.abs(banda), axis=1)               # detector enlazado L/R
+    tau = max((attack_ms + release_ms) / 2 / 1000 * sr, 1.0)
+    alpha = float(np.exp(-1.0 / tau))
+    # detector RMS de FASE CERO (filtfilt): en mastering offline equivale a
+    # look-ahead perfecto → la envolvente se alinea con la señal y sí atenúa el
+    # pico (un detector causal se desfasaría y no lo cazaría)
+    power = signal.filtfilt([1 - alpha], [1.0, -alpha], mono ** 2)
+    env_db = 10.0 * np.log10(np.maximum(power, 1e-12))  # 10·log10 de potencia = dB
+
+    exceso = np.maximum(env_db - umbral_db, 0.0)        # dB sobre umbral
+    gan_db = -exceso * (1.0 - 1.0 / ratio)              # reducción estática
+    gan = 10 ** (gan_db / 20.0)
+    return banda * gan[:, np.newaxis]
+
+
+def _multibanda(audio: np.ndarray, sr: int, crest_ref: dict, cfg_mb: dict
+                ) -> tuple[np.ndarray, dict]:
+    """Compresión multibanda guiada por el crest-por-banda de la referencia.
+
+    Solo comprime las bandas NOTABLEMENTE más dinámicas que la referencia
+    (excess > umbral). Reducción acotada, ratio suave, makeup para conservar
+    el RMS de la banda. Devuelve (audio, reduccion_db_por_banda).
+    """
+    umbral = float(cfg_mb.get("umbral_crest_db", 2.0))
+    red_max = float(cfg_mb.get("reduccion_max_db", 3.0))
+    ratio_max = float(cfg_mb.get("ratio_max", 2.5))
+    attack = float(cfg_mb.get("attack_ms", 15.0))
+    release = float(cfg_mb.get("release_ms", 120.0))
+    cantidad = float(cfg_mb.get("cantidad", 0.6))
+
+    bandas = _split_bandas(audio, sr)
+    aplicado = {}
+    salida = np.zeros_like(audio)
+    for nombre, banda in bandas.items():
+        pico = float(np.max(np.abs(banda)))
+        rms = float(np.sqrt(np.mean(banda ** 2)))
+        if pico <= 0 or rms <= 0:
+            salida += banda
+            continue
+        crest_banda = db(pico) - db(rms)
+        exceso = crest_banda - float(crest_ref.get(nombre, crest_banda))
+        objetivo = min(max((exceso - umbral) * cantidad, 0.0), red_max)
+        if objetivo < 0.1:
+            salida += banda           # esta banda ya es tan densa como la ref
+            continue
+        # umbral y ratio para lograr ~objetivo dB de reducción en los picos
+        umbral_db = db(rms) + 3.0
+        headroom = db(pico) - umbral_db
+        if headroom <= 0.5:
+            salida += banda
+            continue
+        ratio = min(1.0 / max(1.0 - objetivo / headroom, 1e-3), ratio_max)
+        comp = _comprimir_banda(banda, sr, ratio, umbral_db, attack, release)
+        # makeup: conservar el RMS de la banda (no perder nivel)
+        rms_post = float(np.sqrt(np.mean(comp ** 2)))
+        if rms_post > 0:
+            comp *= rms / rms_post
+        salida += comp
+        aplicado[nombre] = round(objetivo, 1)
+    return salida, aplicado
+
+
 def _limitador(audio: np.ndarray, sr: int, cfg_lim: dict) -> np.ndarray:
     """Limitador con lookahead sobre envolvente de TRUE peak (inter-sample)."""
     ceiling_db = float(cfg_lim.get("ceiling_dbtp", -1.0))
@@ -384,6 +486,18 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
                 audio, sr, ancho_mix, perfil["ancho_por_banda"],
                 float(cfg_eq.get("max_ajuste_ancho_db", 2.0)))
 
+    # Compresión multibanda (v0.7 · Tier 2): iguala la dinámica POR BANDA a la
+    # referencia. CONSERVADORA: solo actúa donde la mezcla es más dinámica que
+    # la ref (excess > umbral), con ratio suave y makeup. Requiere referencia.
+    multibanda_db = {}
+    cfg_multi = cfg.get("multibanda", {})
+    if perfil is not None and cfg_multi.get("activo", True):
+        avisar("Compresión multibanda guiada por la referencia…")
+        audio, multibanda_db = _multibanda(
+            audio, sr, perfil.get("crest_por_banda", {}), cfg_multi)
+        if multibanda_db:
+            avisar(f"Multibanda (dB de reducción por banda): {multibanda_db}")
+
     # Mono-bass (v0.7): colapsa el grave a mono → punch + compatibilidad.
     # Se aplica SIEMPRE (con o sin referencia), tras el EQ/imagen.
     cfg_mb = cfg.get("mono_bass", {})
@@ -462,6 +576,7 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         "target_lufs": target_lufs,
         "eq_aplicado_db": correccion,
         "ajuste_ancho_db": ajuste_ancho,
+        "multibanda_db": multibanda_db,
         "densidad_aplicada": densidad_aplicada,
         "mono_bass_hz": mono_bass_hz,
         "fuente": "stems" if carpeta_stems else "mezcla",

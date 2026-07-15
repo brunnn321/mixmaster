@@ -11,6 +11,15 @@
     "freq_hz": 100.0,
     "cantidad": 1.0
   },
+  "multibanda": {
+    "activo": true,
+    "umbral_crest_db": 2.0,
+    "reduccion_max_db": 3.0,
+    "ratio_max": 2.5,
+    "attack_ms": 15.0,
+    "release_ms": 120.0,
+    "cantidad": 0.6
+  },
   "densidad": {
     "activo": true,
     "umbral_reduccion_db": 3.0,

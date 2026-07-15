@@ -222,6 +222,41 @@ def balance_bandas_db(audio: np.ndarray, sr: int) -> dict[str, float]:
     return resultado
 
 
+# Frecuencias de cruce entre las 7 bandas de BANDAS_HZ. El árbol complementario
+# (low = LP fase cero; resto = x − low) reconstruye la señal EXACTAMENTE, y se
+# usa igual en el análisis (crest_por_banda) y en el proceso (compresión
+# multibanda) para que la comparación mezcla↔referencia sea coherente.
+CRUCES_HZ = [60.0, 200.0, 500.0, 2000.0, 6000.0, 10000.0]
+
+
+def split_bandas_mono(mono: np.ndarray, sr: int) -> dict[str, np.ndarray]:
+    """Divide una señal mono en las 7 bandas (suma exacta, fase cero)."""
+    nombres = list(BANDAS_HZ.keys())
+    bandas, resto = {}, mono
+    for i, fc in enumerate(CRUCES_HZ):
+        sos = signal.butter(4, min(fc, sr / 2 * 0.99), "low", fs=sr, output="sos")
+        low = signal.sosfiltfilt(sos, resto)
+        bandas[nombres[i]] = low
+        resto = resto - low
+    bandas[nombres[-1]] = resto
+    return bandas
+
+
+def crest_por_banda(audio: np.ndarray, sr: int) -> dict[str, float]:
+    """Crest factor (pico dB − RMS dB) POR banda espectral (v0.7 · Tier 2).
+
+    Alto = banda dinámica/con transientes; bajo = banda densa/comprimida.
+    Usa el MISMO split complementario que la compresión multibanda, para que
+    la comparación mezcla↔referencia sea coherente.
+    """
+    resultado = {}
+    for nombre, banda in split_bandas_mono(audio.mean(axis=1), sr).items():
+        pico = float(np.max(np.abs(banda)))
+        rms = float(np.sqrt(np.mean(banda ** 2)))
+        resultado[nombre] = round(db(pico) - db(rms), 1) if (pico > 0 and rms > 0) else 0.0
+    return resultado
+
+
 def analisis_estereo(audio: np.ndarray, sr: int) -> dict:
     """Correlación L/R global, ancho por banda y compatibilidad mono."""
     if audio.shape[1] < 2:
@@ -343,7 +378,7 @@ def perfil_referencias(paths_ref, lufs_mix: float) -> dict:
     paths_ref = [Path(p) for p in paths_ref]
 
     bandas_acum, anchos_acum, lufs_refs, nombres = [], [], [], []
-    espectros, crests = [], []
+    espectros, crests, crests_banda_acum = [], [], []
     freqs = None
     for p in paths_ref:
         audio_ref, sr_ref = cargar_audio(p)
@@ -352,6 +387,7 @@ def perfil_referencias(paths_ref, lufs_mix: float) -> dict:
             audio_ref = audio_ref * (10 ** ((lufs_mix - lufs_ref) / 20))
         bandas_acum.append(balance_bandas_db(audio_ref, sr_ref))
         anchos_acum.append(analisis_estereo(audio_ref, sr_ref)["ancho_por_banda"])
+        crests_banda_acum.append(crest_por_banda(audio_ref, sr_ref))
         freqs, esp = espectro_suavizado(audio_ref, sr_ref)
         espectros.append(esp)
         crests.append(crest_factor_db(audio_ref))
@@ -363,10 +399,13 @@ def perfil_referencias(paths_ref, lufs_mix: float) -> dict:
                    for b in BANDAS_HZ}
     ancho_prom = {b: round(float(np.mean([aa[b] for aa in anchos_acum])), 2)
                   for b in BANDAS_HZ}
+    crest_banda_prom = {b: round(float(np.mean([cc[b] for cc in crests_banda_acum])), 1)
+                        for b in BANDAS_HZ}
     return {
         "nombres": nombres,
         "bandas_db": bandas_prom,
         "ancho_por_banda": ancho_prom,
+        "crest_por_banda": crest_banda_prom,
         "espectro_freqs": freqs,
         "espectro_db": np.mean(espectros, axis=0),
         "crest_db": round(float(np.mean(crests)), 1),
