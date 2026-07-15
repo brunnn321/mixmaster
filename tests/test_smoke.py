@@ -327,6 +327,29 @@ def main() -> int:
         check("transient shaping: cantidad 0 no toca nada",
               bool(np.allclose(_transient_shape(sig_t, SR, 0.0), sig_t)))
 
+        # Dinámica macro (v0.8.1): acerca el contorno de secciones al de ref
+        from mixmaster.processing import _preservar_dinamica_macro
+        n_d = 6 * SR
+        t_d = np.arange(n_d) / SR
+        tono_d = np.sin(2 * np.pi * 500 * t_d)
+        # ref: MUY dinámica (verso 0.2 / estribillo 1.0 alternando cada 1.5 s)
+        env_ref = np.where((t_d % 3.0) < 1.5, 0.2, 1.0)
+        ref_d = np.stack([env_ref * tono_d, env_ref * tono_d], axis=1)
+        # actual: aplanada (casi constante) → debe recuperar contraste
+        plano = np.stack([0.6 * tono_d, 0.6 * tono_d], axis=1)
+        out_d = _preservar_dinamica_macro(plano, ref_d, SR, cantidad=1.0, max_db=6.0)
+        from scipy.ndimage import uniform_filter1d
+        def rms1s(x):
+            return np.sqrt(uniform_filter1d(x[:, 0] ** 2, SR) + 1e-12)
+        # contraste = std del contorno; debe crecer hacia el de la ref
+        contraste_antes = float(np.std(rms1s(plano)))
+        contraste_despues = float(np.std(rms1s(out_d)))
+        check("dinámica macro: recupera contraste entre secciones",
+              contraste_despues > contraste_antes + 0.01,
+              f"contraste {contraste_antes:.3f}->{contraste_despues:.3f}")
+        check("dinámica macro: cantidad 0 no toca nada",
+              bool(np.allclose(_preservar_dinamica_macro(plano, ref_d, SR, 0.0), plano)))
+
 
         # --- procesamiento de stems (gain staging + highpass) ---
         cfg = cargar_config_stems()

@@ -74,6 +74,14 @@ CONFIG_MASTER_DEFAULT = {
         "fast_ms": 5.0,
         "slow_ms": 80.0,
     },
+    "dinamica_secciones": {
+        # OPT-IN (default off): recupera el contorno dinámico macro (verso vs
+        # estribillo) que el limitado aplana. cantidad 0..1, acotado a max_db
+        "activo": False,
+        "cantidad": 0.5,
+        "ventana_s": 1.0,
+        "max_db": 2.0,
+    },
     "clipper": {
         # recorta solo los picos (transitorios de batería) antes del limitador:
         # así el limitador trabaja poco y el master no suena "a tope"
@@ -309,6 +317,33 @@ def _transient_shape(audio: np.ndarray, sr: int, cantidad: float,
     ratio = np.clip((env_fast - env_slow) / (env_slow + 1e-6), 0.0, 1.0)
     ganancia = 1.0 + cantidad * ratio           # máx 1 + cantidad
     return audio * ganancia[:, np.newaxis]
+
+
+def _preservar_dinamica_macro(audio: np.ndarray, contorno_ref: np.ndarray, sr: int,
+                              cantidad: float, win_s: float = 1.0,
+                              max_db: float = 2.0) -> np.ndarray:
+    """Recupera el contorno dinámico macro (secciones) — v0.8 · Tier 3.
+
+    Compara la envolvente de largo plazo (~win_s) del audio actual contra la de
+    `contorno_ref` (la señal ANTES de densidad/limitado, más dinámica) y acerca
+    la actual a ese contorno, de forma acotada (±max_db). Recupera el «verso más
+    bajo que el estribillo» que el limitado tiende a aplanar. Ganancia lenta.
+    """
+    if cantidad <= 0:
+        return audio
+    from scipy.ndimage import uniform_filter1d
+    win = max(int(win_s * sr), 1)
+
+    def contorno(x):
+        m = x.mean(axis=1)
+        env = np.sqrt(uniform_filter1d(m * m, win) + 1e-12)
+        return env / (env.mean() + 1e-12)   # solo forma, no nivel
+
+    e_cur = contorno(audio)
+    e_ref = contorno(contorno_ref)
+    gan_db = np.clip(cantidad * 20.0 * np.log10(e_ref / (e_cur + 1e-12)),
+                     -max_db, max_db)
+    return audio * (10 ** (gan_db / 20.0))[:, np.newaxis]
 
 
 def _mono_bass(audio: np.ndarray, sr: int, freq_hz: float, cantidad: float = 1.0) -> np.ndarray:
@@ -612,6 +647,11 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
                 audio, sr, transient_cant,
                 float(cfg_tr.get("fast_ms", 5.0)), float(cfg_tr.get("slow_ms", 80.0)))
 
+    # Contorno dinámico ANTES de densidad/limitado (para preservar macro-dinámica)
+    cfg_din = cfg.get("dinamica_secciones", {})
+    dinamica_cant = float(cfg_din.get("cantidad", 0.0)) if cfg_din.get("activo", False) else 0.0
+    contorno_pre = audio.copy() if dinamica_cant > 0 else None
+
     # ¿Cuánto habrá que empujar? Si es mucho, densidad previa (soft-clip suave).
     # Drive PROPORCIONAL: empuje moderado → densidad casi transparente; solo los
     # empujes extremos usan el drive máximo. Antes era binario (siempre 1.5).
@@ -650,6 +690,17 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         avisar(f"Limitando picos (techo {cfg_lim['ceiling_dbtp']:g} dBTP, pasada {intento + 1})…")
         audio = _limitador(audio, sr, cfg_lim)
 
+    # Preservación de dinámica macro (v0.8, opt-in): recupera el contorno de
+    # secciones y re-limita por seguridad (el nudge puede subir picos).
+    dinamica_aplicada = False
+    if contorno_pre is not None:
+        avisar("Preservando dinámica macro (contorno de secciones)…")
+        audio = _preservar_dinamica_macro(
+            audio, contorno_pre, sr, dinamica_cant,
+            float(cfg_din.get("ventana_s", 1.0)), float(cfg_din.get("max_db", 2.0)))
+        audio = _limitador(audio, sr, cfg_lim)   # seguridad
+        dinamica_aplicada = True
+
     lufs_final = lufs_integrado(audio, sr)
     tp_final = true_peak_db(audio, sr)
     crest_final = crest_factor_db(audio)
@@ -683,6 +734,7 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         "multibanda_db": multibanda_db,
         "resonancias_db": resonancias_db,
         "transient_shaping": round(transient_cant, 2) if transient_cant else None,
+        "dinamica_macro": dinamica_aplicada,
         "densidad_aplicada": densidad_aplicada,
         "mono_bass_hz": mono_bass_hz,
         "fuente": "stems" if carpeta_stems else "mezcla",

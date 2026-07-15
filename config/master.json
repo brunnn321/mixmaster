@@ -33,6 +33,12 @@
     "fast_ms": 5.0,
     "slow_ms": 80.0
   },
+  "dinamica_secciones": {
+    "activo": false,
+    "cantidad": 0.5,
+    "ventana_s": 1.0,
+    "max_db": 2.0
+  },
   "densidad": {
     "activo": true,
     "umbral_reduccion_db": 3.0,
