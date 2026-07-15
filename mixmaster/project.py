@@ -104,6 +104,14 @@ class Project:
         )
         return candidatos[0] if candidatos else None
 
+    def listar_masters(self) -> list[Path]:
+        """Masters WAV generados (salida/), del más nuevo al más viejo."""
+        d = self.dir_masters
+        if not d.is_dir():
+            return []
+        return sorted(d.glob("master_*.wav"),
+                      key=lambda p: p.stat().st_mtime, reverse=True)
+
 
 def crear_proyecto(base: Path, nombre: str) -> Project:
     """Crea proyecto con solo las carpetas esenciales; otras se crean on-demand."""

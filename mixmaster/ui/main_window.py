@@ -26,6 +26,7 @@ from ..report import guardar_diagnostico, reporte_legible
 from ..settings import Settings
 from ..stems import procesar_stems, reporte_stems_legible
 from .chat_dialog import ChatDialog
+from .historial_dialog import HistorialDialog
 from .settings_dialog import SettingsDialog
 
 log = get_logger("mixmaster.ui")
@@ -197,6 +198,13 @@ class MainWindow(QMainWindow):
         acc_settings = QAction("Configuración…", self)
         acc_settings.triggered.connect(self._abrir_settings)
         m_settings.addAction(acc_settings)
+
+        m_hist = self.menuBar().addMenu("📋 &Historial")
+        acc_decisiones = QAction("Decisiones (ver / editar / borrar)…", self)
+        acc_decisiones.triggered.connect(self._abrir_historial)
+        acc_masters = QAction("Masters anteriores…", self)
+        acc_masters.triggered.connect(self._abrir_masters)
+        m_hist.addActions([acc_decisiones, acc_masters])
 
         m_chat = self.menuBar().addMenu("💬 &Chat")
         acc_chat = QAction("Abrir chat con Claude…", self)
@@ -441,6 +449,38 @@ class MainWindow(QMainWindow):
         if dlg.exec():
             self._refrescar_estado()
             self._status("Settings guardados.")
+
+    def _abrir_historial(self):
+        """Abre el historial de decisiones (ver / editar feedback / borrar)."""
+        if not self.proyecto:
+            QMessageBox.information(self, "Historial", "Abre o crea un proyecto primero.")
+            return
+        HistorialDialog(self.proyecto, self).exec()
+
+    def _abrir_masters(self):
+        """Lista los masters anteriores; abre el elegido o su carpeta."""
+        if not self.proyecto:
+            QMessageBox.information(self, "Masters", "Abre o crea un proyecto primero.")
+            return
+        masters = self.proyecto.listar_masters()
+        if not masters:
+            QMessageBox.information(
+                self, "Masters",
+                "Todavía no hay masters en este proyecto.\nGenera uno en el PASO 3.")
+            return
+        nombres = [m.name for m in masters]
+        elegido, ok = QInputDialog.getItem(
+            self, "Masters anteriores",
+            f"{len(masters)} master(s) — el más nuevo arriba. Se abrirá el elegido:",
+            nombres, 0, False)
+        if not ok:
+            return
+        try:
+            import os
+            os.startfile(str(masters[nombres.index(elegido)]))  # noqa: S606
+        except Exception:
+            log.exception("No se pudo abrir el master")
+            QMessageBox.critical(self, "Error", "No se pudo abrir el master (ver app.log).")
 
     def _abrir_chat(self):
         """Abre (o trae al frente) el diálogo de chat."""

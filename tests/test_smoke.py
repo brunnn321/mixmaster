@@ -507,6 +507,46 @@ def main() -> int:
         check("decisión registrada", "Bajar 2 dB el low-mid" in contenido
               and "Feedback: aprobado" in contenido)
 
+        # --- v0.9: CRUD de decisiones (historial) ---
+        # V01 (índice 0) se conserva intacta: el test de contexto la necesita.
+        from mixmaster.decisions import listar_decisiones, borrar_decision, editar_feedback
+        guardar_decision(proyecto, "V02", "mezcla.wav", "Subir aire 1 dB", "ajustado",
+                         etiqueta="prog", referencias=["ref_a.wav"])
+        guardar_decision(proyecto, "V03", "mezcla.wav", "Decisión temporal", "rechazado")
+        lista = listar_decisiones(proyecto)
+        check("historial: lista todas las decisiones", len(lista) == 3)
+        check("historial: parsea campos (etiqueta, refs)",
+              lista[1]["decision"] == "Subir aire 1 dB"
+              and lista[1]["etiqueta"] == "prog"
+              and lista[1]["feedback"] == "ajustado"
+              and "ref_a.wav" in lista[1]["referencias"])
+        # editar feedback de la #1 (V02)
+        check("historial: editar feedback", editar_feedback(proyecto, 1, "aprobado")
+              and listar_decisiones(proyecto)[1]["feedback"] == "aprobado")
+        check("historial: feedback inválido se rechaza",
+              editar_feedback(proyecto, 1, "quizas") is False)
+        # borrar la #2 (V03 temporal); V01 y V02 quedan
+        check("historial: borrar decisión", borrar_decision(proyecto, 2))
+        lista2 = listar_decisiones(proyecto)
+        check("historial: tras borrar quedan 2 y la V01 intacta",
+              len(lista2) == 2 and lista2[0]["decision"] == "Bajar 2 dB el low-mid"
+              and all(d["decision"] != "Decisión temporal" for d in lista2))
+        check("historial: índice fuera de rango no borra",
+              borrar_decision(proyecto, 9) is False)
+        # limpieza: deja solo la V01 original (el test de contexto la usa)
+        borrar_decision(proyecto, 1)
+        check("historial: restaurado a la V01 original",
+              [d["decision"] for d in listar_decisiones(proyecto)] == ["Bajar 2 dB el low-mid"])
+
+        # --- v0.9: listar masters (revert) ---
+        proyecto.dir_masters.mkdir(parents=True, exist_ok=True)
+        for v in ("v01", "v02"):
+            sf.write(str(proyecto.dir_masters / f"master_{v}_mezcla.wav"),
+                     np.zeros((SR, 2)), SR)
+        masters = proyecto.listar_masters()
+        check("masters: lista los WAV generados", len(masters) == 2
+              and all(m.name.startswith("master_") and m.suffix == ".wav" for m in masters))
+
         # --- perfiles híbridos (usuario + género) ---
         asegurar_perfiles_default()
         generos = listar_generos()
