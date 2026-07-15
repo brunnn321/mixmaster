@@ -78,9 +78,10 @@ def main() -> int:
 
         # --- proyecto ---
         proyecto = crear_proyecto(tmp, "Cancion De Prueba v01")
-        check("estructura de carpetas (layout simple)",
+        check("estructura de carpetas (layout simple, on-demand)",
               all((proyecto.root / d).is_dir() for d in
-                  ["entrada", "entrada/stems", "salida", "analisis"]))
+                  ["entrada", "entrada/stems", "analisis"])
+              and not (proyecto.root / "salida").is_dir())  # salida/ on-demand
         check("decisiones-y-feedback.md creado", proyecto.decisiones_path.exists())
         # compatibilidad con proyectos viejos (carpetas numeradas)
         viejo_root = tmp / "proyecto_viejo"

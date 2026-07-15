@@ -106,29 +106,38 @@ class Project:
 
 
 def crear_proyecto(base: Path, nombre: str) -> Project:
-    """Crea la estructura de carpetas (layout nuevo) de un proyecto."""
+    """Crea proyecto con solo las carpetas esenciales; otras se crean on-demand."""
     root = Path(base) / nombre_seguro(nombre)
     root.mkdir(parents=True, exist_ok=True)
-    for sub in SUBCARPETAS:
-        (root / sub).mkdir(parents=True, exist_ok=True)
 
+    # Solo crear carpetas esenciales: entrada/ (siempre) y analisis/ (necesaria para es_valido)
+    (root / "entrada").mkdir(parents=True, exist_ok=True)
+    (root / "entrada/stems").mkdir(parents=True, exist_ok=True)
+    (root / "analisis").mkdir(parents=True, exist_ok=True)
+
+    # decisiones-y-feedback.md siempre
     decisiones = root / DECISIONES_MD
     if not decisiones.exists():
         decisiones.write_text(CABECERA_DECISIONES.format(nombre=nombre), encoding="utf-8")
 
-    log.info("Proyecto creado: %s", root)
+    # salida/ se crea on-demand en masterizar() o procesar_stems()
+    log.info("Proyecto creado: %s (carpetas on-demand: salida/)", root)
     return Project(root)
 
 
 def abrir_proyecto(root: Path) -> Project:
-    """Abre un proyecto existente; completa carpetas faltantes de su layout."""
+    """Abre un proyecto existente. Carpetas on-demand se crean al usarlas."""
     proyecto = Project(root)
     if not proyecto.root.is_dir():
         raise FileNotFoundError(f"No existe la carpeta de proyecto: {root}")
     if proyecto.es_layout_viejo:
         log.info("Proyecto con layout v0.1 (carpetas numeradas): %s", root)
     else:
-        for sub in SUBCARPETAS:
-            (proyecto.root / sub).mkdir(parents=True, exist_ok=True)
+        # Solo asegurar que existan entrada/ y analisis/ (esenciales)
+        (proyecto.root / "entrada").mkdir(parents=True, exist_ok=True)
+        (proyecto.root / "analisis").mkdir(parents=True, exist_ok=True)
+        # entrada/stems/ también esencial (para procesar_stems)
+        (proyecto.root / "entrada/stems").mkdir(parents=True, exist_ok=True)
+        # salida/ se crea on-demand en masterizar() o procesar_stems()
     log.info("Proyecto abierto: %s", root)
     return proyecto
