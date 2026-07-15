@@ -181,9 +181,11 @@ class MainWindow(QMainWindow):
     def _crear_menu(self):
         """Barra de menú: Archivo, Proyecto, Settings, Chat."""
         m_archivo = self.menuBar().addMenu("&Archivo")
+        acc_log = QAction("Abrir registro (app.log)…", self)
+        acc_log.triggered.connect(self._abrir_log)
         acc_salir = QAction("Salir", self)
         acc_salir.triggered.connect(self.close)
-        m_archivo.addAction(acc_salir)
+        m_archivo.addActions([acc_log, acc_salir])
 
         m_proyecto = self.menuBar().addMenu("&Proyecto")
         acc_nuevo = QAction("Nuevo proyecto…", self)
@@ -449,6 +451,19 @@ class MainWindow(QMainWindow):
         if dlg.exec():
             self._refrescar_estado()
             self._status("Settings guardados.")
+
+    def _abrir_log(self):
+        """Abre el archivo de log en el visor por defecto (para soporte)."""
+        from ..app_paths import LOG_FILE
+        if not LOG_FILE.exists():
+            QMessageBox.information(self, "Registro", "Aún no hay registro (app.log).")
+            return
+        try:
+            import os
+            os.startfile(str(LOG_FILE))  # noqa: S606 — abrir log local
+        except Exception:
+            log.exception("No se pudo abrir el log")
+            QMessageBox.information(self, "Registro", f"El log está en:\n{LOG_FILE}")
 
     def _abrir_historial(self):
         """Abre el historial de decisiones (ver / editar feedback / borrar)."""
