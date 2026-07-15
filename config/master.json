@@ -9,7 +9,12 @@
   "densidad": {
     "activo": true,
     "umbral_reduccion_db": 3.0,
-    "drive": 1.5
+    "drive": 1.5,
+    "rango_proporcional_db": 6.0
+  },
+  "clipper": {
+    "activo": true,
+    "umbral_dbfs": -0.5
   },
   "limitador": {
     "ceiling_dbtp": -1.0,

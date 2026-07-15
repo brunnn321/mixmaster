@@ -356,17 +356,23 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
                 audio, sr, ancho_mix, perfil["ancho_por_banda"],
                 float(cfg_eq.get("max_ajuste_ancho_db", 2.0)))
 
-    # ¿Cuánto habrá que empujar? Si es mucho, densidad previa (soft-clip suave)
+    # ¿Cuánto habrá que empujar? Si es mucho, densidad previa (soft-clip suave).
+    # Drive PROPORCIONAL: empuje moderado → densidad casi transparente; solo los
+    # empujes extremos usan el drive máximo. Antes era binario (siempre 1.5).
     densidad_aplicada = False
     lufs_actual = lufs_integrado(audio, sr)
     if np.isfinite(lufs_actual):
         empuje = target_lufs - lufs_actual
         tp_actual = true_peak_db(audio, sr)
         reduccion_estimada = max(0.0, (tp_actual + empuje) - cfg_lim["ceiling_dbtp"])
-        if (cfg_den.get("activo", True)
-                and reduccion_estimada > float(cfg_den.get("umbral_reduccion_db", 3.0))):
-            avisar("Añadiendo densidad (saturación suave) para el empuje de loudness…")
-            audio = _soft_clip(audio, float(cfg_den.get("drive", 1.5)))
+        umbral_den = float(cfg_den.get("umbral_reduccion_db", 3.0))
+        if cfg_den.get("activo", True) and reduccion_estimada > umbral_den:
+            drive_max = float(cfg_den.get("drive", 1.5))
+            rango = float(cfg_den.get("rango_proporcional_db", 6.0))
+            frac = min(1.0, (reduccion_estimada - umbral_den) / rango)
+            drive = 1.1 + (drive_max - 1.1) * frac  # 1.1 (suave) → drive_max (extremo)
+            avisar(f"Añadiendo densidad (drive {drive:.2f}, empuje {reduccion_estimada:.1f} dB)…")
+            audio = _soft_clip(audio, drive)
             densidad_aplicada = True
             lufs_actual = lufs_integrado(audio, sr)
 
