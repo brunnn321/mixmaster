@@ -287,18 +287,30 @@ def main() -> int:
             p.unlink()
 
         # --- perfil acumulativo: reglas versionadas y revertir ---
-        md_antes, _ = leer_genero("math_rock")
-        agregar_regla_genero("math_rock", "correlación baja en mid OK si pérdida mono < 1.5 dB",
-                             "wav mix.wav")
-        md_con_regla, _ = leer_genero("math_rock")
-        check("regla añadida al género", "pérdida mono < 1.5 dB" in md_con_regla)
-        versiones = listar_versiones_genero("math_rock")
-        check("snapshot creado al añadir regla", len(versiones) >= 1)
-        revertir_genero("math_rock", versiones[-1])  # la más vieja = estado original
-        md_revertido, _ = leer_genero("math_rock")
-        check("revertir restaura el estado previo",
-              "pérdida mono < 1.5 dB" not in md_revertido
-              and md_revertido == md_antes)
+        # Género desechable _test_genero: no toca math_rock real y se limpia entero.
+        from mixmaster.app_paths import GENEROS_DIR
+        from mixmaster.profiles import VERSIONES_DIR
+        GEN_T = "_test_genero"
+        (GENEROS_DIR / f"{GEN_T}.md").write_text(
+            "# Género de prueba\n\n## Reglas aprendidas del género\n", encoding="utf-8")
+        try:
+            md_antes, _ = leer_genero(GEN_T)
+            agregar_regla_genero(GEN_T, "correlación baja en mid OK si pérdida mono < 1.5 dB",
+                                 "wav mix.wav")
+            md_con_regla, _ = leer_genero(GEN_T)
+            check("regla añadida al género", "pérdida mono < 1.5 dB" in md_con_regla)
+            versiones = listar_versiones_genero(GEN_T)
+            check("snapshot creado al añadir regla", len(versiones) >= 1)
+            revertir_genero(GEN_T, versiones[-1])  # la más vieja = estado original (limpio)
+            md_revertido, _ = leer_genero(GEN_T)
+            check("revertir restaura el estado previo",
+                  "pérdida mono < 1.5 dB" not in md_revertido
+                  and md_revertido == md_antes)
+        finally:
+            # limpieza total: md del género + todos sus snapshots
+            (GENEROS_DIR / f"{GEN_T}.md").unlink(missing_ok=True)
+            for snap in VERSIONES_DIR.glob(f"{GEN_T}_v*.md"):
+                snap.unlink()
 
         # --- clipping real detectado ---
         wav_clip = proyecto.dir_originales / "clipeado.wav"
