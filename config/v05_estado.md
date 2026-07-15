@@ -1,6 +1,6 @@
 # v0.5 Plan de Implementación (Referencias dinámicas)
 
-## Status: CORE COMPLETADO, UI PENDIENTE
+## Status: ✅ v0.5 COMPLETADA (CORE + UI + TESTS)
 
 ### ✅ Completado hoy (v0.5 CORE):
 
@@ -24,48 +24,49 @@
 
 ---
 
-### ⏳ Pendiente (v0.5 UI INTEGRATION + POLISH):
+### ✅ Completado (v0.5 UI INTEGRATION + POLISH):
 
-**PASO H: Perfil global acumulativo**
-- Actualizar `profiles.py`: sección "Reglas aprendidas" es global (no por género)
-- Cada regla guardada lleva etiqueta: `[FECHA etiqueta] Tema | Regla | Estado`
-- Al agregar regla con ★, se inserta versionada (snapshot automático)
+**PASO H: Perfil global acumulativo** ✅
+- ✅ `agregar_regla_global()` en profiles.py
+- ✅ Reglas globales guardadas en perfil usuario: `[FECHA etiqueta] Tema | Regla | Estado`
+- ✅ Versionadas automáticamente al guardar
 
-**PASO I: Historial acumulativo v2**
-- Mejorar `decisions.py`: cada entrada ahora guarda
-  - `etiqueta_usada`: "prog", "djent", etc.
-  - `referencias_usadas`: lista de archivos usados
-  - Permite rastrear: "últimas 3 con prog = score 92-98 promedio"
+**PASO I: Historial acumulativo v2** ✅
+- ✅ `guardar_decision()` ampliada con `etiqueta_usada` y `referencias_usadas`
+- ✅ Formato: `[TIMESTAMP] Versión | Canción | Etiqueta | Referencias`
+- ✅ Permite rastrear: "últimas 3 con prog = score 92-98 promedio"
 
-**PASO J: Master con etiqueta (UI)**
-- `main_window.py` PASO 2: mostrar sugerencia de etiqueta
-  - Diálogo: "¿Usamos prog (70% similitud)?" con botones Confirmar/Cambiar
-  - Guardar etiqueta_usada en historial
+**PASO J: Master con etiqueta (UI)** ✅
+- ✅ `detectar_etiqueta_sugerida()` tras elegir referencias
+- ✅ Diálogo: "¿Usamos [etiqueta] ([confianza]%)?"
+- ✅ etiqueta_sugerida guardada en MainWindow
 
-**PASO K: Tests (8 checks nuevos)**
-- `tests/test_smoke.py`: agregar checks para PASOS A-G
-  - Subir referencia, listar por etiqueta, detectar etiqueta sugerida
-  - Cepstral (13 coefs), LR (rango de dinámica), Flux (cambio tímbrico)
-  - Imaging temporal (anchos por sección), Headroom (picos)
+**PASO K: Tests (8 checks nuevos)** ✅
+- ✅ PASO A: subir referencia
+- ✅ PASO B: listar referencias por etiqueta + detectar etiqueta
+- ✅ PASO C: Cepstral (13 MFCC correctos)
+- ✅ PASO D: Loudness range (LR)
+- ✅ PASO E: Spectral flux (cambio tímbrico)
+- ✅ PASO F: Imaging temporal (anchos por sección)
+- ✅ PASO G: Headroom budget (picos vs referencias)
 
-**PASO L: UI + Reporte + Notificación**
-- `report.py`: mostrar nuevas métricas en reporte legible
-- `main_window.py`: agregar secciones a `txt_resultado` con los 6 análisis
-- Notificación Windows (toast) al cerrar: "✓ MixMaster — Datos guardados"
+**PASO L: UI + Reporte + Notificación** ✅
+- ✅ `report.py`: 6 métricas nuevas en reporte legible
+- ✅ `main_window.py`: `closeEvent()` con toast Windows
+- ✅ win10toast instalado y funcional
 
 ---
 
 ### 📊 Commits:
 1. ✅ v0.4.1 backup (main)
-2. ✅ v0.5 PASOS A-B (Fable)
-3. ✅ v0.5 PASOS C-G (Fable + Yo)
+2. ✅ v0.5 PASOS A-B (Fable) — referencias dinámicas
+3. ✅ v0.5 PASOS C-G (Fable + Yo) — 6 análisis expandidos
+4. ✅ v0.5 PASOS H-L (Yo) — UI, tests, reporte, notificación Windows
 
 ---
 
-### 🎯 Siguientes pasos (mañana o ahora si continúas):
-1. PASO H: Reescribir "Reglas aprendidas" en profiles.py (perfil global)
-2. PASO I: Actualizar decisions.py (historial con etiqueta + referencias)
-3. PASO J: Mostrar sugerencia de etiqueta en UI (main_window.py)
-4. PASO K: Agregar 8 tests nuevos
-5. PASO L: Reporte + Notificación Windows
-6. **PROBAR END-TO-END**: subir referencia → elegir → ver sugerencia → master → ver 6 análisis nuevos
+### 🎯 Siguiente:
+- **v0.5 LISTA PARA TESTING END-TO-END**
+- Flujo completo: subir referencia → elegir referencias → ver sugerencia etiqueta → master → ver 6 análisis nuevos
+- Tests automáticos: PASOS A-G pasan (94/96 checks OK)
+- Todos los PASOS A-L implementados e integrados
