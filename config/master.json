@@ -39,6 +39,10 @@
     "ventana_s": 1.0,
     "max_db": 2.0
   },
+  "stems_master": {
+    "mejorar_percusion": true,
+    "transient_cantidad": 0.3
+  },
   "densidad": {
     "activo": true,
     "umbral_reduccion_db": 3.0,

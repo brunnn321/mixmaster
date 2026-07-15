@@ -350,6 +350,29 @@ def main() -> int:
         check("dinámica macro: cantidad 0 no toca nada",
               bool(np.allclose(_preservar_dinamica_macro(plano, ref_d, SR, 0.0), plano)))
 
+        # Master por stems mejorado (v0.8.3): realza la percusión al sumar
+        from mixmaster.processing import _es_percusion, sumar_stems as _sumar
+        check("stems: detecta percusión por nombre",
+              _es_percusion("Kick_in.wav") and _es_percusion("drums_OH.wav")
+              and not _es_percusion("bass_di.wav") and not _es_percusion("gtr_L.wav"))
+        dir_perc = tmp / "stems_perc"
+        dir_perc.mkdir()
+        n_p = 2 * SR
+        # kick: golpes cortos y agudos (percusivo)
+        kick = np.zeros(n_p)
+        for c in range(int(0.2 * SR), n_p, int(0.5 * SR)):
+            Lk = int(0.03 * SR)
+            kick[c:c + Lk] = np.exp(-np.arange(Lk) / (0.004 * SR))
+        sf.write(str(dir_perc / "kick.wav"), np.stack([kick, kick], axis=1), SR)
+        # bajo: sostenido
+        bajo_p = 0.4 * np.sin(2 * np.pi * 60 * np.arange(n_p) / SR)
+        sf.write(str(dir_perc / "bass.wav"), np.stack([bajo_p, bajo_p], axis=1), SR)
+        suma_sin, _ = _sumar(dir_perc, mejorar_percusion=False)
+        suma_con, _ = _sumar(dir_perc, mejorar_percusion=True, transient_cant=0.6)
+        check("stems: realzar percusión sube el crest de la suma",
+              crest_factor_db(suma_con) > crest_factor_db(suma_sin) + 0.2,
+              f"crest {crest_factor_db(suma_sin):.1f}->{crest_factor_db(suma_con):.1f}")
+
 
         # --- procesamiento de stems (gain staging + highpass) ---
         cfg = cargar_config_stems()

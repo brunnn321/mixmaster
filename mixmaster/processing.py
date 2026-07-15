@@ -82,6 +82,12 @@ CONFIG_MASTER_DEFAULT = {
         "ventana_s": 1.0,
         "max_db": 2.0,
     },
+    "stems_master": {
+        # v0.8.3: al masterizar desde stems, realza la pegada de los stems de
+        # percusión/batería (por nombre) antes de sumar
+        "mejorar_percusion": True,
+        "transient_cantidad": 0.3,
+    },
     "clipper": {
         # recorta solo los picos (transitorios de batería) antes del limitador:
         # así el limitador trabaja poco y el master no suena "a tope"
@@ -139,11 +145,26 @@ def cargar_config_master() -> dict:
 
 # ------------------------------------------------------------ stems → mezcla
 
-def sumar_stems(carpeta: Path) -> tuple[np.ndarray, int]:
+# Claves de nombre para identificar stems de percusión (v0.8.3)
+_PERC_CLAVES = ("kick", "bombo", "snare", "caja", "tom", "drum", "bater", "perc",
+                "oh", "overhead", "cymbal", "crash", "ride", "hihat", "hat", "clap")
+
+
+def _es_percusion(nombre: str) -> bool:
+    """True si el nombre del stem sugiere percusión/batería."""
+    n = nombre.lower()
+    return any(k in n for k in _PERC_CLAVES)
+
+
+def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
+                transient_cant: float = 0.3) -> tuple[np.ndarray, int]:
     """Suma todos los stems de una carpeta en una mezcla virtual estéreo.
 
     Alinea longitudes al stem más largo y deja headroom (pico a -6 dBFS)
     antes del master. Lanza excepción si no hay stems.
+
+    v0.8.3: si `mejorar_percusion`, aplica transient shaping suave a los stems
+    de batería/percusión ANTES de sumar → más pegada en el master por stems.
     """
     archivos = sorted(p for p in Path(carpeta).iterdir()
                       if p.is_file() and p.suffix.lower() in FORMATOS_STEM)
@@ -155,6 +176,9 @@ def sumar_stems(carpeta: Path) -> tuple[np.ndarray, int]:
         audio, sr = cargar_audio(p)
         if audio.shape[1] == 1:
             audio = np.repeat(audio, 2, axis=1)
+        if mejorar_percusion and transient_cant > 0 and _es_percusion(p.name):
+            audio = _transient_shape(audio, sr, transient_cant)
+            log.info("Stem percusivo realzado (pegada): %s", p.name)
         pistas.append(audio)
         srs.append(sr)
     if len(set(srs)) > 1:
@@ -545,7 +569,11 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
 
     if carpeta_stems:
         avisar("Sumando stems en mezcla virtual…")
-        audio, sr = sumar_stems(Path(carpeta_stems))
+        cfg_sm = cfg.get("stems_master", {})
+        audio, sr = sumar_stems(
+            Path(carpeta_stems),
+            mejorar_percusion=cfg_sm.get("mejorar_percusion", True),
+            transient_cant=float(cfg_sm.get("transient_cantidad", 0.3)))
         nombre_base = "stems"
     else:
         avisar("Cargando mezcla…")
