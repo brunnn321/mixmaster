@@ -1,5 +1,5 @@
 {
-  "target_lufs_default": -8.5,
+  "target_lufs_default": -9.0,
   "eq_correctivo": {
     "activo": true,
     "max_correccion_db": 4.0,
