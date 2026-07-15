@@ -526,9 +526,9 @@ def cepstral_fingerprint(audio: np.ndarray, sr: int) -> dict:
     # DCT para MFCC (primeros 13 coeficientes)
     mfcc_raw = dct(np.log(mel_spec), type=2, norm='ortho')[:13]
 
-    # Estadísticas
-    mfcc_mean = [float(x) for x in np.mean(mfcc_raw)]
-    mfcc_std = [float(x) for x in np.std(mfcc_raw)]
+    # Los 13 coefs como lista + estadística global
+    mfcc_mean = [float(x) for x in mfcc_raw]
+    mfcc_std_global = float(np.std(mfcc_raw))
 
     # Contenido tímbrico: varianza de MFCC normalizada
     timbral_content = float(np.std(mfcc_raw) / (np.mean(np.abs(mfcc_raw)) + 1e-9))
@@ -536,7 +536,7 @@ def cepstral_fingerprint(audio: np.ndarray, sr: int) -> dict:
 
     return {
         "mfcc_mean": mfcc_mean,
-        "mfcc_std": mfcc_std,
+        "mfcc_std": mfcc_std_global,
         "timbral_content": round(timbral_content, 2),
     }
 
