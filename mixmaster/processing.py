@@ -29,13 +29,20 @@ log = get_logger("mixmaster.processing")
 MASTER_CONFIG_FILE = CONFIG_DIR / "master.json"
 
 CONFIG_MASTER_DEFAULT = {
-    "target_lufs_default": -8.5,
+    "target_lufs_default": -9.0,
     "eq_correctivo": {
         "activo": True,
         "modo": "fino",              # "fino" = curva 1/3 octava · "bandas" = 7 bloques
         "max_correccion_db": 4.0,
         "analizar_imagen_stereo": True,
-        "max_ajuste_ancho_db": 2.0,
+        "max_ajuste_ancho_db": 1.0,
+    },
+    "mono_bass": {
+        # colapsa a mono el grave por debajo de freq_hz (punch + compatibilidad
+        # vinilo/clubs/mono). cantidad 0..1 = cuánto mono-izar (1 = todo)
+        "activo": True,
+        "freq_hz": 100.0,
+        "cantidad": 1.0,
     },
     "clipper": {
         # recorta solo los picos (transitorios de batería) antes del limitador:
@@ -49,6 +56,7 @@ CONFIG_MASTER_DEFAULT = {
         # saturación suave antes para ganar densidad sin bombeo
         "umbral_reduccion_db": 3.0,
         "drive": 1.5,
+        "rango_proporcional_db": 6.0,
     },
     "limitador": {
         "ceiling_dbtp": -1.0,
@@ -249,6 +257,26 @@ def _soft_clip(audio: np.ndarray, drive: float) -> np.ndarray:
     return np.tanh(audio * drive) / np.tanh(drive)
 
 
+def _mono_bass(audio: np.ndarray, sr: int, freq_hz: float, cantidad: float = 1.0) -> np.ndarray:
+    """Colapsa a mono el grave por debajo de freq_hz (v0.7 · Tier 2).
+
+    Crossover de FASE CERO (filtfilt): el low se separa con un lowpass de fase
+    cero, así `high = audio - low` es el complemento exacto y la suma queda
+    plana (sin artefactos de fase). El low se mono-iza y se recombina.
+
+    `cantidad` 0..1 mezcla entre el low estéreo original y el mono (1 = todo mono).
+    Beneficio: más punch y compatibilidad (vinilo, clubs, sistemas mono).
+    """
+    if audio.shape[1] < 2 or cantidad <= 0 or freq_hz <= 0:
+        return audio
+    sos = signal.butter(4, freq_hz, "low", fs=sr, output="sos")
+    low = signal.sosfiltfilt(sos, audio, axis=0)     # banda baja, fase cero
+    high = audio - low                                # complemento exacto
+    low_mono = low.mean(axis=1, keepdims=True)        # a mono
+    low_mix = (1.0 - cantidad) * low + cantidad * low_mono
+    return high + low_mix
+
+
 def _limitador(audio: np.ndarray, sr: int, cfg_lim: dict) -> np.ndarray:
     """Limitador con lookahead sobre envolvente de TRUE peak (inter-sample)."""
     ceiling_db = float(cfg_lim.get("ceiling_dbtp", -1.0))
@@ -356,6 +384,16 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
                 audio, sr, ancho_mix, perfil["ancho_por_banda"],
                 float(cfg_eq.get("max_ajuste_ancho_db", 2.0)))
 
+    # Mono-bass (v0.7): colapsa el grave a mono → punch + compatibilidad.
+    # Se aplica SIEMPRE (con o sin referencia), tras el EQ/imagen.
+    cfg_mb = cfg.get("mono_bass", {})
+    mono_bass_hz = None
+    if cfg_mb.get("activo", True):
+        mono_bass_hz = float(cfg_mb.get("freq_hz", 100.0))
+        cant_mb = float(cfg_mb.get("cantidad", 1.0))
+        avisar(f"Mono-bass < {mono_bass_hz:g} Hz (punch + compatibilidad)…")
+        audio = _mono_bass(audio, sr, mono_bass_hz, cant_mb)
+
     # ¿Cuánto habrá que empujar? Si es mucho, densidad previa (soft-clip suave).
     # Drive PROPORCIONAL: empuje moderado → densidad casi transparente; solo los
     # empujes extremos usan el drive máximo. Antes era binario (siempre 1.5).
@@ -425,6 +463,7 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         "eq_aplicado_db": correccion,
         "ajuste_ancho_db": ajuste_ancho,
         "densidad_aplicada": densidad_aplicada,
+        "mono_bass_hz": mono_bass_hz,
         "fuente": "stems" if carpeta_stems else "mezcla",
         "referencias": nombres_ref,
         "score": score,

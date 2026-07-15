@@ -205,6 +205,37 @@ def main() -> int:
         check("clipper transparente bajo el umbral",
               bool(np.allclose(clipeada[rampa < 0.9], rampa[rampa < 0.9])))
 
+        # Mono-bass (v0.7): grave a mono, agudos intactos
+        from scipy import signal
+        from mixmaster.processing import _mono_bass
+        n_mb = SR  # 1 s
+        t_mb = np.arange(n_mb) / SR
+        # Grave (50 Hz) DESFASADO entre L/R → hay side en el grave, que debe irse.
+        # Agudos (5 kHz) descorrelacionados → side que debe SOBREVIVIR.
+        low_l = np.sin(2 * np.pi * 50 * t_mb)
+        low_r = np.sin(2 * np.pi * 50 * t_mb + 0.9)
+        hi_l = 0.5 * np.sin(2 * np.pi * 5000 * t_mb)
+        hi_r = 0.5 * np.sin(2 * np.pi * 5000 * t_mb + 1.3)
+        est = np.stack([low_l + hi_l, low_r + hi_r], axis=1)
+        mb = _mono_bass(est, SR, 100.0, 1.0)
+
+        sos_lo = signal.butter(4, 100.0, "low", fs=SR, output="sos")
+        rec = slice(SR // 5, -SR // 5)  # recorta bordes (transitorios de filtro)
+
+        def side_grave(x):
+            side = x[:, 0] - x[:, 1]
+            return float(np.std(signal.sosfiltfilt(sos_lo, side)[rec]))
+
+        antes, despues = side_grave(est), side_grave(mb)
+        check("mono-bass: elimina el side del grave", despues < antes * 0.1,
+              f"antes={antes:.3f} despues={despues:.3f}")
+        # los agudos (side total) deben sobrevivir
+        check("mono-bass: agudos conservan estéreo",
+              float(np.std((mb[:, 0] - mb[:, 1])[rec])) > 0.1)
+        # cantidad=0 → no cambia nada
+        check("mono-bass: cantidad 0 no toca la señal",
+              bool(np.allclose(_mono_bass(est, SR, 100.0, 0.0), est)))
+
 
         # --- procesamiento de stems (gain staging + highpass) ---
         cfg = cargar_config_stems()
