@@ -366,6 +366,41 @@ def espectro_suavizado(audio: np.ndarray, sr: int, n_puntos: int = 31) -> tuple[
     return puntos, np.array(dbs)
 
 
+def detectar_resonancias(audio: np.ndarray, sr: int, umbral_db: float = 6.0,
+                         max_n: int = 4, f_min: float = 80.0,
+                         f_max: float = 12000.0) -> list[dict]:
+    """Detecta resonancias: picos ESTRECHOS que sobresalen del espectro suave.
+
+    Compara el espectro fino contra su versión suavizada a 1/3 de octava; un
+    pico angosto (Q alto) sobresale, una loma tonal ancha no. Devuelve hasta
+    max_n resonancias {freq, exceso_db} ordenadas por prominencia.
+    """
+    mono = audio.mean(axis=1) if audio.ndim > 1 else audio
+    f, pxx = signal.welch(mono, sr, nperseg=min(8192, len(mono)))
+    db_fino = 10 * np.log10(np.maximum(pxx, 1e-20))
+
+    # espectro suavizado a 1/3 de octava (nivel "esperado" de banda ancha)
+    db_suave = np.copy(db_fino)
+    for i, fc in enumerate(f):
+        if fc < f_min or fc > f_max:
+            continue
+        lo, hi = fc / 2 ** (1 / 3), fc * 2 ** (1 / 3)
+        sel = (f >= lo) & (f <= hi)
+        if sel.any():
+            db_suave[i] = float(db_fino[sel].mean())
+
+    residual = db_fino - db_suave
+    banda = (f >= f_min) & (f <= f_max)
+    # picos locales del residual por encima del umbral
+    idx_pico, _ = signal.find_peaks(np.where(banda, residual, -np.inf),
+                                    height=umbral_db, distance=3)
+    encontrados = sorted(
+        ({"freq": round(float(f[i]), 1), "exceso_db": round(float(residual[i]), 1)}
+         for i in idx_pico),
+        key=lambda r: r["exceso_db"], reverse=True)
+    return encontrados[:max_n]
+
+
 def perfil_referencias(paths_ref, lufs_mix: float) -> dict:
     """Perfil tonal PROMEDIO de una o varias referencias, niveladas al LUFS
     de la mezcla. Devuelve {nombres, bandas_db, ancho_por_banda, lufs}.

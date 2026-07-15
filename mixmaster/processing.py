@@ -20,8 +20,8 @@ from scipy import signal
 from .app_paths import CONFIG_DIR
 from .audio_analysis import (
     BANDAS_HZ, CRUCES_HZ, analisis_estereo, balance_bandas_db, cargar_audio,
-    crest_factor_db, crest_por_banda, db, espectro_suavizado, lufs_integrado,
-    perfil_referencias, true_peak_db,
+    crest_factor_db, crest_por_banda, db, detectar_resonancias, espectro_suavizado,
+    lufs_integrado, perfil_referencias, true_peak_db,
 )
 from .logger import get_logger
 
@@ -56,6 +56,15 @@ CONFIG_MASTER_DEFAULT = {
         "attack_ms": 15.0,
         "release_ms": 120.0,
         "cantidad": 0.6,
+    },
+    "resonancias": {
+        # notch suave de picos estrechos anómalos (Q alto). umbral_db = cuánto
+        # debe sobresalir del espectro suave; max_cut_db = corte máximo
+        "activo": True,
+        "umbral_db": 6.0,
+        "max_cut_db": 3.0,
+        "q": 6.0,
+        "max_n": 4,
     },
     "clipper": {
         # recorta solo los picos (transitorios de batería) antes del limitador:
@@ -290,6 +299,37 @@ def _mono_bass(audio: np.ndarray, sr: int, freq_hz: float, cantidad: float = 1.0
     return high + low_mix
 
 
+# ------------------------------------------ resonancias (v0.7.3 · notch suave)
+
+def _peaking_biquad(f0: float, gain_db: float, q: float, sr: int):
+    """Coeficientes (b, a) de un peaking EQ (RBJ) — para notches suaves."""
+    A = 10 ** (gain_db / 40.0)
+    w0 = 2 * np.pi * f0 / sr
+    alpha = np.sin(w0) / (2 * q)
+    cos_w0 = np.cos(w0)
+    b = [1 + alpha * A, -2 * cos_w0, 1 - alpha * A]
+    a = [1 + alpha / A, -2 * cos_w0, 1 - alpha / A]
+    return np.array(b) / a[0], np.array(a) / a[0]
+
+
+def _aplicar_notches(audio: np.ndarray, sr: int, resonancias: list,
+                     max_cut_db: float, q: float) -> tuple[np.ndarray, list]:
+    """Aplica notches suaves (fase cero) en las resonancias detectadas.
+
+    El corte es proporcional al exceso, acotado a max_cut_db (nunca destruye).
+    """
+    out = audio
+    aplicados = []
+    for r in resonancias:
+        corte = -min(float(r["exceso_db"]) * 0.6, max_cut_db)  # suave y acotado
+        if corte > -0.5:
+            continue
+        b, a = _peaking_biquad(float(r["freq"]), corte, q, sr)
+        out = signal.filtfilt(b, a, out, axis=0)
+        aplicados.append({"freq": r["freq"], "corte_db": round(corte, 1)})
+    return out, aplicados
+
+
 # --------------------------------------------- multibanda (v0.7 · Tier 2)
 
 def _split_bandas(audio: np.ndarray, sr: int) -> dict[str, np.ndarray]:
@@ -417,8 +457,11 @@ def _limitador(audio: np.ndarray, sr: int, cfg_lim: dict) -> np.ndarray:
 def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
                target_lufs: float, dir_masters: Path, dir_entregables: Path,
                version: str = "V01", carpeta_stems: Path | None = None,
-               progreso=None) -> dict:
+               progreso=None, cfg: dict | None = None) -> dict:
     """Pipeline de masterizado. Entrada: mezcla estéreo O carpeta de stems.
+
+    `cfg` opcional permite pasar una configuración a medida (A/B, tests);
+    si no, se lee de config/master.json.
 
     Devuelve resumen con rutas, mediciones y qué corrección se aplicó.
     """
@@ -427,7 +470,8 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         if progreso:
             progreso(msg)
 
-    cfg = cargar_config_master()
+    if cfg is None:
+        cfg = cargar_config_master()
     cfg_eq = cfg["eq_correctivo"]
     cfg_den = cfg["densidad"]
     cfg_lim = cfg["limitador"]
@@ -442,6 +486,22 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         nombre_base = Path(path_mezcla).stem
     if audio.shape[1] == 1:
         audio = np.repeat(audio, 2, axis=1)
+
+    # Resonancias (v0.7.3): notch suave de picos estrechos anómalos, temprano
+    # (antes del matching tonal). Corte acotado, fase cero. Se reporta cuáles.
+    resonancias_db = []
+    cfg_res = cfg.get("resonancias", {})
+    if cfg_res.get("activo", True):
+        res = detectar_resonancias(
+            audio, sr,
+            umbral_db=float(cfg_res.get("umbral_db", 4.0)),
+            max_n=int(cfg_res.get("max_n", 4)))
+        if res:
+            avisar(f"Resonancias detectadas: {[r['freq'] for r in res]} Hz")
+            audio, resonancias_db = _aplicar_notches(
+                audio, sr, res,
+                float(cfg_res.get("max_cut_db", 3.0)),
+                float(cfg_res.get("q", 6.0)))
 
     correccion, ajuste_ancho = {}, {}
     nombres_ref, perfil = [], None
@@ -577,6 +637,7 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         "eq_aplicado_db": correccion,
         "ajuste_ancho_db": ajuste_ancho,
         "multibanda_db": multibanda_db,
+        "resonancias_db": resonancias_db,
         "densidad_aplicada": densidad_aplicada,
         "mono_bass_hz": mono_bass_hz,
         "fuente": "stems" if carpeta_stems else "mezcla",

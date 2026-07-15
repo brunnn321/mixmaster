@@ -20,6 +20,13 @@
     "release_ms": 120.0,
     "cantidad": 0.6
   },
+  "resonancias": {
+    "activo": true,
+    "umbral_db": 6.0,
+    "max_cut_db": 3.0,
+    "q": 6.0,
+    "max_n": 4
+  },
   "densidad": {
     "activo": true,
     "umbral_reduccion_db": 3.0,

@@ -143,10 +143,16 @@ def main() -> int:
               f"lufs mp3={diag_mix_mp3['global']['lufs_i']} vs wav={diag['global']['lufs_i']}")
 
         # --- masterizado automático ---
+        # Esta prueba valida el EQ matcher EN AISLAMIENTO: apaga las etapas de
+        # v0.7/v0.8 (resonancias, multibanda, mono-bass) que en tonos puros
+        # sintéticos alterarían el balance; cada una tiene su propio test.
+        cfg_solo_eq = cargar_config_master()
+        for k in ("resonancias", "multibanda", "mono_bass"):
+            cfg_solo_eq.setdefault(k, {})["activo"] = False
         resumen = masterizar(
             wav_mix, wav_ref, -10.0,
             proyecto.root / "06_masters", proyecto.root / "07_entregables",
-            version="V01")
+            version="V01", cfg=cfg_solo_eq)
         check("master WAV creado", Path(resumen["wav"]).exists())
         check("master MP3 creado", Path(resumen["mp3"]).exists())
         check("loudness en objetivo", abs(resumen["lufs_final"] - (-10.0)) < 1.0,
@@ -281,6 +287,27 @@ def main() -> int:
         suma = sum(_split_bandas(señal_mc, SR).values())
         check("multibanda: split suma exacta (reconstrucción)",
               bool(np.allclose(suma, señal_mc, atol=1e-6)))
+
+        # Resonancias (v0.7.3): detecta el pico estrecho y lo atenúa
+        from mixmaster.audio_analysis import detectar_resonancias
+        from mixmaster.processing import _aplicar_notches
+        n_r = 4 * SR
+        t_r = np.arange(n_r) / SR
+        rng_r = np.random.default_rng(3)
+        ruido = 0.05 * rng_r.standard_normal(n_r)          # lecho de banda ancha
+        resonante = ruido + 0.5 * np.sin(2 * np.pi * 3000 * t_r)  # pico en 3 kHz
+        sig_r = np.stack([resonante, resonante], axis=1)
+        detectadas = detectar_resonancias(sig_r, SR, umbral_db=4.0)
+        cerca = [r for r in detectadas if abs(r["freq"] - 3000) < 200]
+        check("resonancias: detecta el pico de 3 kHz", len(cerca) >= 1,
+              f"detectadas={[r['freq'] for r in detectadas]}")
+        out_r, aplicados = _aplicar_notches(sig_r, SR, cerca, max_cut_db=3.0, q=6.0)
+        # energía en 3 kHz debe bajar tras el notch
+        from mixmaster.audio_analysis import _filtrar_banda
+        e_antes = float(np.sqrt(np.mean(_filtrar_banda(resonante, SR, 2800, 3200) ** 2)))
+        e_despues = float(np.sqrt(np.mean(_filtrar_banda(out_r[:, 0], SR, 2800, 3200) ** 2)))
+        check("resonancias: el notch atenúa el pico", e_despues < e_antes * 0.9,
+              f"e {e_antes:.4f}->{e_despues:.4f}")
 
 
         # --- procesamiento de stems (gain staging + highpass) ---
