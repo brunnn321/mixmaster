@@ -309,6 +309,24 @@ def main() -> int:
         check("resonancias: el notch atenúa el pico", e_despues < e_antes * 0.9,
               f"e {e_antes:.4f}->{e_despues:.4f}")
 
+        # Transient shaping (v0.8): realza el ataque → sube el crest
+        from mixmaster.audio_analysis import crest_factor_db
+        from mixmaster.processing import _transient_shape
+        n_t = 3 * SR
+        env_t = 0.06 * np.ones(n_t)                    # lecho suave sostenido
+        for c in range(int(0.2 * SR), n_t, int(0.6 * SR)):  # golpes cortos, espaciados
+            L = int(0.03 * SR)
+            env_t[c:c + L] += np.exp(-np.arange(L) / (0.005 * SR))  # ataque agudo 5 ms
+        golpe = env_t * np.sin(2 * np.pi * 200 * np.arange(n_t) / SR)
+        sig_t = np.stack([golpe, golpe], axis=1)
+        crest_t0 = crest_factor_db(sig_t)
+        out_t = _transient_shape(sig_t, SR, cantidad=0.5, fast_ms=5.0, slow_ms=80.0)
+        crest_t1 = crest_factor_db(out_t)
+        check("transient shaping: aumenta el crest (más pegada)",
+              crest_t1 > crest_t0 + 0.3, f"crest {crest_t0:.1f}->{crest_t1:.1f}")
+        check("transient shaping: cantidad 0 no toca nada",
+              bool(np.allclose(_transient_shape(sig_t, SR, 0.0), sig_t)))
+
 
         # --- procesamiento de stems (gain staging + highpass) ---
         cfg = cargar_config_stems()

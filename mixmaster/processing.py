@@ -66,6 +66,14 @@ CONFIG_MASTER_DEFAULT = {
         "q": 6.0,
         "max_n": 4,
     },
+    "transient_shaping": {
+        # realza los ataques (pegada) antes del limitador. cantidad 0..1
+        # (0.25 = suave). fast/slow_ms = envolventes de detección del ataque
+        "activo": True,
+        "cantidad": 0.25,
+        "fast_ms": 5.0,
+        "slow_ms": 80.0,
+    },
     "clipper": {
         # recorta solo los picos (transitorios de batería) antes del limitador:
         # así el limitador trabaja poco y el master no suena "a tope"
@@ -277,6 +285,30 @@ def _score_ab(audio: np.ndarray, sr: int, perfil: dict) -> dict:
 def _soft_clip(audio: np.ndarray, drive: float) -> np.ndarray:
     """Saturación suave (tanh) para ganar densidad antes del limitador."""
     return np.tanh(audio * drive) / np.tanh(drive)
+
+
+def _transient_shape(audio: np.ndarray, sr: int, cantidad: float,
+                     fast_ms: float = 5.0, slow_ms: float = 80.0) -> np.ndarray:
+    """Realza los ataques (transient shaping) — v0.8 · Tier 3.
+
+    Dos envolventes (rápida vs lenta): donde la rápida supera a la lenta hay un
+    ataque, y se aplica una ganancia extra acotada. Devuelve más pegada sin
+    tocar el sostenido. La MISMA ganancia va a L y R (no rompe la imagen).
+    Pensado para correr ANTES del limitador, que controla los picos nuevos.
+    """
+    if cantidad <= 0:
+        return audio
+    mono = np.max(np.abs(audio), axis=1)
+    a_f = float(np.exp(-1.0 / max(fast_ms / 1000 * sr, 1.0)))
+    a_s = float(np.exp(-1.0 / max(slow_ms / 1000 * sr, 1.0)))
+    # envolventes de FASE CERO (offline): la ganancia se alinea con el ataque
+    # (un detector causal se desfasaría y realzaría la cola, no el golpe)
+    env_fast = signal.filtfilt([1 - a_f], [1.0, -a_f], mono)
+    env_slow = signal.filtfilt([1 - a_s], [1.0, -a_s], mono)
+    # ataque = la envolvente rápida por encima de la lenta (solo positivo)
+    ratio = np.clip((env_fast - env_slow) / (env_slow + 1e-6), 0.0, 1.0)
+    ganancia = 1.0 + cantidad * ratio           # máx 1 + cantidad
+    return audio * ganancia[:, np.newaxis]
 
 
 def _mono_bass(audio: np.ndarray, sr: int, freq_hz: float, cantidad: float = 1.0) -> np.ndarray:
@@ -568,6 +600,18 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         avisar(f"Mono-bass < {mono_bass_hz:g} Hz (punch + compatibilidad)…")
         audio = _mono_bass(audio, sr, mono_bass_hz, cant_mb)
 
+    # Transient shaping (v0.8): realza ataques → pegada. Antes del limitador,
+    # que controla los picos nuevos. Suave por defecto.
+    cfg_tr = cfg.get("transient_shaping", {})
+    transient_cant = 0.0
+    if cfg_tr.get("activo", True):
+        transient_cant = float(cfg_tr.get("cantidad", 0.25))
+        if transient_cant > 0:
+            avisar(f"Transient shaping (pegada, cantidad {transient_cant:g})…")
+            audio = _transient_shape(
+                audio, sr, transient_cant,
+                float(cfg_tr.get("fast_ms", 5.0)), float(cfg_tr.get("slow_ms", 80.0)))
+
     # ¿Cuánto habrá que empujar? Si es mucho, densidad previa (soft-clip suave).
     # Drive PROPORCIONAL: empuje moderado → densidad casi transparente; solo los
     # empujes extremos usan el drive máximo. Antes era binario (siempre 1.5).
@@ -638,6 +682,7 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         "ajuste_ancho_db": ajuste_ancho,
         "multibanda_db": multibanda_db,
         "resonancias_db": resonancias_db,
+        "transient_shaping": round(transient_cant, 2) if transient_cant else None,
         "densidad_aplicada": densidad_aplicada,
         "mono_bass_hz": mono_bass_hz,
         "fuente": "stems" if carpeta_stems else "mezcla",

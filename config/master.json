@@ -27,6 +27,12 @@
     "q": 6.0,
     "max_n": 4
   },
+  "transient_shaping": {
+    "activo": true,
+    "cantidad": 0.25,
+    "fast_ms": 5.0,
+    "slow_ms": 80.0
+  },
   "densidad": {
     "activo": true,
     "umbral_reduccion_db": 3.0,
