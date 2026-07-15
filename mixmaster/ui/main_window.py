@@ -10,8 +10,8 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
-    QFileDialog, QFrame, QHBoxLayout, QInputDialog, QLabel, QLineEdit,
-    QMainWindow, QMessageBox, QProgressBar, QPushButton, QScrollArea,
+    QDockWidget, QFileDialog, QFrame, QHBoxLayout, QInputDialog, QLabel,
+    QLineEdit, QMainWindow, QMessageBox, QProgressBar, QPushButton, QScrollArea,
     QStackedWidget, QStyle, QSystemTrayIcon, QTextEdit, QVBoxLayout, QWidget,
 )
 
@@ -158,9 +158,9 @@ class MainWindow(QMainWindow):
                     "Todos los archivos (*.*)")
 
     GUIA = [
-        "PASO 1 · FUENTE — Carga tu audio o stems.",
-        "PASO 2 · REFERENCIAS — Añade 3–6 temas.",
-        "PASO 3 · MASTER — Pulsa «Master final».",
+        "PASO 1 · Carga tu audio",
+        "PASO 2 · Elige referencias",
+        "PASO 3 · Masteriza",
     ]
 
     def __init__(self, settings: Settings):
@@ -171,7 +171,7 @@ class MainWindow(QMainWindow):
         self.referencia: list[Path] | None = None
         self.diagnostico: dict | None = None
         self.etiqueta_sugerida: str = ""  # Etiqueta detectada de referencias
-        self._chat: ChatDialog | None = None
+        self._chat_dock: QDockWidget | None = None
         self._worker = None
         self._notificado = False  # evita reentrada en closeEvent
 
@@ -251,7 +251,7 @@ class MainWindow(QMainWindow):
         m_hist.addActions([acc_decisiones, acc_masters])
 
         m_chat = self.menuBar().addMenu("💬 &Chat")
-        acc_chat = QAction("Abrir chat con Claude…", self)
+        acc_chat = QAction("Mostrar / ocultar chat", self)
         acc_chat.triggered.connect(self._abrir_chat)
         m_chat.addAction(acc_chat)
 
@@ -390,9 +390,7 @@ class MainWindow(QMainWindow):
             hay_proyecto and idx < 2 and (idx != 0 or self._fuente_lista()))
 
         if not hay_proyecto:
-            self.lbl_guia.setText(
-                "<b>EMPIEZA AQUÍ — Carga tu audio o stems:</b> arrastra los archivos "
-                "a la caja o haz clic en ella. El proyecto toma el nombre del archivo.")
+            self.lbl_guia.setText("<b>PASO 1 · Carga tu audio</b>")
         else:
             self.lbl_guia.setText(f"<b>{self.GUIA[idx]}</b>")
 
@@ -577,11 +575,14 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Error", "No se pudo abrir el master (ver app.log).")
 
     def _abrir_chat(self):
-        """Abre (o trae al frente) el diálogo de chat."""
-        if self._chat is None:
-            self._chat = ChatDialog(self)
-        self._chat.show()
-        self._chat.raise_()
+        """Despliega/oculta el chat como panel acoplado (dock) a la derecha."""
+        if self._chat_dock is None:
+            self._chat_dock = QDockWidget("💬 Chat", self)
+            self._chat_dock.setWidget(ChatDialog(self))
+            self._chat_dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
+            self.addDockWidget(Qt.RightDockWidgetArea, self._chat_dock)
+        else:
+            self._chat_dock.setVisible(not self._chat_dock.isVisible())  # alternar
 
     # ------------------------------------------------------- paso 1: fuente
 
@@ -595,9 +596,10 @@ class MainWindow(QMainWindow):
         try:
             base = self.settings.ruta_proyectos
             base.mkdir(parents=True, exist_ok=True)
-            destino = base / nombre_seguro(archivo.stem)
+            nombre = nombre_seguro(archivo.stem) or self._nombre_proyecto_libre()
+            destino = base / nombre
             proyecto = (abrir_proyecto(destino) if destino.is_dir()
-                        else crear_proyecto(base, archivo.stem))
+                        else crear_proyecto(base, nombre))
             self._set_proyecto(proyecto)   # ¡ojo! esto resetea wav_activo
         except Exception as e:
             log.exception("Error creando proyecto desde el audio")
@@ -654,14 +656,22 @@ class MainWindow(QMainWindow):
         else:
             self._cargar_stems_desde_paths(paths)
 
+    def _nombre_proyecto_libre(self) -> str:
+        """Siguiente 'proyecto NN' libre (fallback cuando no hay nombre útil)."""
+        base = self.settings.ruta_proyectos
+        n = 1
+        while (base / f"proyecto {n:02d}").exists():
+            n += 1
+        return f"proyecto {n:02d}"
+
     def _cargar_stems_desde_paths(self, paths):
         """Crea un proyecto con nombre derivado, copia los stems y los nivela."""
         import os
         import shutil
         archivos = [Path(p) for p in paths]
-        # nombre del proyecto: prefijo común de los nombres, o carpeta padre
+        # nombre del proyecto: prefijo común de los nombres; si no hay, "proyecto NN"
         prefijo = os.path.commonprefix([a.stem for a in archivos]).strip(" -_·")
-        nombre = prefijo or archivos[0].parent.name or "stems"
+        nombre = prefijo or self._nombre_proyecto_libre()
         try:
             base = self.settings.ruta_proyectos
             base.mkdir(parents=True, exist_ok=True)

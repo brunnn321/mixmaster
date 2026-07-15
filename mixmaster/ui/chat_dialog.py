@@ -7,8 +7,8 @@ Cada mensaje lleva perfil de usuario + género + diagnóstico + decisiones.
 from PySide6.QtCore import QThread, Signal
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
-    QComboBox, QDialog, QHBoxLayout, QLabel, QLineEdit, QMessageBox,
-    QPushButton, QTextEdit, QVBoxLayout,
+    QComboBox, QHBoxLayout, QLabel, QLineEdit, QMessageBox,
+    QPushButton, QTextEdit, QVBoxLayout, QWidget,
 )
 
 from ..claude_client import ClaudeError, enviar_mensaje
@@ -39,17 +39,16 @@ class _ChatWorker(QThread):
             self.fallo.emit(f"Error inesperado: {e}")
 
 
-class ChatDialog(QDialog):
-    """Chat + conclusión + guardado de decisiones, en ventana aparte."""
+class ChatDialog(QWidget):
+    """Chat + conclusión + guardado de decisiones, como panel acoplable (dock)."""
 
     def __init__(self, ventana_principal):
         super().__init__(ventana_principal)
         self.win = ventana_principal  # accede a settings/proyecto/diagnóstico actuales
         self.historial_chat: list[dict] = []
-        self.setWindowTitle("💬 Chat — MixMaster")
-        self.resize(640, 620)
 
         lay = QVBoxLayout(self)
+        lay.setContentsMargins(6, 6, 6, 6)
         lay.addWidget(QLabel(
             "Cada mensaje lleva tu perfil + género + diagnóstico + últimas decisiones.\n"
             "Modo manual: «Copiar contexto» y pegar en claude.ai."))
