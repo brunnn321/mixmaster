@@ -20,7 +20,7 @@ from ..audio_analysis import analizar_wav
 from ..logger import get_logger
 from ..processing import cargar_config_master, masterizar
 from ..profiles import agregar_regla_genero, listar_referencias_genero
-from ..project import Project, abrir_proyecto, crear_proyecto
+from ..project import Project, abrir_proyecto, crear_proyecto, nombre_seguro
 from ..references import detectar_etiqueta_sugerida
 from ..report import guardar_diagnostico, reporte_legible
 from ..settings import Settings
@@ -337,7 +337,7 @@ class MainWindow(QMainWindow):
             f"Proyecto activo: {nombre}   ·   Género: {self.settings.genero_activo()}")
 
         idx = self.pila.currentIndex()
-        self.btn_cargar.setEnabled(hay_proyecto)
+        self.btn_cargar.setEnabled(True)  # crea el proyecto desde el archivo
         self.btn_stems.setEnabled(hay_proyecto)
         self.btn_ref.setEnabled(hay_proyecto)
         self.btn_analizar.setEnabled(hay_proyecto and self.wav_activo is not None)
@@ -348,8 +348,9 @@ class MainWindow(QMainWindow):
 
         if not hay_proyecto:
             self.lbl_guia.setText(
-                "<b>EMPIEZA AQUÍ:</b> pulsa «➕ Nuevo proyecto» (arriba a la derecha) "
-                "y ponle el nombre de tu canción.")
+                "<b>EMPIEZA AQUÍ:</b> pulsa «Cargar audio» y elige tu mezcla — el "
+                "proyecto tomará el nombre del archivo. Para stems, usa «➕ Nuevo "
+                "proyecto» y ponle nombre.")
         else:
             self.lbl_guia.setText(f"<b>{self.GUIA[idx]}</b>")
 
@@ -396,8 +397,14 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------- proyectos
 
     def _nuevo_proyecto(self):
-        """Crea un proyecto nuevo (entrada/ · salida/ · analisis/)."""
-        nombre, ok = QInputDialog.getText(self, "Nuevo proyecto", "Nombre de la canción:")
+        """Crea un proyecto con nombre manual (para stems o vacío).
+
+        Para una mezcla no hace falta: «Cargar audio» ya crea el proyecto con
+        el nombre del archivo.
+        """
+        nombre, ok = QInputDialog.getText(
+            self, "Nuevo proyecto (stems)",
+            "Nombre del proyecto (para stems escribe el nombre de la canción):")
         if not ok or not nombre.strip():
             return
         try:
@@ -445,14 +452,32 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------- paso 1: fuente
 
     def _cargar_audio(self):
-        """Selecciona el audio de mezcla (WAV, MP3, FLAC…)."""
+        """Carga una mezcla y crea el proyecto con el NOMBRE del archivo.
+
+        El proyecto se nombra automáticamente como la canción (sin extensión).
+        Si ya existe uno con ese nombre, lo reabre. Para stems se usa «Nuevo
+        proyecto» (nombre manual).
+        """
         inicio = str(self.proyecto.dir_originales) if self.proyecto else ""
         path, _ = QFileDialog.getOpenFileName(
             self, "Cargar audio", inicio, self.FILTRO_AUDIO)
-        if path:
-            self.wav_activo = Path(path)
-            self._status(f"Mezcla cargada: {self.wav_activo.name}")
-            self._ir(1)  # auto-avanza a referencias
+        if not path:
+            return
+        archivo = Path(path)
+        try:
+            base = self.settings.ruta_proyectos
+            base.mkdir(parents=True, exist_ok=True)
+            destino = base / nombre_seguro(archivo.stem)
+            proyecto = (abrir_proyecto(destino) if destino.is_dir()
+                        else crear_proyecto(base, archivo.stem))
+            self._set_proyecto(proyecto)   # ¡ojo! esto resetea wav_activo
+        except Exception as e:
+            log.exception("Error creando proyecto desde el audio")
+            QMessageBox.critical(self, "Error", f"No se pudo crear el proyecto:\n{e}")
+            return
+        self.wav_activo = archivo
+        self._status(f"Proyecto «{self.proyecto.nombre}» — mezcla: {archivo.name}")
+        self._ir(1)  # auto-avanza a referencias
 
     def _procesar_stems(self):
         """Gain staging + highpass de todos los stems de entrada/stems."""
@@ -664,6 +689,8 @@ class MainWindow(QMainWindow):
                      if ancho else "")
         den_txt = "\n  Densidad extra: sí (empuje de loudness alto)" \
             if resumen.get("densidad_aplicada") else ""
+        mb_hz = resumen.get("mono_bass_hz")
+        mb_txt = f"\n  Mono-bass: < {mb_hz:g} Hz (punch + compatibilidad)" if mb_hz else ""
         score = resumen.get("score")
         score_txt = (f"\n  ── SCORE vs referencias: {score['global']}% "
                      f"(tonal {score['tonal']}% · dinámica {score['dinamica']}% · "
@@ -672,7 +699,7 @@ class MainWindow(QMainWindow):
             f"\n══ MASTER LISTO ({resumen.get('fuente', 'mezcla')}) ══{score_txt}\n"
             f"  LUFS final: {resumen['lufs_final']} (objetivo {resumen['target_lufs']})\n"
             f"  True peak: {resumen['true_peak_final']} dBTP   "
-            f"Crest: {resumen.get('crest_final', '?')} dB{eq_txt}{ancho_txt}{den_txt}\n"
+            f"Crest: {resumen.get('crest_final', '?')} dB{eq_txt}{ancho_txt}{den_txt}{mb_txt}\n"
             f"  WAV: {resumen['wav']}\n"
             f"  MP3 para subir: {resumen['mp3']}")
         self._refrescar_estado()
