@@ -359,13 +359,23 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(central)
 
-    def _barra_activa(self, activa: bool):
-        """Muestra/oculta la barra de progreso (modo actividad)."""
+    def _barra_activa(self, activa: bool, pasos: int = 14):
+        """Barra con avance real: cada mensaje del motor suma un paso hasta 100."""
         if activa:
-            self.barra.setRange(0, 0)  # indeterminada = "trabajando"
+            self._barra_valor = 0
+            self.barra.setRange(0, pasos)
+            self.barra.setValue(0)
             self.barra.setVisible(True)
         else:
+            self.barra.setValue(self.barra.maximum())  # 100% al terminar
             self.barra.setVisible(False)
+
+    def _progreso(self, msg: str):
+        """Estado + un paso más de barra por cada aviso del motor."""
+        self._status(msg)
+        if self.barra.isVisible():
+            self._barra_valor = min(self._barra_valor + 1, self.barra.maximum() - 1)
+            self.barra.setValue(self._barra_valor)
 
     # ---------------------------------------------------------- estado de UI
 
@@ -718,7 +728,7 @@ class MainWindow(QMainWindow):
         self._barra_activa(True)
         self._status("Procesando stems…")
         self._stems_worker = StemsWorker(self.proyecto)
-        self._stems_worker.progreso.connect(self._status)
+        self._stems_worker.progreso.connect(self._progreso)
         self._stems_worker.terminado.connect(self._stems_ok)
         self._stems_worker.fallo.connect(self._stems_error)
         self._stems_worker.start()
@@ -806,7 +816,7 @@ class MainWindow(QMainWindow):
         self._worker = AnalisisWorker(
             self.wav_activo, self.ed_marcadores.text(), self.referencia,
             self._version_auto(), umbrales)
-        self._worker.progreso.connect(self._status)
+        self._worker.progreso.connect(self._progreso)
         self._worker.terminado.connect(self._analisis_auto_ok)
         self._worker.fallo.connect(self._analisis_error)
         self._worker.start()
@@ -830,7 +840,7 @@ class MainWindow(QMainWindow):
         self._worker = AnalisisWorker(
             self.wav_activo, self.ed_marcadores.text(), self.referencia,
             version.strip() or "V01", umbrales)
-        self._worker.progreso.connect(self._status)
+        self._worker.progreso.connect(self._progreso)
         self._worker.terminado.connect(self._analisis_ok)
         self._worker.fallo.connect(self._analisis_error)
         self._worker.start()
@@ -905,7 +915,7 @@ class MainWindow(QMainWindow):
             self.wav_activo, self.referencia, target,
             self.proyecto.dir_masters, self.proyecto.dir_entregables,
             version, carpeta_stems)
-        self._master_worker.progreso.connect(self._status)
+        self._master_worker.progreso.connect(self._progreso)
         self._master_worker.terminado.connect(self._master_ok)
         self._master_worker.fallo.connect(self._master_error)
         self._master_worker.start()
