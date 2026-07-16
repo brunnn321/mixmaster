@@ -543,6 +543,20 @@ def main() -> int:
         check("historial: restaurado a la V01 original",
               [d["decision"] for d in listar_decisiones(proyecto)] == ["Bajar 2 dB el low-mid"])
 
+        # --- aprendizaje: aprende el loudness de los masters aprobados ---
+        from mixmaster import learning
+        learning.APRENDIZAJE_JSON = tmp / "aprendizaje.json"  # aislado del real
+        learning.olvidar("math_rock")
+        check("aprendizaje: sin datos, sin preferencia",
+              learning.preferencias("math_rock") == {})
+        learning.registrar_aprobado("math_rock", {"target_lufs": -9.0, "lufs_final": -9.1})
+        learning.registrar_aprobado("math_rock", {"target_lufs": -8.0, "lufs_final": -8.2})
+        pref = learning.preferencias("math_rock")
+        check("aprendizaje: aprende loudness medio (-8.5) de 2 aprobados",
+              pref.get("target_lufs") == -8.5 and pref.get("n") == 2, str(pref))
+        learning.olvidar("math_rock")
+        check("aprendizaje: olvidar resetea", learning.preferencias("math_rock") == {})
+
         # --- v0.9: listar masters (revert) ---
         proyecto.dir_masters.mkdir(parents=True, exist_ok=True)
         for v in ("v01", "v02"):

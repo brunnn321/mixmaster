@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 from .. import __version__
 from ..app_paths import REFERENCIAS_DIR
 from ..audio_analysis import analizar_wav
+from ..learning import olvidar, preferencias, registrar_aprobado
 from ..logger import get_logger
 from ..processing import cargar_config_master, masterizar
 from ..profiles import agregar_regla_genero, listar_referencias_genero
@@ -242,7 +243,9 @@ class MainWindow(QMainWindow):
         m_settings = self.menuBar().addMenu("&Settings")
         acc_settings = QAction("Configuración…", self)
         acc_settings.triggered.connect(self._abrir_settings)
-        m_settings.addAction(acc_settings)
+        acc_olvidar = QAction("Olvidar aprendizaje del género…", self)
+        acc_olvidar.triggered.connect(self._olvidar_aprendizaje)
+        m_settings.addActions([acc_settings, acc_olvidar])
 
         # Botones directos en la barra (un solo clic, sin submenú)
         acc_hist = QAction("📋 Historial", self)
@@ -543,6 +546,17 @@ class MainWindow(QMainWindow):
         except Exception:
             log.exception("No se pudo abrir el log")
             QMessageBox.information(self, "Registro", f"El log está en:\n{LOG_FILE}")
+
+    def _olvidar_aprendizaje(self):
+        """Resetea lo aprendido del género activo (preferencia de loudness)."""
+        genero = self.settings.genero_activo()
+        if QMessageBox.question(
+                self, "Olvidar aprendizaje",
+                f"¿Olvidar lo aprendido de «{genero}» (masters aprobados y loudness)?\n"
+                "Esto no borra tus masters, solo lo que la app aprendió.",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes:
+            olvidar(genero)
+            self._status(f"Aprendizaje de «{genero}» olvidado.")
 
     def _abrir_historial(self):
         """Abre el historial de decisiones (ver / editar feedback / borrar)."""
@@ -856,11 +870,16 @@ class MainWindow(QMainWindow):
             return
 
         cfg = cargar_config_master()
+        # loudness por defecto: el aprendido del género si existe, si no el de config
+        pref = preferencias(self.settings.genero_activo())
+        default_lufs = pref.get("target_lufs", float(cfg.get("target_lufs_default", -9.0)))
+        nota = (f"\n(aprendido de {pref['n']} masters tuyos aprobados en "
+                f"{self.settings.genero_activo()})") if pref else ""
         target, ok = QInputDialog.getDouble(
             self, "Master final",
             "Loudness objetivo (LUFS integrado).\n"
-            "-8.5 = competitivo · -8 / -7.5 = más loud (test) · -14 = streaming suave:",
-            float(cfg.get("target_lufs_default", -8.5)), -20.0, -5.0, 1)
+            f"-9 = competitivo · -8 = más loud · -14 = streaming suave:{nota}",
+            default_lufs, -20.0, -5.0, 1)
         if not ok:
             return
         if not self.referencia:
@@ -924,6 +943,22 @@ class MainWindow(QMainWindow):
             os.startfile(str(Path(resumen["mp3"]).parent))  # abre salida/ con el archivo
         except Exception:
             log.exception("No se pudo abrir la carpeta de salida")
+        self._preguntar_aprobado(resumen)
+
+    def _preguntar_aprobado(self, resumen: dict):
+        """¿Master aprobado? Si sí, la app aprende tu preferencia del género."""
+        genero = self.settings.genero_activo()
+        r = QMessageBox.question(
+            self, "¿Master aprobado?",
+            "¿Te gusta este master?\n\nSi dices Sí, la app aprende tu preferencia "
+            f"de loudness para «{genero}» (reversible en Settings → Olvidar aprendizaje).",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
+        if r == QMessageBox.Yes:
+            try:
+                n = registrar_aprobado(genero, resumen)
+                self._status(f"✓ Aprendido — {n} master(s) aprobado(s) en «{genero}»")
+            except Exception:
+                log.exception("No se pudo registrar el aprendizaje")
 
     def _master_error(self, msg: str):
         self._barra_activa(False)
