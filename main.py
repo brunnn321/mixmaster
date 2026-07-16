@@ -24,6 +24,13 @@ def main() -> int:
     app = QApplication(sys.argv)
     app.setApplicationName("MixMaster")
 
+    from pathlib import Path
+
+    from PySide6.QtGui import QIcon
+    icono = Path(__file__).parent / "assets" / "icon.ico"
+    if icono.exists():
+        app.setWindowIcon(QIcon(str(icono)))
+
     settings = Settings()
 
     ventana = MainWindow(settings)

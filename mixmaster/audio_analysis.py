@@ -401,6 +401,63 @@ def detectar_resonancias(audio: np.ndarray, sr: int, umbral_db: float = 6.0,
     return encontrados[:max_n]
 
 
+# --------------------------- caché de análisis de referencias (velocidad) ---
+
+def _cache_refs_path():
+    from .app_paths import CONFIG_DIR
+    return CONFIG_DIR / "cache_referencias.json"
+
+
+def _cache_refs_leer() -> dict:
+    import json
+    p = _cache_refs_path()
+    if p.exists():
+        try:
+            return json.loads(p.read_text(encoding="utf-8"))
+        except Exception:
+            log.warning("cache_referencias.json ilegible; se regenera")
+    return {}
+
+
+def analizar_referencia_cacheada(path: Path) -> dict:
+    """Análisis completo de UNA referencia, cacheado por (ruta, mtime, tamaño).
+
+    Se mide al loudness NATIVO del archivo; quien lo use ajusta con un offset
+    de dB (las medidas tonales suman el offset; crest/ancho son invariantes al
+    nivel). Evita re-analizar las mismas referencias en cada master.
+    """
+    import json
+    path = Path(path)
+    st = path.stat()
+    clave = str(path.resolve())
+    cache = _cache_refs_leer()
+    e = cache.get(clave)
+    if e and e.get("mtime") == st.st_mtime and e.get("size") == st.st_size:
+        return e
+
+    audio, sr = cargar_audio(path)
+    lufs = lufs_integrado(audio, sr)
+    freqs, esp = espectro_suavizado(audio, sr)
+    e = {
+        "mtime": st.st_mtime,
+        "size": st.st_size,
+        "lufs": float(lufs) if np.isfinite(lufs) else None,
+        "bandas_db": balance_bandas_db(audio, sr),
+        "ancho_por_banda": analisis_estereo(audio, sr)["ancho_por_banda"],
+        "crest_db": round(crest_factor_db(audio), 1),
+        "crest_por_banda": crest_por_banda(audio, sr),
+        "espectro_freqs": [float(x) for x in freqs],
+        "espectro_db": [float(x) for x in esp],
+        "mfcc_mean": cepstral_fingerprint(audio, sr)["mfcc_mean"],
+    }
+    cache[clave] = e
+    try:
+        _cache_refs_path().write_text(json.dumps(cache), encoding="utf-8")
+    except Exception:
+        log.exception("No se pudo escribir el caché de referencias")
+    return e
+
+
 def perfil_referencias(paths_ref, lufs_mix: float) -> dict:
     """Perfil tonal PROMEDIO de una o varias referencias, niveladas al LUFS
     de la mezcla. Devuelve {nombres, bandas_db, ancho_por_banda, lufs}.
@@ -416,17 +473,18 @@ def perfil_referencias(paths_ref, lufs_mix: float) -> dict:
     espectros, crests, crests_banda_acum = [], [], []
     freqs = None
     for p in paths_ref:
-        audio_ref, sr_ref = cargar_audio(p)
-        lufs_ref = lufs_integrado(audio_ref, sr_ref)
-        if np.isfinite(lufs_ref) and np.isfinite(lufs_mix):
-            audio_ref = audio_ref * (10 ** ((lufs_mix - lufs_ref) / 20))
-        bandas_acum.append(balance_bandas_db(audio_ref, sr_ref))
-        anchos_acum.append(analisis_estereo(audio_ref, sr_ref)["ancho_por_banda"])
-        crests_banda_acum.append(crest_por_banda(audio_ref, sr_ref))
-        freqs, esp = espectro_suavizado(audio_ref, sr_ref)
-        espectros.append(esp)
-        crests.append(crest_factor_db(audio_ref))
-        if np.isfinite(lufs_ref):
+        e = analizar_referencia_cacheada(p)   # rápido: solo analiza la 1ª vez
+        lufs_ref = e["lufs"]
+        # nivelación por offset de dB (equivale a escalar el audio como antes)
+        off = (lufs_mix - lufs_ref) if (lufs_ref is not None
+                                        and np.isfinite(lufs_mix)) else 0.0
+        bandas_acum.append({b: v + off for b, v in e["bandas_db"].items()})
+        anchos_acum.append(e["ancho_por_banda"])          # invariante al nivel
+        crests_banda_acum.append(e["crest_por_banda"])    # invariante al nivel
+        freqs = np.asarray(e["espectro_freqs"])
+        espectros.append(np.asarray(e["espectro_db"]) + off)
+        crests.append(e["crest_db"])                      # invariante al nivel
+        if lufs_ref is not None:
             lufs_refs.append(float(lufs_ref))
         nombres.append(p.name)
 

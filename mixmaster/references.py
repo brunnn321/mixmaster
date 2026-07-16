@@ -189,9 +189,10 @@ def detectar_etiqueta_sugerida(audio_mezcla_path: Path) -> dict:
         for nombre in nombres_archivos:
             ruta_ref = REFERENCIAS_DIR / etiqueta / nombre
             try:
-                audio_ref, sr_ref = cargar_audio(ruta_ref)
-                mfcc_ref = cepstral_fingerprint(audio_ref, sr_ref)["mfcc_mean"]
-                _, spec_ref = espectro_suavizado(audio_ref, sr_ref)
+                from .audio_analysis import analizar_referencia_cacheada
+                e = analizar_referencia_cacheada(ruta_ref)  # cacheado: rápido
+                mfcc_ref = e["mfcc_mean"]
+                spec_ref = np.asarray(e["espectro_db"])
 
                 # Score MFCC: similitud coseno normalizada
                 score_mfcc = 1.0 - np.linalg.norm(

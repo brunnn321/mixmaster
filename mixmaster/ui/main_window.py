@@ -178,8 +178,11 @@ class MainWindow(QMainWindow):
         self._notificado = False  # evita reentrada en closeEvent
 
         # Icono de bandeja para notificaciones nativas (fiable en Win11)
+        from PySide6.QtGui import QIcon
+        icono = Path(__file__).resolve().parents[2] / "assets" / "icon.ico"
         self._tray = QSystemTrayIcon(self)
-        self._tray.setIcon(self.style().standardIcon(QStyle.SP_MediaVolume))
+        self._tray.setIcon(QIcon(str(icono)) if icono.exists()
+                           else self.style().standardIcon(QStyle.SP_MediaVolume))
         self._tray.setToolTip("MixMaster")
         self._tray.show()
 
