@@ -350,7 +350,7 @@ class MainWindow(QMainWindow):
 
         self.barra = QProgressBar()
         self.barra.setTextVisible(False)
-        self.barra.setMaximumHeight(8)
+        self.barra.setFixedHeight(16)
         self.barra.setVisible(False)
         raiz.addWidget(self.barra)
 
@@ -765,6 +765,11 @@ class MainWindow(QMainWindow):
         self.referencia = existentes + nuevas
         self._status(f"{len(self.referencia)} referencia(s).")
 
+        # Barra visible YA (la detección de etiqueta bloquea; que se vea trabajando)
+        from PySide6.QtWidgets import QApplication
+        self._barra_activa(True)
+        QApplication.processEvents()
+
         # Detectar etiqueta sugerida si hay mezcla cargada
         if self.wav_activo:
             resultado = detectar_etiqueta_sugerida(self.wav_activo)
@@ -784,6 +789,7 @@ class MainWindow(QMainWindow):
         if self.wav_activo:
             self._analizar_auto()  # analiza solo y luego salta al master
         else:
+            self._barra_activa(False)
             self._refrescar_estado()
             self._ir(2)  # fuente = stems: no hay mezcla única que analizar
 
