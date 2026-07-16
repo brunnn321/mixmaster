@@ -19,8 +19,6 @@ from .logger import get_logger
 
 log = get_logger("mixmaster.project")
 
-SUBCARPETAS = ["entrada", "entrada/stems", "salida", "analisis"]
-
 DECISIONES_MD = "decisiones-y-feedback.md"
 
 CABECERA_DECISIONES = """# Decisiones y feedback — {nombre}
@@ -104,31 +102,37 @@ class Project:
         )
         return candidatos[0] if candidatos else None
 
+    def listar_masters(self) -> list[Path]:
+        """Masters WAV generados (salida/), del más nuevo al más viejo."""
+        d = self.dir_masters
+        if not d.is_dir():
+            return []
+        return sorted(d.glob("master_*.wav"),
+                      key=lambda p: p.stat().st_mtime, reverse=True)
+
 
 def crear_proyecto(base: Path, nombre: str) -> Project:
-    """Crea la estructura de carpetas (layout nuevo) de un proyecto."""
+    """Crea el proyecto vacío. Las subcarpetas se crean solo al escribir en
+    ellas (nada de carpetas vacías): entrada/stems al copiar stems, analisis/
+    al guardar diagnóstico, salida/ al masterizar."""
     root = Path(base) / nombre_seguro(nombre)
     root.mkdir(parents=True, exist_ok=True)
-    for sub in SUBCARPETAS:
-        (root / sub).mkdir(parents=True, exist_ok=True)
 
+    # Único contenido garantizado: el registro de decisiones.
     decisiones = root / DECISIONES_MD
     if not decisiones.exists():
         decisiones.write_text(CABECERA_DECISIONES.format(nombre=nombre), encoding="utf-8")
 
-    log.info("Proyecto creado: %s", root)
+    log.info("Proyecto creado: %s (subcarpetas on-demand)", root)
     return Project(root)
 
 
 def abrir_proyecto(root: Path) -> Project:
-    """Abre un proyecto existente; completa carpetas faltantes de su layout."""
+    """Abre un proyecto existente. Las subcarpetas se crean al escribir en ellas."""
     proyecto = Project(root)
     if not proyecto.root.is_dir():
         raise FileNotFoundError(f"No existe la carpeta de proyecto: {root}")
     if proyecto.es_layout_viejo:
         log.info("Proyecto con layout v0.1 (carpetas numeradas): %s", root)
-    else:
-        for sub in SUBCARPETAS:
-            (proyecto.root / sub).mkdir(parents=True, exist_ok=True)
     log.info("Proyecto abierto: %s", root)
     return proyecto

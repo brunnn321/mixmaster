@@ -1199,3 +1199,73 @@
 2026-07-14 18:10:32 [INFO] mixmaster.processing: Exportando WAV 24-bit y MP3…
 2026-07-14 18:10:33 [INFO] mixmaster.processing: Master listo.
 2026-07-14 18:10:33 [INFO] mixmaster.processing: Master: {'wav': 'D:\\PROYECTOS REPOSITORIOS\\DAW IA\\MixMaster\\proyectos\\3\\salida\\master_v01_wav mix.wav', 'mp3': 'D:\\PROYECTOS REPOSITORIOS\\DAW IA\\MixMaster\\proyectos\\3\\salida\\master_v01_wav mix.mp3', 'lufs_final': -7.5, 'true_peak_final': -1.2, 'crest_final': 8.5, 'target_lufs': -7.0, 'eq_aplicado_db': {'sub': -1.2, 'low': -3.7, 'low_mid': -2.0, 'mid': 2.4, 'high_mid': 3.9, 'high': 1.9, 'air': 1.9}, 'ajuste_ancho_db': {'high_mid': 1.4, 'high': 2.0, 'air': 2.0}, 'densidad_aplicada': True, 'fuente': 'mezcla', 'referencias': ['09 - Splash.mp3', 'Waterslide.mp3'], 'score': {'tonal': 82, 'dinamica': 77, 'imagen': 80, 'global': 80}}
+2026-07-14 19:55:15 [INFO] mixmaster.profiles: Perfil v0.1 (perfil_bruno.md) conservado; la app usa perfiles/ y generos/
+2026-07-14 19:55:15 [INFO] mixmaster.project: Proyecto abierto: D:\PROYECTOS REPOSITORIOS\DAW IA\MixMaster\proyectos\3
+2026-07-14 19:55:15 [INFO] mixmaster.main: MixMaster iniciado
+2026-07-14 19:55:23 [INFO] mixmaster.project: Proyecto creado: D:\PROYECTOS REPOSITORIOS\DAW IA\MixMaster\proyectos\4
+2026-07-14 19:56:40 [INFO] mixmaster.profiles: Perfil v0.1 (perfil_bruno.md) conservado; la app usa perfiles/ y generos/
+2026-07-14 19:56:40 [INFO] mixmaster.project: Proyecto abierto: D:\PROYECTOS REPOSITORIOS\DAW IA\MixMaster\proyectos\4
+2026-07-14 19:56:40 [INFO] mixmaster.main: MixMaster iniciado
+2026-07-14 19:58:37 [INFO] mixmaster.analysis: Cargando wav mix.wav…
+2026-07-14 19:58:37 [INFO] mixmaster.analysis: Midiendo loudness (LUFS)…
+2026-07-14 19:58:37 [INFO] mixmaster.analysis: Midiendo true peak y dinámica…
+2026-07-14 19:58:38 [INFO] mixmaster.analysis: Analizando balance espectral…
+2026-07-14 19:58:38 [INFO] mixmaster.analysis: Analizando imagen estéreo…
+2026-07-14 19:58:38 [INFO] mixmaster.analysis: Extrayendo MFCC (cepstral)…
+2026-07-14 19:58:39 [ERROR] mixmaster.ui: Fallo en el análisis
+Traceback (most recent call last):
+  File "D:\PROYECTOS REPOSITORIOS\DAW IA\MixMaster\mixmaster\ui\main_window.py", line 47, in run
+    diag = analizar_wav(
+        self.wav, self.marcadores, self.referencia,
+        version=self.version, umbrales=self.umbrales,
+        progreso=self.progreso.emit,
+    )
+  File "D:\PROYECTOS REPOSITORIOS\DAW IA\MixMaster\mixmaster\audio_analysis.py", line 854, in analizar_wav
+    cepstral = cepstral_fingerprint(audio, sr)
+  File "D:\PROYECTOS REPOSITORIOS\DAW IA\MixMaster\mixmaster\audio_analysis.py", line 530, in cepstral_fingerprint
+    mfcc_mean = [float(x) for x in np.mean(mfcc_raw)]
+                                   ~~~~~~~^^^^^^^^^^
+TypeError: 'numpy.float64' object is not iterable
+2026-07-14 19:58:48 [INFO] mixmaster.analysis: Cargando wav mix.wav…
+2026-07-14 19:58:48 [INFO] mixmaster.analysis: Midiendo loudness (LUFS)…
+2026-07-14 19:58:48 [INFO] mixmaster.analysis: Midiendo true peak y dinámica…
+2026-07-14 19:58:48 [INFO] mixmaster.analysis: Analizando balance espectral…
+2026-07-14 19:58:48 [INFO] mixmaster.analysis: Analizando imagen estéreo…
+2026-07-14 19:58:49 [INFO] mixmaster.analysis: Extrayendo MFCC (cepstral)…
+2026-07-14 19:58:49 [ERROR] mixmaster.ui: Fallo en el análisis
+Traceback (most recent call last):
+  File "D:\PROYECTOS REPOSITORIOS\DAW IA\MixMaster\mixmaster\ui\main_window.py", line 47, in run
+    diag = analizar_wav(
+        self.wav, self.marcadores, self.referencia,
+        version=self.version, umbrales=self.umbrales,
+        progreso=self.progreso.emit,
+    )
+  File "D:\PROYECTOS REPOSITORIOS\DAW IA\MixMaster\mixmaster\audio_analysis.py", line 854, in analizar_wav
+    cepstral = cepstral_fingerprint(audio, sr)
+  File "D:\PROYECTOS REPOSITORIOS\DAW IA\MixMaster\mixmaster\audio_analysis.py", line 530, in cepstral_fingerprint
+    mfcc_mean = [float(x) for x in np.mean(mfcc_raw)]
+                                   ~~~~~~~^^^^^^^^^^
+TypeError: 'numpy.float64' object is not iterable
+2026-07-14 20:10:21 [INFO] mixmaster.profiles: Perfil v0.1 (perfil_bruno.md) conservado; la app usa perfiles/ y generos/
+2026-07-14 20:10:21 [INFO] mixmaster.project: Proyecto abierto: D:\PROYECTOS REPOSITORIOS\DAW IA\MixMaster\proyectos\4
+2026-07-14 20:10:21 [INFO] mixmaster.main: MixMaster iniciado
+2026-07-14 20:13:22 [INFO] mixmaster.analysis: Cargando wav mix.wav…
+2026-07-14 20:13:22 [INFO] mixmaster.analysis: Midiendo loudness (LUFS)…
+2026-07-14 20:13:22 [INFO] mixmaster.analysis: Midiendo true peak y dinámica…
+2026-07-14 20:13:22 [INFO] mixmaster.analysis: Analizando balance espectral…
+2026-07-14 20:13:22 [INFO] mixmaster.analysis: Analizando imagen estéreo…
+2026-07-14 20:13:23 [INFO] mixmaster.analysis: Extrayendo MFCC (cepstral)…
+2026-07-14 20:13:23 [ERROR] mixmaster.ui: Fallo en el análisis
+Traceback (most recent call last):
+  File "D:\PROYECTOS REPOSITORIOS\DAW IA\MixMaster\mixmaster\ui\main_window.py", line 47, in run
+    diag = analizar_wav(
+        self.wav, self.marcadores, self.referencia,
+        version=self.version, umbrales=self.umbrales,
+        progreso=self.progreso.emit,
+    )
+  File "D:\PROYECTOS REPOSITORIOS\DAW IA\MixMaster\mixmaster\audio_analysis.py", line 854, in analizar_wav
+    cepstral = cepstral_fingerprint(audio, sr)
+  File "D:\PROYECTOS REPOSITORIOS\DAW IA\MixMaster\mixmaster\audio_analysis.py", line 530, in cepstral_fingerprint
+    mfcc_mean = [float(x) for x in np.mean(mfcc_raw)]
+                                   ~~~~~~~^^^^^^^^^^
+TypeError: 'numpy.float64' object is not iterable

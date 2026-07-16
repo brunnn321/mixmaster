@@ -1,15 +1,57 @@
 {
-  "target_lufs_default": -8.5,
+  "target_lufs_default": -9.0,
   "eq_correctivo": {
     "activo": true,
     "max_correccion_db": 4.0,
     "analizar_imagen_stereo": true,
-    "max_ajuste_ancho_db": 2.0
+    "max_ajuste_ancho_db": 1.0
+  },
+  "mono_bass": {
+    "activo": true,
+    "freq_hz": 100.0,
+    "cantidad": 1.0
+  },
+  "multibanda": {
+    "activo": true,
+    "umbral_crest_db": 2.0,
+    "reduccion_max_db": 3.0,
+    "ratio_max": 2.5,
+    "attack_ms": 15.0,
+    "release_ms": 120.0,
+    "cantidad": 0.6
+  },
+  "resonancias": {
+    "activo": true,
+    "umbral_db": 6.0,
+    "max_cut_db": 3.0,
+    "q": 6.0,
+    "max_n": 4
+  },
+  "transient_shaping": {
+    "activo": true,
+    "cantidad": 0.25,
+    "fast_ms": 5.0,
+    "slow_ms": 80.0
+  },
+  "dinamica_secciones": {
+    "activo": false,
+    "cantidad": 0.5,
+    "ventana_s": 1.0,
+    "max_db": 2.0
+  },
+  "stems_master": {
+    "mejorar_percusion": true,
+    "transient_cantidad": 0.3
   },
   "densidad": {
     "activo": true,
     "umbral_reduccion_db": 3.0,
-    "drive": 1.5
+    "drive": 1.5,
+    "rango_proporcional_db": 6.0
+  },
+  "clipper": {
+    "activo": true,
+    "umbral_dbfs": -0.5
   },
   "limitador": {
     "ceiling_dbtp": -1.0,

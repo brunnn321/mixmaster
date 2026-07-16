@@ -180,6 +180,7 @@ def procesar_stems(proyecto: Project, progreso=None) -> dict:
 
     texto = reporte_stems_legible(reporte)
     try:
+        proyecto.dir_analisis.mkdir(parents=True, exist_ok=True)  # on-demand
         (proyecto.dir_analisis / "gain_staging.txt").write_text(texto, encoding="utf-8")
     except Exception:
         log.exception("No se pudo escribir gain_staging.txt")

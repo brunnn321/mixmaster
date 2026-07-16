@@ -78,9 +78,11 @@ def main() -> int:
 
         # --- proyecto ---
         proyecto = crear_proyecto(tmp, "Cancion De Prueba v01")
-        check("estructura de carpetas (layout simple)",
-              all((proyecto.root / d).is_dir() for d in
-                  ["entrada", "entrada/stems", "salida", "analisis"]))
+        check("proyecto sin carpetas vacías (todo on-demand)",
+              proyecto.root.is_dir()
+              and not (proyecto.root / "entrada").exists()
+              and not (proyecto.root / "analisis").exists()
+              and not (proyecto.root / "salida").exists())
         check("decisiones-y-feedback.md creado", proyecto.decisiones_path.exists())
         # compatibilidad con proyectos viejos (carpetas numeradas)
         viejo_root = tmp / "proyecto_viejo"
@@ -93,6 +95,9 @@ def main() -> int:
               and viejo.dir_analisis.name == "04_analisis")
 
         # --- análisis completo con referencia y secciones ---
+        # (las subcarpetas ya no se crean solas: el test las crea al escribir)
+        proyecto.dir_originales.mkdir(parents=True, exist_ok=True)
+        proyecto.dir_referencias.mkdir(parents=True, exist_ok=True)
         wav_mix = proyecto.dir_originales / "mezcla.wav"
         wav_ref = proyecto.dir_referencias / "referencia.wav"
         wav_sintetico(wav_mix, gain=0.3)
@@ -142,10 +147,16 @@ def main() -> int:
               f"lufs mp3={diag_mix_mp3['global']['lufs_i']} vs wav={diag['global']['lufs_i']}")
 
         # --- masterizado automático ---
+        # Esta prueba valida el EQ matcher EN AISLAMIENTO: apaga las etapas de
+        # v0.7/v0.8 (resonancias, multibanda, mono-bass) que en tonos puros
+        # sintéticos alterarían el balance; cada una tiene su propio test.
+        cfg_solo_eq = cargar_config_master()
+        for k in ("resonancias", "multibanda", "mono_bass"):
+            cfg_solo_eq.setdefault(k, {})["activo"] = False
         resumen = masterizar(
             wav_mix, wav_ref, -10.0,
             proyecto.root / "06_masters", proyecto.root / "07_entregables",
-            version="V01")
+            version="V01", cfg=cfg_solo_eq)
         check("master WAV creado", Path(resumen["wav"]).exists())
         check("master MP3 creado", Path(resumen["mp3"]).exists())
         check("loudness en objetivo", abs(resumen["lufs_final"] - (-10.0)) < 1.0,
@@ -204,6 +215,168 @@ def main() -> int:
         check("clipper transparente bajo el umbral",
               bool(np.allclose(clipeada[rampa < 0.9], rampa[rampa < 0.9])))
 
+        # Mono-bass (v0.7): grave a mono, agudos intactos
+        from scipy import signal
+        from mixmaster.processing import _mono_bass
+        n_mb = SR  # 1 s
+        t_mb = np.arange(n_mb) / SR
+        # Grave (50 Hz) DESFASADO entre L/R → hay side en el grave, que debe irse.
+        # Agudos (5 kHz) descorrelacionados → side que debe SOBREVIVIR.
+        low_l = np.sin(2 * np.pi * 50 * t_mb)
+        low_r = np.sin(2 * np.pi * 50 * t_mb + 0.9)
+        hi_l = 0.5 * np.sin(2 * np.pi * 5000 * t_mb)
+        hi_r = 0.5 * np.sin(2 * np.pi * 5000 * t_mb + 1.3)
+        est = np.stack([low_l + hi_l, low_r + hi_r], axis=1)
+        mb = _mono_bass(est, SR, 100.0, 1.0)
+
+        sos_lo = signal.butter(4, 100.0, "low", fs=SR, output="sos")
+        rec = slice(SR // 5, -SR // 5)  # recorta bordes (transitorios de filtro)
+
+        def side_grave(x):
+            side = x[:, 0] - x[:, 1]
+            return float(np.std(signal.sosfiltfilt(sos_lo, side)[rec]))
+
+        antes, despues = side_grave(est), side_grave(mb)
+        check("mono-bass: elimina el side del grave", despues < antes * 0.1,
+              f"antes={antes:.3f} despues={despues:.3f}")
+        # los agudos (side total) deben sobrevivir
+        check("mono-bass: agudos conservan estéreo",
+              float(np.std((mb[:, 0] - mb[:, 1])[rec])) > 0.1)
+        # cantidad=0 → no cambia nada
+        check("mono-bass: cantidad 0 no toca la señal",
+              bool(np.allclose(_mono_bass(est, SR, 100.0, 0.0), est)))
+
+        # Multibanda (v0.7.2): comprime la banda demasiado dinámica, deja la densa
+        from mixmaster.audio_analysis import crest_por_banda
+        from mixmaster.processing import _multibanda
+        n_mc = 3 * SR
+        t_mc = np.arange(n_mc) / SR
+        # mid (1 kHz): bed estable (domina el RMS) + picos Hann ESCASOS (0.12 s).
+        # Comprimir los picos baja el pico sin mover el RMS → el crest cae claro.
+        L_mc = int(0.12 * SR)
+        hann = 0.5 * (1 - np.cos(2 * np.pi * np.arange(L_mc) / L_mc))
+        bump = np.zeros(n_mc)
+        for c in (int(0.3 * SR), int(0.9 * SR), int(1.5 * SR), int(2.1 * SR), int(2.7 * SR)):
+            bump[c:c + L_mc] += 0.65 * hann
+        mid = (0.35 + bump) * np.sin(2 * np.pi * 1000 * t_mc)  # bed 0.35 + picos ~1.0
+        # low (120 Hz) denso, sin dinámica → NO debe tocarse
+        low = 0.4 * np.sin(2 * np.pi * 120 * t_mc)
+        señal_mc = np.stack([mid + low, mid + low], axis=1)
+        crest_antes = crest_por_banda(señal_mc, SR)
+
+        # 1) el compresor de banda atenúa los picos por encima del umbral
+        from mixmaster.processing import _comprimir_banda
+        banda_din = np.stack([mid, mid], axis=1)
+        rms_b = float(np.sqrt(np.mean(banda_din ** 2)))
+        pico_pre = float(np.max(np.abs(banda_din)))
+        comp_b = _comprimir_banda(banda_din, SR, ratio=3.0,
+                                  umbral_db=20 * np.log10(rms_b) + 3.0,
+                                  attack_ms=10.0, release_ms=80.0)
+        pico_post = float(np.max(np.abs(comp_b)))
+        check("multibanda: el compresor atenúa los picos", pico_post < pico_pre * 0.95,
+              f"pico {pico_pre:.3f}->{pico_post:.3f}")
+
+        # 2) _multibanda apunta a la banda dinámica (mid) y NO a la densa (low)
+        crest_ref = dict(crest_antes)
+        crest_ref["mid"] = crest_antes["mid"] - 8.0  # ref pide mid más denso
+        cfg_mc = {"activo": True, "umbral_crest_db": 2.0, "reduccion_max_db": 4.0,
+                  "ratio_max": 3.0, "attack_ms": 15.0, "release_ms": 120.0, "cantidad": 1.0}
+        _, aplicado = _multibanda(señal_mc, SR, crest_ref, cfg_mc)
+        check("multibanda: apunta a la banda muy dinámica (mid)",
+              "mid" in aplicado, f"aplicado={aplicado}")
+        check("multibanda: NO toca la banda ya densa (low)", "low" not in aplicado)
+
+        # 3) el split reconstruye la señal exactamente
+        from mixmaster.processing import _split_bandas
+        suma = sum(_split_bandas(señal_mc, SR).values())
+        check("multibanda: split suma exacta (reconstrucción)",
+              bool(np.allclose(suma, señal_mc, atol=1e-6)))
+
+        # Resonancias (v0.7.3): detecta el pico estrecho y lo atenúa
+        from mixmaster.audio_analysis import detectar_resonancias
+        from mixmaster.processing import _aplicar_notches
+        n_r = 4 * SR
+        t_r = np.arange(n_r) / SR
+        rng_r = np.random.default_rng(3)
+        ruido = 0.05 * rng_r.standard_normal(n_r)          # lecho de banda ancha
+        resonante = ruido + 0.5 * np.sin(2 * np.pi * 3000 * t_r)  # pico en 3 kHz
+        sig_r = np.stack([resonante, resonante], axis=1)
+        detectadas = detectar_resonancias(sig_r, SR, umbral_db=4.0)
+        cerca = [r for r in detectadas if abs(r["freq"] - 3000) < 200]
+        check("resonancias: detecta el pico de 3 kHz", len(cerca) >= 1,
+              f"detectadas={[r['freq'] for r in detectadas]}")
+        out_r, aplicados = _aplicar_notches(sig_r, SR, cerca, max_cut_db=3.0, q=6.0)
+        # energía en 3 kHz debe bajar tras el notch
+        from mixmaster.audio_analysis import _filtrar_banda
+        e_antes = float(np.sqrt(np.mean(_filtrar_banda(resonante, SR, 2800, 3200) ** 2)))
+        e_despues = float(np.sqrt(np.mean(_filtrar_banda(out_r[:, 0], SR, 2800, 3200) ** 2)))
+        check("resonancias: el notch atenúa el pico", e_despues < e_antes * 0.9,
+              f"e {e_antes:.4f}->{e_despues:.4f}")
+
+        # Transient shaping (v0.8): realza el ataque → sube el crest
+        from mixmaster.audio_analysis import crest_factor_db
+        from mixmaster.processing import _transient_shape
+        n_t = 3 * SR
+        env_t = 0.06 * np.ones(n_t)                    # lecho suave sostenido
+        for c in range(int(0.2 * SR), n_t, int(0.6 * SR)):  # golpes cortos, espaciados
+            L = int(0.03 * SR)
+            env_t[c:c + L] += np.exp(-np.arange(L) / (0.005 * SR))  # ataque agudo 5 ms
+        golpe = env_t * np.sin(2 * np.pi * 200 * np.arange(n_t) / SR)
+        sig_t = np.stack([golpe, golpe], axis=1)
+        crest_t0 = crest_factor_db(sig_t)
+        out_t = _transient_shape(sig_t, SR, cantidad=0.5, fast_ms=5.0, slow_ms=80.0)
+        crest_t1 = crest_factor_db(out_t)
+        check("transient shaping: aumenta el crest (más pegada)",
+              crest_t1 > crest_t0 + 0.3, f"crest {crest_t0:.1f}->{crest_t1:.1f}")
+        check("transient shaping: cantidad 0 no toca nada",
+              bool(np.allclose(_transient_shape(sig_t, SR, 0.0), sig_t)))
+
+        # Dinámica macro (v0.8.1): acerca el contorno de secciones al de ref
+        from mixmaster.processing import _preservar_dinamica_macro
+        n_d = 6 * SR
+        t_d = np.arange(n_d) / SR
+        tono_d = np.sin(2 * np.pi * 500 * t_d)
+        # ref: MUY dinámica (verso 0.2 / estribillo 1.0 alternando cada 1.5 s)
+        env_ref = np.where((t_d % 3.0) < 1.5, 0.2, 1.0)
+        ref_d = np.stack([env_ref * tono_d, env_ref * tono_d], axis=1)
+        # actual: aplanada (casi constante) → debe recuperar contraste
+        plano = np.stack([0.6 * tono_d, 0.6 * tono_d], axis=1)
+        out_d = _preservar_dinamica_macro(plano, ref_d, SR, cantidad=1.0, max_db=6.0)
+        from scipy.ndimage import uniform_filter1d
+        def rms1s(x):
+            return np.sqrt(uniform_filter1d(x[:, 0] ** 2, SR) + 1e-12)
+        # contraste = std del contorno; debe crecer hacia el de la ref
+        contraste_antes = float(np.std(rms1s(plano)))
+        contraste_despues = float(np.std(rms1s(out_d)))
+        check("dinámica macro: recupera contraste entre secciones",
+              contraste_despues > contraste_antes + 0.01,
+              f"contraste {contraste_antes:.3f}->{contraste_despues:.3f}")
+        check("dinámica macro: cantidad 0 no toca nada",
+              bool(np.allclose(_preservar_dinamica_macro(plano, ref_d, SR, 0.0), plano)))
+
+        # Master por stems mejorado (v0.8.3): realza la percusión al sumar
+        from mixmaster.processing import _es_percusion, sumar_stems as _sumar
+        check("stems: detecta percusión por nombre",
+              _es_percusion("Kick_in.wav") and _es_percusion("drums_OH.wav")
+              and not _es_percusion("bass_di.wav") and not _es_percusion("gtr_L.wav"))
+        dir_perc = tmp / "stems_perc"
+        dir_perc.mkdir()
+        n_p = 2 * SR
+        # kick: golpes cortos y agudos (percusivo)
+        kick = np.zeros(n_p)
+        for c in range(int(0.2 * SR), n_p, int(0.5 * SR)):
+            Lk = int(0.03 * SR)
+            kick[c:c + Lk] = np.exp(-np.arange(Lk) / (0.004 * SR))
+        sf.write(str(dir_perc / "kick.wav"), np.stack([kick, kick], axis=1), SR)
+        # bajo: sostenido
+        bajo_p = 0.4 * np.sin(2 * np.pi * 60 * np.arange(n_p) / SR)
+        sf.write(str(dir_perc / "bass.wav"), np.stack([bajo_p, bajo_p], axis=1), SR)
+        suma_sin, _ = _sumar(dir_perc, mejorar_percusion=False)
+        suma_con, _ = _sumar(dir_perc, mejorar_percusion=True, transient_cant=0.6)
+        check("stems: realzar percusión sube el crest de la suma",
+              crest_factor_db(suma_con) > crest_factor_db(suma_sin) + 0.2,
+              f"crest {crest_factor_db(suma_sin):.1f}->{crest_factor_db(suma_con):.1f}")
+
 
         # --- procesamiento de stems (gain staging + highpass) ---
         cfg = cargar_config_stems()
@@ -214,6 +387,7 @@ def main() -> int:
         check("detección de tipo: sin match", detectar_tipo("sinte_pad.wav", cfg) == ("otro", 0.0))
 
         dir_stems = proyecto.dir_stems
+        dir_stems.mkdir(parents=True, exist_ok=True)  # on-demand
         n_s = int(5 * SR)
         t_s = np.arange(n_s) / SR
         rng2 = np.random.default_rng(7)
@@ -286,18 +460,30 @@ def main() -> int:
             p.unlink()
 
         # --- perfil acumulativo: reglas versionadas y revertir ---
-        md_antes, _ = leer_genero("math_rock")
-        agregar_regla_genero("math_rock", "correlación baja en mid OK si pérdida mono < 1.5 dB",
-                             "wav mix.wav")
-        md_con_regla, _ = leer_genero("math_rock")
-        check("regla añadida al género", "pérdida mono < 1.5 dB" in md_con_regla)
-        versiones = listar_versiones_genero("math_rock")
-        check("snapshot creado al añadir regla", len(versiones) >= 1)
-        revertir_genero("math_rock", versiones[-1])  # la más vieja = estado original
-        md_revertido, _ = leer_genero("math_rock")
-        check("revertir restaura el estado previo",
-              "pérdida mono < 1.5 dB" not in md_revertido
-              and md_revertido == md_antes)
+        # Género desechable _test_genero: no toca math_rock real y se limpia entero.
+        from mixmaster.app_paths import GENEROS_DIR
+        from mixmaster.profiles import VERSIONES_DIR
+        GEN_T = "_test_genero"
+        (GENEROS_DIR / f"{GEN_T}.md").write_text(
+            "# Género de prueba\n\n## Reglas aprendidas del género\n", encoding="utf-8")
+        try:
+            md_antes, _ = leer_genero(GEN_T)
+            agregar_regla_genero(GEN_T, "correlación baja en mid OK si pérdida mono < 1.5 dB",
+                                 "wav mix.wav")
+            md_con_regla, _ = leer_genero(GEN_T)
+            check("regla añadida al género", "pérdida mono < 1.5 dB" in md_con_regla)
+            versiones = listar_versiones_genero(GEN_T)
+            check("snapshot creado al añadir regla", len(versiones) >= 1)
+            revertir_genero(GEN_T, versiones[-1])  # la más vieja = estado original (limpio)
+            md_revertido, _ = leer_genero(GEN_T)
+            check("revertir restaura el estado previo",
+                  "pérdida mono < 1.5 dB" not in md_revertido
+                  and md_revertido == md_antes)
+        finally:
+            # limpieza total: md del género + todos sus snapshots
+            (GENEROS_DIR / f"{GEN_T}.md").unlink(missing_ok=True)
+            for snap in VERSIONES_DIR.glob(f"{GEN_T}_v*.md"):
+                snap.unlink()
 
         # --- clipping real detectado ---
         wav_clip = proyecto.dir_originales / "clipeado.wav"
@@ -326,6 +512,60 @@ def main() -> int:
         check("decisión registrada", "Bajar 2 dB el low-mid" in contenido
               and "Feedback: aprobado" in contenido)
 
+        # --- v0.9: CRUD de decisiones (historial) ---
+        # V01 (índice 0) se conserva intacta: el test de contexto la necesita.
+        from mixmaster.decisions import listar_decisiones, borrar_decision, editar_feedback
+        guardar_decision(proyecto, "V02", "mezcla.wav", "Subir aire 1 dB", "ajustado",
+                         etiqueta="prog", referencias=["ref_a.wav"])
+        guardar_decision(proyecto, "V03", "mezcla.wav", "Decisión temporal", "rechazado")
+        lista = listar_decisiones(proyecto)
+        check("historial: lista todas las decisiones", len(lista) == 3)
+        check("historial: parsea campos (etiqueta, refs)",
+              lista[1]["decision"] == "Subir aire 1 dB"
+              and lista[1]["etiqueta"] == "prog"
+              and lista[1]["feedback"] == "ajustado"
+              and "ref_a.wav" in lista[1]["referencias"])
+        # editar feedback de la #1 (V02)
+        check("historial: editar feedback", editar_feedback(proyecto, 1, "aprobado")
+              and listar_decisiones(proyecto)[1]["feedback"] == "aprobado")
+        check("historial: feedback inválido se rechaza",
+              editar_feedback(proyecto, 1, "quizas") is False)
+        # borrar la #2 (V03 temporal); V01 y V02 quedan
+        check("historial: borrar decisión", borrar_decision(proyecto, 2))
+        lista2 = listar_decisiones(proyecto)
+        check("historial: tras borrar quedan 2 y la V01 intacta",
+              len(lista2) == 2 and lista2[0]["decision"] == "Bajar 2 dB el low-mid"
+              and all(d["decision"] != "Decisión temporal" for d in lista2))
+        check("historial: índice fuera de rango no borra",
+              borrar_decision(proyecto, 9) is False)
+        # limpieza: deja solo la V01 original (el test de contexto la usa)
+        borrar_decision(proyecto, 1)
+        check("historial: restaurado a la V01 original",
+              [d["decision"] for d in listar_decisiones(proyecto)] == ["Bajar 2 dB el low-mid"])
+
+        # --- aprendizaje: aprende el loudness de los masters aprobados ---
+        from mixmaster import learning
+        learning.APRENDIZAJE_JSON = tmp / "aprendizaje.json"  # aislado del real
+        learning.olvidar("math_rock")
+        check("aprendizaje: sin datos, sin preferencia",
+              learning.preferencias("math_rock") == {})
+        learning.registrar_aprobado("math_rock", {"target_lufs": -9.0, "lufs_final": -9.1})
+        learning.registrar_aprobado("math_rock", {"target_lufs": -8.0, "lufs_final": -8.2})
+        pref = learning.preferencias("math_rock")
+        check("aprendizaje: aprende loudness medio (-8.5) de 2 aprobados",
+              pref.get("target_lufs") == -8.5 and pref.get("n") == 2, str(pref))
+        learning.olvidar("math_rock")
+        check("aprendizaje: olvidar resetea", learning.preferencias("math_rock") == {})
+
+        # --- v0.9: listar masters (revert) ---
+        proyecto.dir_masters.mkdir(parents=True, exist_ok=True)
+        for v in ("v01", "v02"):
+            sf.write(str(proyecto.dir_masters / f"master_{v}_mezcla.wav"),
+                     np.zeros((SR, 2)), SR)
+        masters = proyecto.listar_masters()
+        check("masters: lista los WAV generados", len(masters) == 2
+              and all(m.name.startswith("master_") and m.suffix == ".wav" for m in masters))
+
         # --- perfiles híbridos (usuario + género) ---
         asegurar_perfiles_default()
         generos = listar_generos()
@@ -343,6 +583,76 @@ def main() -> int:
         # Con el default (-8) esa alerta NO debe saltar
         check("sin alerta con umbral default",
               not any("LUFS integrado" in a for a in generar_alertas(diag)))
+
+        # --- v0.5: referencias dinámicas + análisis expandidos ---
+        # Usa etiquetas _test_* y limpia al final para no ensuciar la config real.
+        from mixmaster.references import subir_referencia, listar_referencias_por_etiqueta, detectar_etiqueta_sugerida
+        from mixmaster.app_paths import REFERENCIAS_DIR
+        import shutil as _sh2
+        ET_A, ET_B = "_test_prog", "_test_djent"
+
+        # PASO A: subir referencia
+        resultado_subida = subir_referencia(wav_ref, ET_A)
+        check("PASO A — subir referencia", resultado_subida.get("exito")
+              and resultado_subida.get("etiqueta") == ET_A
+              and "referencia.wav" in resultado_subida.get("nombre_archivo", ""))
+
+        # Subir otra con otra etiqueta
+        resultado_subida2 = subir_referencia(mp3_ref, ET_B)
+        check("subir segunda referencia con etiqueta distinta",
+              resultado_subida2.get("exito") and resultado_subida2.get("etiqueta") == ET_B)
+
+        # PASO B: listar referencias por etiqueta + detectar etiqueta sugerida
+        refs_por_etiqueta = listar_referencias_por_etiqueta()
+        check("PASO B — listar referencias por etiqueta",
+              ET_A in refs_por_etiqueta and ET_B in refs_por_etiqueta
+              and len(refs_por_etiqueta[ET_A]) >= 1)
+
+        # Detectar etiqueta sugerida
+        deteccion = detectar_etiqueta_sugerida(wav_mix)
+        check("detectar etiqueta sugerida (tiene refs cargadas)",
+              deteccion.get("exito")
+              and deteccion.get("etiqueta_sugerida") is not None
+              and 0.0 <= deteccion.get("confianza", 0.0) <= 1.0)
+
+        # limpieza: borra las etiquetas de prueba para no contaminar la config real
+        _sh2.rmtree(REFERENCIAS_DIR / ET_A, ignore_errors=True)
+        _sh2.rmtree(REFERENCIAS_DIR / ET_B, ignore_errors=True)
+
+        # PASO C: cepstral (MFCC 13 coeficientes)
+        from mixmaster.audio_analysis import cepstral_fingerprint
+        fp_cepstral = cepstral_fingerprint(audio_mix, SR)
+        check("PASO C — cepstral (13 MFCC)",
+              "mfcc_mean" in fp_cepstral and len(fp_cepstral["mfcc_mean"]) == 13
+              and "mfcc_std" in fp_cepstral,
+              f"coefs={len(fp_cepstral['mfcc_mean'])}")
+
+        # PASO D: loudness range (LR, dinámica por secciones)
+        lr = diag.get("loudness_range")
+        check("PASO D — loudness range (LR) en diagnóstico",
+              lr is not None and isinstance(lr, dict)
+              and lr.get("lr_global", 0) >= 0,
+              f"lr={lr.get('lr_global') if lr else None}")
+
+        # PASO E: spectral flux (cambio tímbrico)
+        flux = diag.get("spectral_flux")
+        check("PASO E — spectral flux (cambio tímbrico)",
+              flux is not None and isinstance(flux, dict)
+              and flux.get("flux_mean", 0) >= 0,
+              f"flux={flux.get('flux_mean') if flux else None}")
+
+        # PASO F: imaging temporal (ancho estéreo por banda EN SECCIONES)
+        img_temporal = diag.get("imaging_temporal")
+        check("PASO F — imaging temporal (ancho por sección)",
+              img_temporal is not None and isinstance(img_temporal, dict),
+              f"imaging_temporal={type(img_temporal).__name__}")
+
+        # PASO G: headroom budget (picos vs referencias)
+        hr = diag.get("headroom_budget")
+        check("PASO G — headroom budget",
+              hr is not None and isinstance(hr, dict)
+              and "tu_pico_dbfs" in hr,
+              str(hr))
 
         # --- contexto de chat ---
         settings = Settings()
