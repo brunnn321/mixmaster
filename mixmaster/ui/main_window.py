@@ -190,12 +190,25 @@ class MainWindow(QMainWindow):
         self._crear_ui()
         self._refrescar_estado()
 
-        ultimo = settings.get("ultimo_proyecto", "")
-        if ultimo and Path(ultimo).is_dir():
+        # Pantalla de inicio (elegir proyecto reciente o empezar nuevo)
+        QTimer.singleShot(0, self._dialogo_inicio)
+
+    def _dialogo_inicio(self):
+        """Al abrir: proyectos recientes (doble clic abre) o «Nuevo» (vacío)."""
+        from .inicio_dialog import InicioDialog
+        base = self.settings.ruta_proyectos
+        proys = []
+        if base.is_dir():
+            proys = sorted((p for p in base.iterdir() if p.is_dir()),
+                           key=lambda p: p.stat().st_mtime, reverse=True)
+        if not proys:
+            return  # sin proyectos: directo al PASO 1 vacío
+        dlg = InicioDialog(proys, self)
+        if dlg.exec() and dlg.seleccionado:
             try:
-                self._set_proyecto(abrir_proyecto(Path(ultimo)))
+                self._set_proyecto(abrir_proyecto(dlg.seleccionado))
             except Exception:
-                log.exception("No se pudo reabrir el último proyecto")
+                log.exception("No se pudo abrir el proyecto elegido")
 
     # -------------------------------------------------------- cierre de app
 
