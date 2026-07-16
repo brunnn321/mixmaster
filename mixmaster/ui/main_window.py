@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import __version__
+from ..app_paths import REFERENCIAS_DIR
 from ..audio_analysis import analizar_wav
 from ..logger import get_logger
 from ..processing import cargar_config_master, masterizar
@@ -243,17 +244,18 @@ class MainWindow(QMainWindow):
         acc_settings.triggered.connect(self._abrir_settings)
         m_settings.addAction(acc_settings)
 
-        m_hist = self.menuBar().addMenu("📋 &Historial")
-        acc_decisiones = QAction("Decisiones (ver / editar / borrar)…", self)
-        acc_decisiones.triggered.connect(self._abrir_historial)
-        acc_masters = QAction("Masters anteriores…", self)
-        acc_masters.triggered.connect(self._abrir_masters)
-        m_hist.addActions([acc_decisiones, acc_masters])
+        # Botones directos en la barra (un solo clic, sin submenú)
+        acc_hist = QAction("📋 Historial", self)
+        acc_hist.triggered.connect(self._abrir_historial)
+        self.menuBar().addAction(acc_hist)
 
-        m_chat = self.menuBar().addMenu("💬 &Chat")
-        acc_chat = QAction("Mostrar / ocultar chat", self)
+        acc_masters = QAction("🎚 Masters", self)
+        acc_masters.triggered.connect(self._abrir_masters)
+        self.menuBar().addAction(acc_masters)
+
+        acc_chat = QAction("💬 Chat", self)
         acc_chat.triggered.connect(self._abrir_chat)
-        m_chat.addAction(acc_chat)
+        self.menuBar().addAction(acc_chat)
 
     def _crear_ui(self):
         """Layout: proyecto → guía → paso actual → navegación → resultados."""
@@ -726,42 +728,17 @@ class MainWindow(QMainWindow):
     # -------------------------------------------------- paso 2: referencias
 
     def _elegir_referencia(self):
-        """Biblioteca del género o archivos sueltos; varias = promedio."""
+        """Abre directo la carpeta de referencias por género para elegir."""
         if not self.proyecto:
             QMessageBox.information(self, "Referencias", "Carga primero tu audio o stems.")
             return
-        genero = self.settings.genero_activo()
-        biblioteca = listar_referencias_genero(genero)
-
-        usar_biblioteca = False
-        if biblioteca:
-            opciones = [f"Biblioteca {genero} ({len(biblioteca)} temas)", "Elegir archivos…"]
-            eleccion, ok = QInputDialog.getItem(
-                self, "Referencias", "¿Qué referencias usamos?", opciones, 0, False)
-            if not ok:
-                return
-            usar_biblioteca = eleccion.startswith("Biblioteca")
-
-        if usar_biblioteca:
-            if len(biblioteca) > 6:
-                seguir = QMessageBox.question(
-                    self, "Biblioteca grande",
-                    f"La biblioteca tiene {len(biblioteca)} temas: el análisis será lento "
-                    "y el promedio muy genérico (recomendado 3–6).\n\n¿Continuar igual?",
-                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-                if seguir != QMessageBox.Yes:
-                    return
-            nuevas = list(biblioteca)
-        else:
-            inicio = str(self.proyecto.dir_referencias) if self.proyecto else ""
-            paths, _ = QFileDialog.getOpenFileNames(
-                self, "Elegir referencia(s) — puedes seleccionar varias (Ctrl+clic)",
-                inicio, self.FILTRO_AUDIO)
-            if not paths:
-                return
-            nuevas = [Path(p) for p in paths]
-
-        self._set_referencias_desde_paths(nuevas)
+        inicio = str(REFERENCIAS_DIR / self.settings.genero_activo())
+        if not Path(inicio).is_dir():
+            inicio = str(REFERENCIAS_DIR)
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "Elegir referencias (Ctrl+clic para varias)", inicio, self.FILTRO_AUDIO)
+        if paths:
+            self._set_referencias_desde_paths([Path(p) for p in paths])
 
     def _set_referencias_desde_paths(self, refs):
         """Añade referencias (acumula, sin duplicar), sugiere etiqueta y analiza."""
