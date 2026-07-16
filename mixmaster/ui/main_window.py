@@ -746,9 +746,7 @@ class MainWindow(QMainWindow):
         if not self.proyecto:
             QMessageBox.information(self, "Referencias", "Carga primero tu audio o stems.")
             return
-        inicio = str(REFERENCIAS_DIR / self.settings.genero_activo())
-        if not Path(inicio).is_dir():
-            inicio = str(REFERENCIAS_DIR)
+        inicio = str(REFERENCIAS_DIR)  # config/generos/referencias (por género)
         paths, _ = QFileDialog.getOpenFileNames(
             self, "Elegir referencias (Ctrl+clic para varias)", inicio, self.FILTRO_AUDIO)
         if paths:
