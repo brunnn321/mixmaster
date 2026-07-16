@@ -746,11 +746,16 @@ class MainWindow(QMainWindow):
         if not self.proyecto:
             QMessageBox.information(self, "Referencias", "Carga primero tu audio o stems.")
             return
-        inicio = str(REFERENCIAS_DIR)  # config/generos/referencias (por género)
-        paths, _ = QFileDialog.getOpenFileNames(
-            self, "Elegir referencias (Ctrl+clic para varias)", inicio, self.FILTRO_AUDIO)
-        if paths:
-            self._set_referencias_desde_paths([Path(p) for p in paths])
+        # Diálogo con setDirectory: FUERZA config/generos/referencias (el estático
+        # en Windows a veces lo ignora y abre la última carpeta visitada).
+        dlg = QFileDialog(self, "Elegir referencias (Ctrl+clic para varias)")
+        dlg.setFileMode(QFileDialog.ExistingFiles)
+        dlg.setNameFilter(self.FILTRO_AUDIO)
+        dlg.setDirectory(str(REFERENCIAS_DIR))
+        if dlg.exec():
+            paths = dlg.selectedFiles()
+            if paths:
+                self._set_referencias_desde_paths([Path(p) for p in paths])
 
     def _set_referencias_desde_paths(self, refs):
         """Añade referencias (acumula, sin duplicar), sugiere etiqueta y analiza."""
