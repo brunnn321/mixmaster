@@ -408,7 +408,7 @@ class MainWindow(QMainWindow):
             self.lbl_fuente.setText(f"🥁  {n} stems nivelados (suma virtual)")
             self.lbl_fuente.setStyleSheet(_DROPZONE_LLENA)
         else:
-            self.lbl_fuente.setText("⬇  Cargar audio o stems\nArrastra aquí o haz clic")
+            self.lbl_fuente.setText("Cargar audio / stems")
             self.lbl_fuente.setStyleSheet(_DROPZONE_VACIA)
 
         self._refrescar_referencias()
@@ -422,7 +422,7 @@ class MainWindow(QMainWindow):
                 item.widget().deleteLater()
 
         if not self.referencia:
-            self.zona_refs.setText("⬇  Cargar referencias\nArrastra aquí o haz clic (3–6 temas)")
+            self.zona_refs.setText("Cargar referencias")
             self.zona_refs.setStyleSheet(_DROPZONE_VACIA)
             self.refs_contenedor.setVisible(False)
             return
