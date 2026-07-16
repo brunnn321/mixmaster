@@ -1,3 +1,3 @@
-"""MixMaster v0.1 — asistente local de mezcla y mastering."""
+"""MixMaster — asistente local de mezcla y mastering."""
 
-__version__ = "0.4.0"
+__version__ = "0.9.0"
