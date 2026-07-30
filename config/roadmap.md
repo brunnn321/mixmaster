@@ -105,6 +105,13 @@ Backlog aparte, mismo mecanismo que LUFS (`learning.py` → `preferencias()`):
   - Probado: techo real (-1.0 dBTP) respetado tras el ajuste, sin NaN/clipping duro, test suite 100% verde (incluye el test que había detectado la regresión).
 - [x] Detección de fase FINA — `audio_analysis.py::detectar_problemas_fase`. Antes solo había un promedio global de correlación L/R (podía esconder un tramo puntual fuera de fase). Ahora analiza por ventanas de 0.5s y aísla EXACTAMENTE cuándo hay problema (timestamp + correlación), no solo si en promedio lo hay. Alerta nueva + sección en el reporte de texto. Probado: detecta un tramo de 1s totalmente fuera de fase en medio de una señal correlacionada, con timestamp exacto.
 
+## Aprendizaje de mezclas propias (2026-07-29)
+
+- [x] Checkbox "Es una mezcla mía" en PASO 1 (marcado por defecto) — permite distinguir tus mezclas de audios de prueba/ajenos para no ensuciar el aprendizaje.
+- [x] `learning.py::registrar_mezcla_propia()` — guarda el carácter tonal (inclinación, definición de graves, punch, centroide/rolloff, PLR) de cada mezcla marcada como propia, ANTES de masterizar (a diferencia de `registrar_aprobado()` que solo guarda el resultado final).
+- [x] `learning.py::consejo_mezcla()` — a partir de 3 mezclas propias registradas, compara la mezcla actual contra el promedio histórico y muestra un bloque "— TU PATRÓN COMO MEZCLADOR —" arriba del reporte (ej. "tus graves suelen venir poco definidos", "tu inclinación tonal promedio es oscura"). Pedido explícito del user: que la app "aconseje o guíe" con datos, no solo mida el resultado final.
+- Primera versión: comparaciones simples de 3 métricas. Ampliable con más historial (crest, ancho estéreo) siguiendo el mismo mecanismo.
+
 ## 🎙️ Modo "Voz / Podcast" — PLANIFICADO, no construido (2026-07-29)
 
 Feature grande nueva, confirmada por el user ("me sirve, quiero hacerlo, es útil, incluso para limpiar voces solo"). Diseño acordado (corregido 2 veces por el user, sus correcciones eran válidas):

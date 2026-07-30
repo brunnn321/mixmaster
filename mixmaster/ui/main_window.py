@@ -13,7 +13,7 @@ from PySide6.QtCore import (
 from PySide6.QtGui import QAction, QColor
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import (
-    QFileDialog, QFrame, QGraphicsDropShadowEffect, QHBoxLayout,
+    QCheckBox, QFileDialog, QFrame, QGraphicsDropShadowEffect, QHBoxLayout,
     QInputDialog, QLabel, QLineEdit, QMainWindow, QMessageBox, QProgressBar,
     QPushButton, QScrollArea, QSlider, QStackedWidget, QStyle, QSystemTrayIcon,
     QTextEdit, QVBoxLayout, QWidget,
@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 from .. import __version__
 from ..app_paths import REFERENCIAS_DIR
 from ..audio_analysis import analizar_wav
-from ..learning import preferencias, registrar_aprobado
+from ..learning import consejo_mezcla, preferencias, registrar_aprobado, registrar_mezcla_propia
 from ..logger import get_logger
 from ..processing import cargar_config_master, masterizar
 from ..profiles import listar_referencias_genero
@@ -452,6 +452,14 @@ class MainWindow(QMainWindow):
         self.lbl_fuente.setMinimumHeight(150)
         self.lbl_fuente.clicked.connect(self._cargar_fuente_dialogo)
         lay1.addWidget(self.lbl_fuente)
+        self.chk_mi_mezcla = QCheckBox("Es una mezcla mía (aprender de mi sonido)")
+        self.chk_mi_mezcla.setChecked(True)
+        self.chk_mi_mezcla.setToolTip(
+            "Si está marcado, la app guarda el carácter tonal de esta mezcla\n"
+            "(graves, brillo, punch…) para encontrar patrones en cómo mezclás\n"
+            "y aconsejarte con el tiempo. Desmarcalo si este audio no es tuyo\n"
+            "(referencia externa, prueba, etc.) para no ensuciar ese aprendizaje.")
+        lay1.addWidget(self.chk_mi_mezcla)
         lay1.addStretch()
         self.pila.addWidget(pag1)
 
@@ -1367,9 +1375,21 @@ class MainWindow(QMainWindow):
             log.exception("No se pudo guardar el diagnóstico")
             self._status("⚠ Análisis OK pero no se pudo guardar (ver app.log)")
 
+        consejo_txt = None
+        caracter = diag.get("caracter")
+        if caracter and self.chk_mi_mezcla.isChecked():
+            genero = self.settings.genero_activo()
+            try:
+                consejo_txt = consejo_mezcla(genero, caracter)
+                registrar_mezcla_propia(genero, caracter)
+            except Exception:
+                log.exception("No se pudo registrar la mezcla propia para aprendizaje")
+
         texto = reporte_legible(diag)
         if progreso_txt:
             texto = progreso_txt + "\n\n" + texto
+        if consejo_txt:
+            texto = consejo_txt + "\n\n" + texto
         self.txt_resultado.setPlainText(texto)
         self._refrescar_estado()
 

@@ -126,6 +126,90 @@ def preferencias(genero: str) -> dict:
     return resultado
 
 
+def registrar_mezcla_propia(genero: str, caracter: dict) -> int:
+    """Registra el carácter de una mezcla marcada como propia (antes de masterizar).
+
+    A diferencia de `registrar_aprobado` (que guarda el resultado del master
+    final), esto guarda cómo suena TU mezcla cruda — permite encontrar
+    patrones recurrentes en tu forma de mezclar, no solo en cómo masterizás.
+    """
+    datos = _cargar()
+    g = datos.setdefault(genero, {"aprobados": []})
+    mezclas = g.setdefault("mezclas_propias", [])
+    mezclas.append({
+        "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "inclinacion_db_oct": caracter.get("inclinacion_db_oct"),
+        "definicion_graves_db": caracter.get("definicion_graves_db"),
+        "punch": caracter.get("punch"),
+        "centroide_hz": caracter.get("centroide_hz"),
+        "rolloff_hz": caracter.get("rolloff_hz"),
+        "plr_db": caracter.get("plr_db"),
+    })
+    _guardar(datos)
+    n = len(mezclas)
+    log.info("Mezcla propia registrada para '%s' (%d total)", genero, n)
+    return n
+
+
+def patrones_mezcla(genero: str) -> dict:
+    """Promedios del carácter de tus mezclas propias registradas."""
+    mezclas = _cargar().get(genero, {}).get("mezclas_propias", [])
+    if not mezclas:
+        return {}
+    claves = ["inclinacion_db_oct", "definicion_graves_db", "punch",
+              "centroide_hz", "rolloff_hz", "plr_db"]
+    resultado = {"n": len(mezclas)}
+    for clave in claves:
+        vals = [m[clave] for m in mezclas if isinstance(m.get(clave), (int, float))]
+        if vals:
+            resultado[clave] = round(sum(vals) / len(vals), 2)
+    return resultado
+
+
+def consejo_mezcla(genero: str, caracter_actual: dict, minimo: int = 3) -> str | None:
+    """Compara la mezcla actual contra tu histórico y sugiere qué mirar.
+
+    Solo devuelve texto cuando hay suficiente historial (>= minimo mezclas
+    propias registradas) para que el patrón sea confiable y no ruido.
+    """
+    patrones = patrones_mezcla(genero)
+    if not patrones or patrones.get("n", 0) < minimo:
+        return None
+
+    lineas = [f"— TU PATRÓN COMO MEZCLADOR (de {patrones['n']} mezclas propias) —"]
+
+    def_graves_hist = patrones.get("definicion_graves_db")
+    def_graves_hoy = caracter_actual.get("definicion_graves_db")
+    if def_graves_hist is not None and def_graves_hoy is not None:
+        if def_graves_hist < -1.0:
+            lineas.append(
+                f"Tus graves suelen venir poco definidos (histórico {def_graves_hist:+.1f}dB, "
+                f"hoy {def_graves_hoy:+.1f}dB) — revisá si es un patrón que te conviene corregir "
+                f"antes de mezclar, no solo al masterizar.")
+
+    punch_hist = patrones.get("punch")
+    punch_hoy = caracter_actual.get("punch")
+    if punch_hist is not None and punch_hoy is not None and punch_hist < punch_hoy * 0.7:
+        lineas.append(
+            f"Esta mezcla tiene más punch de batería que tu promedio histórico "
+            f"({punch_hoy:.2f} vs {punch_hist:.2f}) — si es intencional, bien; si no, "
+            f"puede ser inconsistencia entre sesiones.")
+
+    tilt_hist = patrones.get("inclinacion_db_oct")
+    if tilt_hist is not None:
+        if tilt_hist < -1.5:
+            lineas.append(
+                f"Tu inclinación tonal promedio es oscura ({tilt_hist:+.2f} dB/oct) — "
+                f"si buscás más brillo consistente, es algo a trabajar en la mezcla, "
+                f"no solo con EQ de masterización.")
+        elif tilt_hist > 1.5:
+            lineas.append(
+                f"Tu inclinación tonal promedio es brillante ({tilt_hist:+.2f} dB/oct) — "
+                f"vigilá que no se vuelva fatigante en sesiones largas.")
+
+    return "\n".join(lineas) if len(lineas) > 1 else None
+
+
 def olvidar(genero: str | None = None) -> None:
     """Borra el aprendizaje de un género (o de todos si genero es None)."""
     datos = _cargar()
