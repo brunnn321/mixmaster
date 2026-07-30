@@ -510,31 +510,82 @@ def _multibanda(audio: np.ndarray, sr: int, crest_ref: dict, cfg_mb: dict
     return salida, aplicado
 
 
+def _ganancia_soft_knee(pico: np.ndarray, objetivo: float, knee_db: float) -> np.ndarray:
+    """Ganancia (lineal) con rodilla suave cerca del techo — gain computer
+    estándar de compresión/limitación digital (Giannoulis, Massberg & Reiss,
+    "Digital Dynamic Range Compressor Design", JAES/DAFx 2012).
+
+    Sin esto, la reducción es un escalón duro justo al llegar al techo, lo
+    que suena "áspero" al empujar fuerte. Con la rodilla, la reducción entra
+    de forma gradual unos dB antes — más transparente, menos distorsión
+    audible, mismo techo de seguridad.
+    """
+    db_pico = 20 * np.log10(np.maximum(pico, 1e-9))
+    db_obj = 20 * np.log10(objetivo)
+    reduccion_db = np.zeros_like(db_pico)
+
+    delta = db_pico - db_obj
+    en_rodilla = np.abs(2 * delta) <= knee_db
+    sobre = 2 * delta > knee_db
+
+    reduccion_db[en_rodilla] = ((delta[en_rodilla] + knee_db / 2) ** 2) / (2 * knee_db)
+    reduccion_db[sobre] = delta[sobre]
+    return 10 ** (-reduccion_db / 20)
+
+
+def _envolvente_lookahead(pico: np.ndarray, sr: int, lookahead_ms: float,
+                          release_ms: float, objetivo: float, knee_db: float) -> np.ndarray:
+    """Envolvente de ganancia suavizada (ataque instantáneo, release exponencial)."""
+    from scipy.ndimage import maximum_filter1d
+    ventana = max(int(lookahead_ms / 1000 * sr), 1)
+    env = maximum_filter1d(pico, size=ventana * 2 + 1)
+    ganancia = _ganancia_soft_knee(env, objetivo, knee_db)
+
+    alpha = np.exp(-1.0 / (release_ms / 1000 * sr))
+    suave = np.empty_like(ganancia)
+    g = 1.0
+    for i in range(len(ganancia)):
+        g = min(ganancia[i], alpha * g + (1 - alpha) * ganancia[i])
+        suave[i] = g
+    return suave
+
+
 def _limitador(audio: np.ndarray, sr: int, cfg_lim: dict) -> np.ndarray:
-    """Limitador con lookahead sobre envolvente de TRUE peak (inter-sample)."""
+    """Limitador de DOS ETAPAS con lookahead sobre TRUE peak (inter-sample) y
+    rodilla suave — reduce distorsión audible al empujar fuerte, comparado
+    con un limitador de una sola etapa/escalón duro.
+
+    Etapa MACRO (lenta, lookahead largo): absorbe pasajes sostenidos fuertes
+    por adelantado, de forma suave — así la etapa rápida no tiene que
+    trabajar tan duro (menos "bombeo", más transparente).
+    Etapa RÁPIDA (lookahead corto): atrapa picos puntuales/transitorios que
+    la etapa lenta no ve venir — garantiza el techo real de seguridad.
+    """
     ceiling_db = float(cfg_lim.get("ceiling_dbtp", -1.0))
     ceiling = 10 ** (ceiling_db / 20)
     objetivo = ceiling * 10 ** (-0.2 / 20)  # margen de seguridad
+    knee_db = float(cfg_lim.get("knee_db", 3.0))
 
     n = audio.shape[0]
     up = signal.resample_poly(audio, 4, 1, axis=0)
     pico_up = np.max(np.abs(up), axis=1)
     pico = pico_up[: n * 4].reshape(n, 4).max(axis=1)
 
-    ventana = max(int(cfg_lim.get("lookahead_ms", 5) / 1000 * sr), 1)
-    from scipy.ndimage import maximum_filter1d
-    env = maximum_filter1d(pico, size=ventana * 2 + 1)
+    # etapa macro: lookahead largo, release lento — suaviza pasajes sostenidos
+    macro_ms = float(cfg_lim.get("lookahead_macro_ms", 20))
+    g_macro = _envolvente_lookahead(pico, sr, macro_ms, macro_ms * 1.5, objetivo, knee_db)
+    audio_macro = audio * g_macro[:, np.newaxis]
 
-    alpha = np.exp(-1.0 / (cfg_lim.get("release_ms", 50) / 1000 * sr))
-    ganancia = np.ones_like(env)
-    exceso = env > objetivo
-    ganancia[exceso] = objetivo / env[exceso]
-    suave = np.empty_like(ganancia)
-    g = 1.0
-    for i in range(len(ganancia)):
-        g = min(ganancia[i], alpha * g + (1 - alpha) * ganancia[i])
-        suave[i] = g
-    out = audio * suave[:, np.newaxis]
+    # re-mide el pico tras la etapa macro para que la etapa rápida trabaje
+    # sobre lo que realmente queda (no duplica reducción a ciegas)
+    up2 = signal.resample_poly(audio_macro, 4, 1, axis=0)
+    pico2 = np.max(np.abs(up2), axis=1)[: n * 4].reshape(n, 4).max(axis=1)
+
+    # etapa rápida: lookahead corto, release normal — atrapa picos puntuales
+    rapido_ms = float(cfg_lim.get("lookahead_ms", 5))
+    g_rapido = _envolvente_lookahead(pico2, sr, rapido_ms, cfg_lim.get("release_ms", 50),
+                                     objetivo, knee_db)
+    out = audio_macro * g_rapido[:, np.newaxis]
     out = np.clip(out, -ceiling, ceiling)
 
     tp = true_peak_db(out, sr)
@@ -705,7 +756,9 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
     # El clipper recorta solo picos → el limitador trabaja poco → sin bombeo.
     cfg_clip = cfg.get("clipper", {})
     avisar(f"Normalizando a {target_lufs} LUFS (con convergencia)…")
-    for intento in range(4):
+    # 6 pasadas (antes 4): el limitador de 2 etapas reduce algo más de nivel
+    # por pasada que el de 1 etapa — necesita 1-2 vueltas más para converger.
+    for intento in range(6):
         lufs_actual = lufs_integrado(audio, sr)
         if not np.isfinite(lufs_actual):
             break
@@ -750,7 +803,22 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
 
     avisar("Exportando WAV 24-bit y MP3…")
     sf.write(str(out_wav), audio, sr, subtype="PCM_24")
-    sf.write(str(out_mp3), audio, sr)
+
+    # MP3 (MPEG-1/2/2.5) solo soporta ciertos sample rates. Si el original no
+    # es uno de ellos (ej. 96000, 88200), se resamplea SOLO para el MP3 — el
+    # WAV master queda intacto en el sample rate original.
+    _SR_MP3_VALIDOS = (8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000)
+    if sr in _SR_MP3_VALIDOS:
+        sf.write(str(out_mp3), audio, sr)
+    else:
+        sr_mp3 = 48000 if sr > 44100 else 44100
+        from math import gcd
+        g = gcd(sr_mp3, sr)
+        audio_mp3 = signal.resample_poly(audio, sr_mp3 // g, sr // g, axis=0)
+        sf.write(str(out_mp3), audio_mp3, sr_mp3)
+
+    # espectro del master final (alta resolución) para la gráfica pre/post
+    freqs_out, esp_out = espectro_suavizado(audio, sr, n_puntos=200)
 
     resumen = {
         "wav": str(out_wav),
@@ -758,6 +826,10 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         "lufs_final": round(float(lufs_final), 1),
         "true_peak_final": round(tp_final, 1),
         "crest_final": round(crest_final, 1),
+        "espectro_master": {
+            "freqs": [round(float(f), 1) for f in freqs_out],
+            "db": [round(float(d), 1) for d in esp_out],
+        },
         "target_lufs": target_lufs,
         "eq_aplicado_db": correccion,
         "ajuste_ancho_db": ajuste_ancho,

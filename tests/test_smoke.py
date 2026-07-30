@@ -443,8 +443,7 @@ def main() -> int:
         # --- biblioteca de referencias por género ---
         asegurar_perfiles_default()
         check("carpetas de biblioteca autocreadas",
-              dir_referencias_genero("math_rock").is_dir()
-              and dir_referencias_genero("funk").is_dir())
+              dir_referencias_genero("math_rock").is_dir())
         # copia 2 referencias a la biblioteca y verifica listado + análisis
         import shutil as _sh
         _sh.copy(wav_ref, dir_referencias_genero("math_rock") / "ref_a.wav")
@@ -569,14 +568,23 @@ def main() -> int:
         # --- perfiles híbridos (usuario + género) ---
         asegurar_perfiles_default()
         generos = listar_generos()
-        check("géneros disponibles", "math_rock" in generos and "funk" in generos,
-              str(generos))
+        check("géneros disponibles", "math_rock" in generos, str(generos))
         md_genero, umbrales = leer_genero("math_rock")
         check("género math_rock legible", "Math Rock" in md_genero
               and umbrales["lufs_max"] == -8.0)
-        _, umbrales_funk = leer_genero("funk")
-        check("umbrales por género distintos",
-              umbrales_funk["crest_min_db"] != umbrales["crest_min_db"])
+
+        # --- crear género nuevo desde la app (Settings → Nuevo) ---
+        from mixmaster.app_paths import GENEROS_DIR as _GENEROS_DIR
+        from mixmaster.profiles import crear_genero
+        slug = crear_genero("Prog Test")
+        check("crear_genero: slug normalizado", slug == "prog_test", slug)
+        check("crear_genero: aparece en listar_generos", slug in listar_generos())
+        md_nuevo, umbrales_nuevo = leer_genero(slug)
+        check("crear_genero: md legible con el título", "Prog Test" in md_nuevo)
+        check("crear_genero: umbrales por defecto", umbrales_nuevo["lufs_max"] == -8.0)
+        # limpieza — no dejar el género de prueba en el repo real
+        (_GENEROS_DIR / f"{slug}.md").unlink(missing_ok=True)
+        (_GENEROS_DIR / f"{slug}.json").unlink(missing_ok=True)
         # Umbral custom estricto: la señal (-12.4 LUFS) debe disparar alerta
         alertas_estrictas = generar_alertas(diag, {"lufs_max": -20.0})
         check("alerta con umbral custom", any("LUFS integrado" in a for a in alertas_estrictas))

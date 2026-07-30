@@ -1,33 +1,36 @@
 """Ventana principal de MixMaster v0.4 — asistente por pantallas.
 
 Flujo: PASO 1 Fuente (mezcla o stems) → PASO 2 Referencias (+análisis
-opcional) → PASO 3 Master final. El chat vive en el menú 💬 (ChatDialog).
+opcional) → PASO 3 Master final.
 """
 
 import json
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QThread, QTimer, Signal
-from PySide6.QtGui import QAction
+from PySide6.QtCore import (
+    QEasingCurve, QEvent, QObject, QPropertyAnimation, QUrl, Qt, QThread, QTimer, Signal,
+)
+from PySide6.QtGui import QAction, QColor
+from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import (
-    QDockWidget, QFileDialog, QFrame, QHBoxLayout, QInputDialog, QLabel,
-    QLineEdit, QMainWindow, QMessageBox, QProgressBar, QPushButton, QScrollArea,
-    QStackedWidget, QStyle, QSystemTrayIcon, QTextEdit, QVBoxLayout, QWidget,
+    QFileDialog, QFrame, QGraphicsDropShadowEffect, QHBoxLayout,
+    QInputDialog, QLabel, QLineEdit, QMainWindow, QMessageBox, QProgressBar,
+    QPushButton, QScrollArea, QSlider, QStackedWidget, QStyle, QSystemTrayIcon,
+    QTextEdit, QVBoxLayout, QWidget,
 )
 
 from .. import __version__
 from ..app_paths import REFERENCIAS_DIR
 from ..audio_analysis import analizar_wav
-from ..learning import olvidar, preferencias, registrar_aprobado
+from ..learning import preferencias, registrar_aprobado
 from ..logger import get_logger
 from ..processing import cargar_config_master, masterizar
-from ..profiles import agregar_regla_genero, listar_referencias_genero
+from ..profiles import listar_referencias_genero
 from ..project import Project, abrir_proyecto, crear_proyecto, nombre_seguro
 from ..references import detectar_etiqueta_sugerida
-from ..report import guardar_diagnostico, reporte_legible
+from ..report import comparar_progreso, guardar_diagnostico, reporte_legible
 from ..settings import Settings
 from ..stems import procesar_stems, reporte_stems_legible
-from .chat_dialog import ChatDialog
 from .historial_dialog import HistorialDialog
 from .settings_dialog import SettingsDialog
 
@@ -57,6 +60,114 @@ _DROPZONE_HOVER = """
 def _es_audio(path: str) -> bool:
     """True si la ruta tiene extensión de audio soportada."""
     return Path(path).suffix.lower() in _EXTS_AUDIO
+
+
+class _SliderClic(QSlider):
+    """QSlider que salta directo a la posición clicada (no de a un page-step)."""
+
+    saltar = Signal(int)  # nueva posición pedida por el usuario
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton and self.maximum() > self.minimum():
+            ratio = event.position().x() / max(1, self.width())
+            valor = self.minimum() + round(ratio * (self.maximum() - self.minimum()))
+            self.setValue(valor)
+            self.saltar.emit(valor)
+            event.accept()
+        else:
+            super().mousePressEvent(event)
+
+
+class _HoverGlow(QObject):
+    """Instala un halo animado que aparece al pasar el mouse por un botón.
+
+    Reutilizable: `_HoverGlow.instalar(boton)`. El halo crece/decrece suave
+    con QPropertyAnimation sobre el blurRadius del drop-shadow.
+    """
+
+    def __init__(self, boton, color=QColor(110, 168, 255, 180), maxblur=20):
+        super().__init__(boton)
+        self._efecto = QGraphicsDropShadowEffect(boton)
+        self._efecto.setColor(color)
+        self._efecto.setOffset(0, 0)
+        self._efecto.setBlurRadius(0)
+        boton.setGraphicsEffect(self._efecto)
+        self._anim = QPropertyAnimation(self._efecto, b"blurRadius", self)
+        self._anim.setDuration(160)
+        self._maxblur = maxblur
+        boton.installEventFilter(self)
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Enter and obj.isEnabled():
+            self._a(self._maxblur)
+        elif event.type() == QEvent.Leave:
+            self._a(0)
+        return False
+
+    def _a(self, destino):
+        self._anim.stop()
+        self._anim.setStartValue(self._efecto.blurRadius())
+        self._anim.setEndValue(destino)
+        self._anim.start()
+
+    @staticmethod
+    def instalar(boton, color=QColor(110, 168, 255, 180), maxblur=20):
+        return _HoverGlow(boton, color, maxblur)
+
+
+class _BotonMaster(QPushButton):
+    """Botón con glow verde: late suave cuando está listo, se intensifica en hover.
+
+    Demo de animación en Qt (QPropertyAnimation sobre el blurRadius del halo).
+    """
+
+    def __init__(self, texto: str, parent=None):
+        super().__init__(texto, parent)
+        self._glow = QGraphicsDropShadowEffect(self)
+        self._glow.setColor(QColor(67, 224, 138, 200))
+        self._glow.setOffset(0, 0)
+        self._glow.setBlurRadius(0)
+        self.setGraphicsEffect(self._glow)
+
+        # pulso "respirando" (ida y vuelta, en bucle) para cuando está habilitado
+        self._pulso = QPropertyAnimation(self._glow, b"blurRadius", self)
+        self._pulso.setDuration(1600)
+        self._pulso.setStartValue(8)
+        self._pulso.setKeyValueAt(0.5, 26)
+        self._pulso.setEndValue(8)
+        self._pulso.setEasingCurve(QEasingCurve.InOutSine)
+        self._pulso.setLoopCount(-1)
+
+        # animación puntual para el hover
+        self._hover = QPropertyAnimation(self._glow, b"blurRadius", self)
+        self._hover.setDuration(180)
+
+    def _anim_hover(self, destino: int):
+        self._pulso.stop()
+        self._hover.stop()
+        self._hover.setStartValue(self._glow.blurRadius())
+        self._hover.setEndValue(destino)
+        self._hover.start()
+
+    def enterEvent(self, event):
+        if self.isEnabled():
+            self._anim_hover(38)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        if self.isEnabled():
+            self._hover.stop()
+            self._pulso.start()
+        super().leaveEvent(event)
+
+    def setEnabled(self, on: bool):
+        super().setEnabled(on)
+        if on:
+            self._pulso.start()
+        else:
+            self._pulso.stop()
+            self._hover.stop()
+            self._glow.setBlurRadius(0)
 
 
 class _ZonaDrop(QLabel):
@@ -153,6 +264,27 @@ class StemsWorker(QThread):
             self.fallo.emit(str(e))
 
 
+class EscuchaWorker(QThread):
+    """Genera la copia de escucha calibrada M50x fuera del hilo de la UI."""
+
+    terminado = Signal(dict)
+    fallo = Signal(str)
+
+    def __init__(self, path_master: Path, dir_salida: Path):
+        super().__init__()
+        self.path_master, self.dir_salida = path_master, dir_salida
+
+    def run(self):
+        """Genera la copia M50x (nivel igualado) o emite el error."""
+        try:
+            from ..m50x_calibration import generar_copia_calibrada
+            m50x = generar_copia_calibrada(self.path_master, self.dir_salida)
+            self.terminado.emit({"m50x": m50x})
+        except Exception as e:
+            log.exception("Fallo generando la copia de escucha")
+            self.fallo.emit(str(e))
+
+
 class MainWindow(QMainWindow):
     """Asistente de 3 pasos: Fuente → Referencias → Master."""
 
@@ -173,9 +305,26 @@ class MainWindow(QMainWindow):
         self.referencia: list[Path] | None = None
         self.diagnostico: dict | None = None
         self.etiqueta_sugerida: str = ""  # Etiqueta detectada de referencias
-        self._chat_dock: QDockWidget | None = None
         self._worker = None
+        self._modal = None  # ventana modal de progreso (bloquea la app mientras dura)
         self._notificado = False  # evita reentrada en closeEvent
+
+        # Reproductor de escucha comparada: pre-master / master / M50x (v0.9)
+        self._m50x_player = QMediaPlayer(self)
+        self._m50x_audio_out = QAudioOutput(self)
+        self._m50x_player.setAudioOutput(self._m50x_audio_out)
+        self._m50x_player.positionChanged.connect(self._m50x_posicion_cambio)
+        self._m50x_player.durationChanged.connect(self._m50x_duracion_cambio)
+        self._m50x_path_premaster: Path | None = None
+        self._m50x_path_master: Path | None = None
+        self._m50x_path_calibrado: Path | None = None
+        self._m50x_worker = None
+
+        # Aviso de cansancio auditivo — cada 90 min de sesión abierta
+        self._timer_fatiga = QTimer(self)
+        self._timer_fatiga.setInterval(90 * 60 * 1000)
+        self._timer_fatiga.timeout.connect(self._avisar_fatiga)
+        self._timer_fatiga.start()
 
         # Icono de bandeja para notificaciones nativas (fiable en Win11)
         from PySide6.QtGui import QIcon
@@ -227,8 +376,8 @@ class MainWindow(QMainWindow):
             try:
                 if QSystemTrayIcon.supportsMessages():
                     self._tray.showMessage(
-                        "✓ MixMaster", "Datos guardados",
-                        QSystemTrayIcon.MessageIcon.Information, 3000)
+                        "MixMaster", "GUARDADO",
+                        QSystemTrayIcon.MessageIcon.NoIcon, 2500)
                     QTimer.singleShot(600, self.close)  # cierra tras mostrar
                     event.ignore()
                     return
@@ -239,7 +388,7 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------- menú y UI
 
     def _crear_menu(self):
-        """Barra de menú: Archivo, Proyecto, Settings, Chat."""
+        """Barra de menú: Archivo, Proyecto, Settings, Herramientas."""
         m_archivo = self.menuBar().addMenu("&Archivo")
         acc_log = QAction("Abrir registro (app.log)…", self)
         acc_log.triggered.connect(self._abrir_log)
@@ -254,27 +403,29 @@ class MainWindow(QMainWindow):
         acc_abrir.triggered.connect(self._abrir_proyecto)
         acc_carpeta = QAction("Abrir carpeta del proyecto", self)
         acc_carpeta.triggered.connect(self._abrir_carpeta)
-        m_proyecto.addActions([acc_nuevo, acc_abrir, acc_carpeta])
+        acc_borrar = QAction("🗑 Borrar proyecto…", self)
+        acc_borrar.triggered.connect(self._borrar_proyecto)
+        m_proyecto.addActions([acc_nuevo, acc_abrir, acc_carpeta, acc_borrar])
 
         m_settings = self.menuBar().addMenu("&Settings")
         acc_settings = QAction("Configuración…", self)
         acc_settings.triggered.connect(self._abrir_settings)
-        acc_olvidar = QAction("Olvidar aprendizaje del género…", self)
-        acc_olvidar.triggered.connect(self._olvidar_aprendizaje)
-        m_settings.addActions([acc_settings, acc_olvidar])
+        m_settings.addAction(acc_settings)
 
-        # Botones directos en la barra (un solo clic, sin submenú)
+        # Herramientas de uso ocasional, agrupadas en un solo menú (antes
+        # competían por espacio como botones sueltos en la barra).
+        m_herr = self.menuBar().addMenu("🛠 &Herramientas")
         acc_hist = QAction("📋 Historial", self)
         acc_hist.triggered.connect(self._abrir_historial)
-        self.menuBar().addAction(acc_hist)
-
         acc_masters = QAction("🎚 Masters", self)
         acc_masters.triggered.connect(self._abrir_masters)
-        self.menuBar().addAction(acc_masters)
-
-        acc_chat = QAction("💬 Chat", self)
-        acc_chat.triggered.connect(self._abrir_chat)
-        self.menuBar().addAction(acc_chat)
+        acc_notas = QAction("📝 Notas", self)
+        acc_notas.triggered.connect(self._abrir_notas)
+        acc_null = QAction("🔬 Null test", self)
+        acc_null.triggered.connect(self._abrir_null_test)
+        acc_ab_ciego = QAction("🙈 A/B ciego", self)
+        acc_ab_ciego.triggered.connect(self._abrir_ab_ciego)
+        m_herr.addActions([acc_hist, acc_masters, acc_notas, acc_null, acc_ab_ciego])
 
     def _crear_ui(self):
         """Layout: proyecto → guía → paso actual → navegación → resultados."""
@@ -318,28 +469,95 @@ class MainWindow(QMainWindow):
         self.ed_marcadores.setPlaceholderText(
             "Marcadores para el análisis (opcional): Intro: 0:00, Riff A: 0:23")
         lay2.addWidget(self.ed_marcadores)
+        self.btn_goniometro = QPushButton("📡 Ver imagen estéreo ▸")
+        self.btn_goniometro.setToolTip(
+            "Goniómetro: nube de puntos mid/side de la mezcla cargada (foto completa,\n"
+            "no en vivo). Detecta problemas de fase o estéreo ANTES de masterizar.")
+        self.btn_goniometro.clicked.connect(self._toggle_goniometro)
+        self.btn_coaching = QPushButton("🔬 Diagnóstico de stems")
+        self.btn_coaching.setToolTip(
+            "Analiza cada stem por separado y te dice qué mejorar en tu MEZCLA\n"
+            "(bajo sin definición, batería aplastada, guitarra embarrada…).\n"
+            "Solo si cargaste stems (varios archivos).")
+        self.btn_coaching.clicked.connect(self._abrir_coaching)
+        fila_diag = QHBoxLayout()
+        fila_diag.addWidget(self.btn_goniometro)
+        fila_diag.addWidget(self.btn_coaching)
+        lay2.addLayout(fila_diag)
+        self.panel_goniometro = QWidget()
+        self.panel_goniometro.setVisible(False)
+        self._lay_goniometro = QVBoxLayout(self.panel_goniometro)
+        lay2.addWidget(self.panel_goniometro)
         lay2.addStretch()
         self.pila.addWidget(pag2)
 
         # PASO 3: master
         pag3 = QWidget()
         lay3 = QVBoxLayout(pag3)
-        fila3 = QHBoxLayout()
-        self.btn_master = QPushButton("🎵 Master final")
-        self.btn_master.setStyleSheet("font-weight: bold;")
+        self.lbl_tu_sonido = QLabel("")
+        self.lbl_tu_sonido.setStyleSheet("color: #7fd99a; font-weight: bold;")
+        self.lbl_tu_sonido.setVisible(False)
+        lay3.addWidget(self.lbl_tu_sonido)
+        self.btn_master = _BotonMaster("MASTER")
+        self.btn_master.setMinimumHeight(64)
+        self.btn_master.setCursor(Qt.PointingHandCursor)
+        self.btn_master.setStyleSheet(
+            "QPushButton { font-weight: 800; font-size: 20px; letter-spacing: 2px; color: white;"
+            " border-radius: 10px; border: 1px solid #4fa76a;"
+            " background: qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 #4aa06a, stop:1 #2c6b46); }"
+            " QPushButton:hover { background: qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 #55b478, stop:1 #337a50); }"
+            " QPushButton:pressed { background: #2a5f3e; }"
+            " QPushButton:disabled { background: #2a3b31; color: #6f8579; border-color: #33463b; }")
         self.btn_master.setToolTip(
             "EQ 7 bandas + imagen estéreo hacia las referencias + densidad + "
             "loudness (-8.5 default) + limitador -1 dBTP.\n"
             "Config editable en config/master.json")
         self.btn_master.clicked.connect(self._masterizar)
-        self.btn_regla = QPushButton("★ Regla del género")
-        self.btn_regla.setToolTip(
-            "Fija una regla aprendida en el género activo (versionado, reversible en Settings).")
-        self.btn_regla.clicked.connect(self._promover_regla)
-        fila3.addWidget(self.btn_master)
-        fila3.addWidget(self.btn_regla)
-        fila3.addStretch()
-        lay3.addLayout(fila3)
+        lay3.addWidget(self.btn_master)  # ancho completo — es el botón más importante
+
+        # Panel de escucha comparada: original / master / M50x plano
+        self.panel_m50x = QFrame()
+        self.panel_m50x.setStyleSheet(
+            "QFrame { border: 1px solid #5a6b8c; border-radius: 8px; padding: 4px; }")
+        self.panel_m50x.setVisible(False)
+        lay_m50x = QVBoxLayout(self.panel_m50x)
+        lbl_m50x = QLabel("🎧 Escucha comparada")
+        lbl_m50x.setStyleSheet("border: none; font-weight: bold;")
+        lay_m50x.addWidget(lbl_m50x)
+
+        fila_m50x = QHBoxLayout()
+        self.btn_m50x_play = QPushButton("▶ Reproducir")
+        self.btn_m50x_play.clicked.connect(self._m50x_toggle_play)
+        from PySide6.QtWidgets import QComboBox
+        self.combo_escucha = QComboBox()
+        self.combo_escucha.addItems([
+            "Mezcla original (sin masterizar)", "Master",
+            "🎧 M50x plano (sin coloración)"])
+        self.combo_escucha.setToolTip(
+            "Cambia la fuente sin cortar: original antes de masterizar, el master,\n"
+            "o la copia corregida para tus M50x.")
+        self.combo_escucha.currentIndexChanged.connect(self._m50x_cambiar_fuente)
+        fila_m50x.addWidget(self.btn_m50x_play)
+        fila_m50x.addWidget(self.combo_escucha)
+        fila_m50x.addStretch()
+        lay_m50x.addLayout(fila_m50x)
+
+        fila_seek = QHBoxLayout()
+        self.lbl_tiempo = QLabel("0:00 / 0:00")
+        self.lbl_tiempo.setStyleSheet("border: none;")
+        self.slider_escucha = _SliderClic(Qt.Horizontal)
+        self.slider_escucha.sliderMoved.connect(self._m50x_buscar_posicion)
+        self.slider_escucha.saltar.connect(self._m50x_buscar_posicion)
+        fila_seek.addWidget(self.slider_escucha, stretch=1)
+        fila_seek.addWidget(self.lbl_tiempo)
+        lay_m50x.addLayout(fila_seek)
+
+        lay3.addWidget(self.panel_m50x)
+
+        # Contenedor del panel A/B ciego embebido (se llena al pedirlo desde el menú)
+        self.panel_ab_ciego_contenedor = QVBoxLayout()
+        lay3.addLayout(self.panel_ab_ciego_contenedor)
+
         lay3.addStretch()
         self.pila.addWidget(pag3)
 
@@ -357,41 +575,118 @@ class MainWindow(QMainWindow):
         nav.addWidget(self.btn_siguiente)
         raiz.addLayout(nav)
 
-        # --- resultados ---
+        # --- resultados: pestañas Texto / Gráficas ---
+        from PySide6.QtWidgets import QScrollArea, QTabWidget
+        self.tabs_resultado = QTabWidget()
         self.txt_resultado = QTextEdit()
         self.txt_resultado.setReadOnly(True)
         self.txt_resultado.setPlaceholderText("Resultados de análisis, stems y master…")
         self.txt_resultado.setFontFamily("Consolas")
-        raiz.addWidget(self.txt_resultado, stretch=1)
+        self.tabs_resultado.addTab(self.txt_resultado, "📄 Texto")
+
+        self._graficas_scroll = QScrollArea()
+        self._graficas_scroll.setWidgetResizable(True)
+        self._graficas_scroll.setStyleSheet(
+            "QScrollArea { background: #0e1820; border: none; }"
+            " QScrollArea > QWidget > QWidget { background: #0e1820; }")
+        self._graficas_placeholder = QLabel(
+            "Las gráficas (espectro pre/post + métricas) aparecen aquí al masterizar.")
+        self._graficas_placeholder.setAlignment(Qt.AlignCenter)
+        self._graficas_placeholder.setStyleSheet("color: #8a97b0; padding: 20px;")
+        self._graficas_scroll.setWidget(self._graficas_placeholder)
+        self.tabs_resultado.addTab(self._graficas_scroll, "📊 Gráficas")
+        raiz.addWidget(self.tabs_resultado, stretch=1)
 
         self.barra = QProgressBar()
-        self.barra.setTextVisible(False)
-        self.barra.setFixedHeight(16)
+        self.barra.setTextVisible(True)
+        self.barra.setFormat("%p% — %v/%m")
+        self.barra.setFixedHeight(26)
+        self.barra.setStyleSheet(
+            "QProgressBar { border: 1px solid #3a7d4f; border-radius: 6px;"
+            " background: #12161f; color: white; font-weight: bold; text-align: center; }"
+            "QProgressBar::chunk { background: #3a7d4f; border-radius: 5px; }")
         self.barra.setVisible(False)
         raiz.addWidget(self.barra)
 
         self.lbl_estado = QLabel("")
         raiz.addWidget(self.lbl_estado)
 
+        # Hover glow (animado) en los botones secundarios — reutilizable
+        self._glows = [
+            _HoverGlow.instalar(b) for b in (
+                self.btn_goniometro, self.btn_coaching,
+                self.btn_siguiente, self.btn_atras, self.btn_m50x_play)
+        ]
+
         self.setCentralWidget(central)
 
     def _barra_activa(self, activa: bool, pasos: int = 14):
-        """Barra con avance real: cada mensaje del motor suma un paso hasta 100."""
+        """Barra con avance real + ventana emergente que bloquea la app mientras dura.
+
+        Nota técnica: el bloqueo NO usa modalidad nativa de Qt/Windows (eso
+        causó un deadlock real: QProgressDialog.setValue() dispara
+        processEvents() internamente y, combinado con ApplicationModal
+        creado ANTES de arrancar el QThread, el worker nunca llegaba a
+        ejecutar). En su lugar: la ventana central se deshabilita entera
+        (self.setEnabled(False)) — bloqueo garantizado, sin loops nativos
+        ni reentrancia — y el popup es una ventana simple, no modal.
+        """
         if activa:
             self._barra_valor = 0
             self.barra.setRange(0, pasos)
             self.barra.setValue(0)
             self.barra.setVisible(True)
+            self.setEnabled(False)  # bloquea toda interacción con la app
+
+            if self._modal is None:
+                from PySide6.QtWidgets import QLabel, QProgressBar, QVBoxLayout, QWidget
+                self._modal = QWidget(self, Qt.Window | Qt.FramelessWindowHint)
+                self._modal.setWindowTitle("MixMaster")
+                self._modal.setFixedSize(460, 130)
+                self._modal.setStyleSheet(
+                    "QWidget { background: #16202b; border: 1px solid #3a4a5c; border-radius: 8px; }"
+                    " QLabel { color: #cddbe8; font-family: Consolas; font-size: 14px; background: transparent; border: none; }")
+                lay = QVBoxLayout(self._modal)
+                lay.setContentsMargins(20, 20, 20, 20)
+                lay.setSpacing(12)
+                self._modal_lbl = QLabel("Trabajando…")
+                self._modal_bar = QProgressBar()
+                self._modal_bar.setRange(0, pasos)
+                self._modal_bar.setTextVisible(True)
+                self._modal_bar.setFormat("%p% — %v/%m")
+                self._modal_bar.setFixedHeight(26)
+                self._modal_bar.setStyleSheet(
+                    "QProgressBar { border: 1px solid #3a7d4f; border-radius: 6px;"
+                    " background: #12161f; color: white; font-weight: bold; text-align: center; }"
+                    "QProgressBar::chunk { background: #3a7d4f; border-radius: 5px; }")
+                lay.addWidget(self._modal_lbl)
+                lay.addWidget(self._modal_bar)
+            else:
+                self._modal_bar.setRange(0, pasos)
+                self._modal_lbl.setText("Trabajando…")
+            self._modal_bar.setValue(0)
+            # centrado sobre la ventana principal
+            geo = self.geometry()
+            self._modal.move(
+                geo.x() + (geo.width() - self._modal.width()) // 2,
+                geo.y() + (geo.height() - self._modal.height()) // 2)
+            self._modal.show()
         else:
             self.barra.setValue(self.barra.maximum())  # 100% al terminar
             self.barra.setVisible(False)
+            if self._modal is not None:
+                self._modal.hide()
+            self.setEnabled(True)  # reactiva la app
 
     def _progreso(self, msg: str):
-        """Estado + un paso más de barra por cada aviso del motor."""
+        """Estado + un paso más de barra/popup por cada aviso del motor."""
         self._status(msg)
         if self.barra.isVisible():
             self._barra_valor = min(self._barra_valor + 1, self.barra.maximum() - 1)
             self.barra.setValue(self._barra_valor)
+        if self._modal is not None and self._modal.isVisible():
+            self._modal_lbl.setText(msg)
+            self._modal_bar.setValue(self._barra_valor)
 
     # ---------------------------------------------------------- estado de UI
 
@@ -411,8 +706,7 @@ class MainWindow(QMainWindow):
         """Habilita botones y actualiza guía según proyecto/paso."""
         hay_proyecto = self.proyecto is not None
         nombre = f'"{self.proyecto.nombre}"' if hay_proyecto else "(ninguno)"
-        self.lbl_proyecto.setText(
-            f"Proyecto activo: {nombre}   ·   Género: {self.settings.genero_activo()}")
+        self.lbl_proyecto.setText(f"Proyecto activo: {nombre}")
 
         idx = self.pila.currentIndex()
         self.btn_master.setEnabled(hay_proyecto and self._fuente_lista())
@@ -438,6 +732,25 @@ class MainWindow(QMainWindow):
             self.lbl_fuente.setStyleSheet(_DROPZONE_VACIA)
 
         self._refrescar_referencias()
+        self._refrescar_tu_sonido()
+
+    UMBRAL_TU_SONIDO = 5  # masters aprobados desde los que se activa la sugerencia visible
+
+    def _refrescar_tu_sonido(self):
+        """Muestra «Tu sonido activado» cuando hay 5+ masters aprobados."""
+        pref = preferencias(self.settings.genero_activo())
+        n = pref.get("n", 0)
+        if n >= self.UMBRAL_TU_SONIDO:
+            extra = f" · crest típico {pref['crest_target']:g} dB" if pref.get("crest_target") else ""
+            if pref.get("referencias_top"):
+                top = pref["referencias_top"][0]
+                extra += f" · tu referencia habitual: {top['nombre']} ({top['veces']}x)"
+            self.lbl_tu_sonido.setText(
+                f"✨ Tu sonido activado — {n} masters aprobados · "
+                f"sugerimos {pref['target_lufs']:g} LUFS{extra}")
+            self.lbl_tu_sonido.setVisible(True)
+        else:
+            self.lbl_tu_sonido.setVisible(False)
 
     def _refrescar_referencias(self):
         """Reconstruye las tarjetas (chips) de referencias del PASO 2."""
@@ -448,20 +761,19 @@ class MainWindow(QMainWindow):
                 item.widget().deleteLater()
 
         if not self.referencia:
-            self.zona_refs.setText("Cargar referencias")
+            self.zona_refs.setText("Cargar 1 referencia")
             self.zona_refs.setStyleSheet(_DROPZONE_VACIA)
             self.refs_contenedor.setVisible(False)
             return
 
-        self.zona_refs.setText(
-            f"📀  {len(self.referencia)} referencia(s) — arrastra o haz clic para añadir")
+        self.zona_refs.setText("📀  Referencia — arrastra o haz clic para cambiarla")
         self.zona_refs.setStyleSheet(_DROPZONE_LLENA)
         self.refs_contenedor.setVisible(True)
         for i, ref in enumerate(self.referencia):
             self.refs_layout.addWidget(self._crear_chip(i, ref))
 
     def _crear_chip(self, indice: int, ref: Path) -> QFrame:
-        """Una tarjeta de referencia: nombre + ✕ para quitarla."""
+        """Una tarjeta de referencia: nombre + 🔍 ficha + ✕ para quitarla."""
         chip = QFrame()
         chip.setStyleSheet(
             "QFrame { border: 1px solid #3a7d4f; border-radius: 8px;"
@@ -470,14 +782,25 @@ class MainWindow(QMainWindow):
         fila.setContentsMargins(10, 4, 6, 4)
         lbl = QLabel(f"📀  {ref.name}")
         lbl.setStyleSheet("border: none; background: transparent;")
+        btn_ver = QPushButton("🔍")
+        btn_ver.setFixedWidth(28)
+        btn_ver.setToolTip("Ver ficha del análisis (espectro, carácter tonal, ancho estéreo)")
+        btn_ver.setStyleSheet("border: none; background: transparent;")
+        btn_ver.clicked.connect(lambda: self._ver_ficha_referencia(ref))
         btn = QPushButton("✕")
         btn.setFixedWidth(28)
         btn.setToolTip("Quitar esta referencia")
         btn.setStyleSheet("border: none; background: transparent; font-weight: bold;")
         btn.clicked.connect(lambda: self._quitar_referencia(indice))
         fila.addWidget(lbl, stretch=1)
+        fila.addWidget(btn_ver)
         fila.addWidget(btn)
         return chip
+
+    def _ver_ficha_referencia(self, ref: Path):
+        """Abre la ficha rica (visual) del análisis de esta referencia."""
+        from .ficha_referencia import FichaReferenciaDialog
+        FichaReferenciaDialog(ref, self).exec()
 
     def _quitar_referencia(self, indice: int):
         """Quita la referencia #indice y refresca las tarjetas."""
@@ -553,6 +876,48 @@ class MainWindow(QMainWindow):
             import os
             os.startfile(str(self.proyecto.root))  # noqa: S606 — abrir carpeta local
 
+    def _borrar_proyecto(self):
+        """Elige y borra un proyecto entero de la carpeta proyectos/ (irreversible)."""
+        base = self.settings.ruta_proyectos
+        if not base.is_dir():
+            QMessageBox.information(self, "Borrar proyecto", "No hay proyectos aún.")
+            return
+        proys = sorted((p for p in base.iterdir() if p.is_dir()),
+                       key=lambda p: p.stat().st_mtime, reverse=True)
+        if not proys:
+            QMessageBox.information(self, "Borrar proyecto", "No hay proyectos aún.")
+            return
+        nombres = [p.name for p in proys]
+        elegido, ok = QInputDialog.getItem(
+            self, "Borrar proyecto", "Elige el proyecto a borrar (no se puede deshacer):",
+            nombres, 0, False)
+        if not ok:
+            return
+        objetivo = proys[nombres.index(elegido)]
+        if QMessageBox.question(
+                self, "Confirmar borrado",
+                f"¿Borrar «{elegido}» y TODO su contenido (masters, análisis, referencias "
+                "usadas, notas)?\nEsto no se puede deshacer.",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No) != QMessageBox.Yes:
+            return
+        try:
+            import shutil
+            shutil.rmtree(objetivo)
+            log.info("Proyecto borrado: %s", objetivo)
+        except Exception as e:
+            log.exception("Error borrando proyecto")
+            QMessageBox.critical(self, "Error", f"No se pudo borrar:\n{e}")
+            return
+        if self.proyecto and self.proyecto.root == objetivo:
+            self.proyecto = None
+            self.wav_activo = None
+            self.referencia = None
+            self.diagnostico = None
+            self.settings.set("ultimo_proyecto", "")
+            self.txt_resultado.clear()
+            self._ir(0)
+        self._status(f"Proyecto «{elegido}» borrado.")
+
     def _abrir_settings(self):
         """Abre el diálogo de configuración."""
         dlg = SettingsDialog(self.settings, self)
@@ -573,23 +938,57 @@ class MainWindow(QMainWindow):
             log.exception("No se pudo abrir el log")
             QMessageBox.information(self, "Registro", f"El log está en:\n{LOG_FILE}")
 
-    def _olvidar_aprendizaje(self):
-        """Resetea lo aprendido del género activo (preferencia de loudness)."""
-        genero = self.settings.genero_activo()
-        if QMessageBox.question(
-                self, "Olvidar aprendizaje",
-                f"¿Olvidar lo aprendido de «{genero}» (masters aprobados y loudness)?\n"
-                "Esto no borra tus masters, solo lo que la app aprendió.",
-                QMessageBox.Yes | QMessageBox.No, QMessageBox.No) == QMessageBox.Yes:
-            olvidar(genero)
-            self._status(f"Aprendizaje de «{genero}» olvidado.")
-
     def _abrir_historial(self):
         """Abre el historial de decisiones (ver / editar feedback / borrar)."""
         if not self.proyecto:
             QMessageBox.information(self, "Historial", "Abre o crea un proyecto primero.")
             return
         HistorialDialog(self.proyecto, self).exec()
+
+    def _abrir_null_test(self):
+        """Resta 2 masters (fase invertida) → escuchás SOLO la diferencia."""
+        if not self.proyecto:
+            QMessageBox.information(self, "Null test", "Abre o crea un proyecto primero.")
+            return
+        masters = self.proyecto.listar_masters()
+        if len(masters) < 2:
+            QMessageBox.information(
+                self, "Null test",
+                "Necesitas al menos 2 masters de este proyecto para comparar.\n"
+                "Genera otra versión en el PASO 3.")
+            return
+        nombres = [m.name for m in masters]
+        a, ok = QInputDialog.getItem(self, "Null test", "Versión A:", nombres, 0, False)
+        if not ok:
+            return
+        otros = [n for n in nombres if n != a]
+        b, ok = QInputDialog.getItem(self, "Null test", "Versión B (se resta de A):", otros, 0, False)
+        if not ok:
+            return
+        from PySide6.QtWidgets import QApplication
+        QApplication.setOverrideCursor(Qt.WaitCursor)
+        try:
+            from ..null_test import generar_diferencia
+            path_a = masters[nombres.index(a)]
+            path_b = masters[nombres.index(b)]
+            r = generar_diferencia(path_a, path_b, self.proyecto.dir_masters / "null_test")
+        except Exception as e:
+            log.exception("Fallo generando null test")
+            QApplication.restoreOverrideCursor()
+            QMessageBox.critical(self, "Null test", f"No se pudo generar:\n{e}")
+            return
+        QApplication.restoreOverrideCursor()
+        try:
+            import os
+            os.startfile(str(Path(r["ruta"]).parent))
+        except Exception:
+            log.exception("No se pudo abrir la carpeta del null test")
+        QMessageBox.information(
+            self, "Null test listo",
+            f"{r['nota']}\n\n"
+            f"Nivel de la diferencia: {r['rms_diferencia_db']} dB RMS\n"
+            f"(B se ajustó {r['gain_b_aplicado_db']:+.1f} dB para igualar loudness antes de restar)\n\n"
+            f"Archivo: {Path(r['ruta']).name}")
 
     def _abrir_masters(self):
         """Lista los masters anteriores; abre el elegido o su carpeta."""
@@ -616,15 +1015,68 @@ class MainWindow(QMainWindow):
             log.exception("No se pudo abrir el master")
             QMessageBox.critical(self, "Error", "No se pudo abrir el master (ver app.log).")
 
-    def _abrir_chat(self):
-        """Despliega/oculta el chat como panel acoplado (dock) a la derecha."""
-        if self._chat_dock is None:
-            self._chat_dock = QDockWidget("💬 Chat", self)
-            self._chat_dock.setWidget(ChatDialog(self))
-            self._chat_dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
-            self.addDockWidget(Qt.RightDockWidgetArea, self._chat_dock)
-        else:
-            self._chat_dock.setVisible(not self._chat_dock.isVisible())  # alternar
+    def _avisar_fatiga(self):
+        """Aviso cada 90 min: el oído se cansa y las decisiones de agudos se sesgan."""
+        try:
+            if QSystemTrayIcon.supportsMessages():
+                self._tray.showMessage(
+                    "👂 Pausa recomendada",
+                    "Llevas 90+ min escuchando — tu oído puede estar sesgado "
+                    "(sobre todo en agudos). Considera un descanso.",
+                    QSystemTrayIcon.MessageIcon.Information, 6000)
+        except Exception:
+            log.debug("No se pudo mostrar el aviso de fatiga auditiva")
+
+    def _abrir_notas(self):
+        """Abre el diario de sesión del proyecto activo."""
+        if not self.proyecto:
+            QMessageBox.information(self, "Notas", "Abre o crea un proyecto primero.")
+            return
+        from .notas_dialog import NotasDialog
+        NotasDialog(self.proyecto, self).exec()
+
+    def _abrir_ab_ciego(self):
+        """Compara a ciegas los 2 masters más recientes — panel embebido en PASO 3."""
+        if not self.proyecto:
+            QMessageBox.information(self, "A/B ciego", "Abre o crea un proyecto primero.")
+            return
+        masters = self.proyecto.listar_masters()
+        if not masters:
+            QMessageBox.information(
+                self, "A/B ciego",
+                "Todavía no hay masters. Genera uno en el PASO 3 primero.")
+            return
+
+        # El master más nuevo (recién hecho) es siempre el fijo. Se elige contra qué.
+        fijo = masters[0]
+        candidatos = {}
+        for m in masters[1:]:
+            candidatos[f"Master anterior — {m.name}"] = m
+        if self.wav_activo:
+            candidatos[f"Mezcla original (sin masterizar) — {self.wav_activo.name}"] = self.wav_activo
+        if not candidatos:
+            QMessageBox.information(
+                self, "A/B ciego",
+                "Necesitas otra cosa para comparar: genera otra versión de master\n"
+                "o carga una mezcla original en el PASO 1.")
+            return
+
+        etiqueta, ok = QInputDialog.getItem(
+            self, "A/B ciego",
+            f"Comparar el master nuevo ({fijo.name}) a ciegas contra:",
+            list(candidatos.keys()), 0, False)
+        if not ok:
+            return
+        contra = candidatos[etiqueta]
+
+        while self.panel_ab_ciego_contenedor.count():
+            item = self.panel_ab_ciego_contenedor.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        from .ab_ciego_dialog import PanelABCiego
+        self.panel_ab_ciego_contenedor.addWidget(
+            PanelABCiego(self.proyecto, fijo, contra, self))
+        self._ir(2)  # asegura estar en PASO 3 para verlo
 
     # ------------------------------------------------------- paso 1: fuente
 
@@ -744,6 +1196,7 @@ class MainWindow(QMainWindow):
         self._barra_activa(True)
         self._status("Procesando stems…")
         self._stems_worker = StemsWorker(self.proyecto)
+        self._stems_worker.setParent(self)
         self._stems_worker.progreso.connect(self._progreso)
         self._stems_worker.terminado.connect(self._stems_ok)
         self._stems_worker.fallo.connect(self._stems_error)
@@ -767,50 +1220,71 @@ class MainWindow(QMainWindow):
 
     # -------------------------------------------------- paso 2: referencias
 
-    def _elegir_referencia(self):
-        """Abre directo la carpeta de referencias por género para elegir."""
+    def _abrir_coaching(self):
+        """Diagnóstico por stem (coaching de mezcla). Requiere stems cargados."""
         if not self.proyecto:
-            QMessageBox.information(self, "Referencias", "Carga primero tu audio o stems.")
+            QMessageBox.information(self, "Diagnóstico", "Carga primero tu audio o stems.")
             return
-        # Diálogo con setDirectory: FUERZA config/generos/referencias (el estático
-        # en Windows a veces lo ignora y abre la última carpeta visitada).
-        dlg = QFileDialog(self, "Elegir referencias (Ctrl+clic para varias)")
-        dlg.setFileMode(QFileDialog.ExistingFiles)
+        carpeta = self.proyecto.dir_stems
+        if not carpeta.is_dir() or not any(carpeta.glob("*")):
+            QMessageBox.information(
+                self, "Diagnóstico de stems",
+                "Esto analiza cada stem por separado.\n\n"
+                "Cargá varios archivos (stems) en el PASO 1 para usarlo. "
+                "Con una mezcla única (1 archivo) no aplica.")
+            return
+        from .coaching_dialog import CoachingDialog
+        CoachingDialog(carpeta, self).exec()
+
+    def _toggle_goniometro(self):
+        """Muestra/oculta el goniómetro embebido (foto de la mezcla, no en vivo)."""
+        if self.panel_goniometro.isVisible():
+            self.panel_goniometro.setVisible(False)
+            self.btn_goniometro.setText("📡 Ver imagen estéreo ▸")
+            return
+        if not self.wav_activo:
+            QMessageBox.information(
+                self, "Imagen estéreo", "Carga una mezcla (no stems) para verla.")
+            return
+        while self._lay_goniometro.count():
+            item = self._lay_goniometro.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        from .goniometro_dialog import construir_panel_goniometro
+        self._lay_goniometro.addWidget(construir_panel_goniometro(self.wav_activo))
+        self.panel_goniometro.setVisible(True)
+        self.btn_goniometro.setText("📡 Ocultar imagen estéreo ▾")
+
+    def _elegir_referencia(self):
+        """Elige UNA referencia de tu biblioteca (cada tema es un preset único)."""
+        if not self.proyecto:
+            QMessageBox.information(self, "Referencia", "Carga primero tu audio o stems.")
+            return
+        # Diálogo de 1 archivo, apuntando a tu biblioteca de referencias.
+        dlg = QFileDialog(self, "Elegir 1 referencia")
+        dlg.setFileMode(QFileDialog.ExistingFile)
         dlg.setNameFilter(self.FILTRO_AUDIO)
         dlg.setDirectory(str(REFERENCIAS_DIR))
         if dlg.exec():
             paths = dlg.selectedFiles()
             if paths:
-                self._set_referencias_desde_paths([Path(p) for p in paths])
+                self._set_referencias_desde_paths([Path(paths[0])])
 
     def _set_referencias_desde_paths(self, refs):
-        """Añade referencias (acumula, sin duplicar), sugiere etiqueta y analiza."""
-        existentes = self.referencia or []
-        rutas = {str(p) for p in existentes}
-        nuevas = [Path(p) for p in refs if str(Path(p)) not in rutas]
-        self.referencia = existentes + nuevas
-        self._status(f"{len(self.referencia)} referencia(s).")
+        """Fija UNA sola referencia (cada tema es un preset único; no se promedia).
 
-        # Barra visible YA (la detección de etiqueta bloquea; que se vea trabajando)
+        Si sueltan varias, se toma la primera. Reemplaza la referencia anterior.
+        """
+        refs = [Path(p) for p in refs]
+        if not refs:
+            return
+        if len(refs) > 1:
+            self._status(f"Se usa 1 referencia: {refs[0].name} (el master no promedia varias).")
+        self.referencia = [refs[0]]   # lista de 1 (el motor espera lista)
+
         from PySide6.QtWidgets import QApplication
         self._barra_activa(True)
         QApplication.processEvents()
-
-        # Detectar etiqueta sugerida si hay mezcla cargada
-        if self.wav_activo:
-            resultado = detectar_etiqueta_sugerida(self.wav_activo)
-            if resultado.get("exito") and resultado.get("etiqueta_sugerida"):
-                etiqueta = resultado["etiqueta_sugerida"]
-                confianza = int(resultado["confianza"] * 100)
-                if confianza >= 50:
-                    respuesta = QMessageBox.question(
-                        self, "Etiqueta sugerida",
-                        f"Detectamos similitud con «{etiqueta}» ({confianza}%).\n\n"
-                        f"¿Usamos esta etiqueta?",
-                        QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
-                    if respuesta == QMessageBox.Yes:
-                        self.etiqueta_sugerida = etiqueta
-                        self._status(f"Etiqueta: {etiqueta} ({confianza}%)")
 
         if self.wav_activo:
             self._analizar_auto()  # analiza solo y luego salta al master
@@ -825,13 +1299,22 @@ class MainWindow(QMainWindow):
         return f"V{n:02d}"
 
     def _analizar_auto(self):
-        """Análisis automático tras elegir referencias (sin diálogos)."""
+        """Análisis automático tras elegir referencias (sin diálogos).
+
+        Si ya hay un análisis en curso (p. ej. agregaste otra referencia antes
+        de que termine el anterior) NO se lanza uno nuevo encima — eso pisaba
+        el hilo previo y hacía crashear la app sin dejar rastro en el log.
+        """
+        if self._worker is not None and self._worker.isRunning():
+            self._status("Ya hay un análisis en curso — espera a que termine.")
+            return
         self._barra_activa(True)
         self.txt_resultado.setPlainText("Analizando automáticamente contra tus referencias…")
         _, umbrales = self.settings.leer_genero_activo()
         self._worker = AnalisisWorker(
             self.wav_activo, self.ed_marcadores.text(), self.referencia,
             self._version_auto(), umbrales)
+        self._worker.setParent(self)  # evita que Python lo recolecte a medio correr
         self._worker.progreso.connect(self._progreso)
         self._worker.terminado.connect(self._analisis_auto_ok)
         self._worker.fallo.connect(self._analisis_error)
@@ -856,22 +1339,38 @@ class MainWindow(QMainWindow):
         self._worker = AnalisisWorker(
             self.wav_activo, self.ed_marcadores.text(), self.referencia,
             version.strip() or "V01", umbrales)
+        self._worker.setParent(self)
         self._worker.progreso.connect(self._progreso)
         self._worker.terminado.connect(self._analisis_ok)
         self._worker.fallo.connect(self._analisis_error)
         self._worker.start()
 
     def _analisis_ok(self, diag: dict):
-        """Guarda y muestra el diagnóstico."""
+        """Guarda y muestra el diagnóstico — conecta con el anterior (progreso)."""
         self._barra_activa(False)
         self.diagnostico = diag
+
+        progreso_txt = None
+        anterior_path = self.proyecto.ultimo_diagnostico()  # ANTES de sobrescribir
+        if anterior_path is not None:
+            try:
+                anterior = json.loads(anterior_path.read_text(encoding="utf-8"))
+                if anterior.get("version") != diag.get("version"):  # no compararse consigo mismo
+                    progreso_txt = comparar_progreso(diag, anterior)
+            except Exception:
+                log.exception("No se pudo comparar contra el diagnóstico anterior")
+
         try:
             path_json, _ = guardar_diagnostico(self.proyecto, diag)
             self._status(f"Diagnóstico guardado: {path_json.name}")
         except Exception:
             log.exception("No se pudo guardar el diagnóstico")
             self._status("⚠ Análisis OK pero no se pudo guardar (ver app.log)")
-        self.txt_resultado.setPlainText(reporte_legible(diag))
+
+        texto = reporte_legible(diag)
+        if progreso_txt:
+            texto = progreso_txt + "\n\n" + texto
+        self.txt_resultado.setPlainText(texto)
         self._refrescar_estado()
 
     def _analisis_error(self, msg: str):
@@ -882,6 +1381,38 @@ class MainWindow(QMainWindow):
         self._status("Análisis fallido.")
 
     # ------------------------------------------------------ paso 3: master
+
+    def _advertir_si_sobreprocesada(self) -> bool:
+        """Avisa si la mezcla ya viene comprimida/limitada — el master no puede
+        arreglar eso, solo empeorarlo (sin margen dinámico para trabajar).
+
+        Devuelve False si el usuario elige volver atrás (cancela el master).
+        """
+        g = self.diagnostico.get("global", {})
+        crest = g.get("crest_factor_db")
+        tp = g.get("true_peak_db")
+        clip = self.diagnostico.get("clipping_global")
+        motivos = []
+        if crest is not None and crest < 6.0:
+            motivos.append(f"crest factor muy bajo ({crest:.1f} dB — ya está aplastada)")
+        if tp is not None and tp > -0.3:
+            motivos.append(f"true peak casi en 0 ({tp:.1f} dBTP — sin margen)")
+        if clip:
+            motivos.append("clipping detectado")
+        if not motivos:
+            return True
+
+        r = QMessageBox.warning(
+            self, "⚠ Esta mezcla ya parece comprimida/limitada",
+            "Detectamos: " + ", ".join(motivos) + ".\n\n"
+            "El master no puede recuperar dinámica que ya se perdió — "
+            "en el mejor caso queda igual, en el peor suena peor (saturado).\n\n"
+            "Recomendado: usar la mezcla SIN procesado del canal máster "
+            "(sin limitador/compresor en el bus general) y dejar que el "
+            "master haga ese trabajo.\n\n"
+            "¿Masterizar de todos modos?",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        return r == QMessageBox.Yes
 
     def _masterizar(self):
         """Masteriza la mezcla o los stems nivelados → WAV + MP3 en salida/."""
@@ -904,19 +1435,34 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Sin fuente", "Vuelve al PASO 1 y carga una fuente.")
             return
 
+        if not carpeta_stems and self.diagnostico and not self._advertir_si_sobreprocesada():
+            return  # el usuario decidió volver atrás
+
         cfg = cargar_config_master()
         # loudness por defecto: el aprendido del género si existe, si no el de config
         pref = preferencias(self.settings.genero_activo())
         default_lufs = pref.get("target_lufs", float(cfg.get("target_lufs_default", -9.0)))
-        nota = (f"\n(aprendido de {pref['n']} masters tuyos aprobados en "
-                f"{self.settings.genero_activo()})") if pref else ""
-        target, ok = QInputDialog.getDouble(
-            self, "Master final",
-            "Loudness objetivo (LUFS integrado).\n"
-            f"-9 = competitivo · -8 = más loud · -14 = streaming suave:{nota}",
-            default_lufs, -20.0, -5.0, 1)
+
+        from ..loudness_targets import TARGETS_PLATAFORMA
+        nota_aprendido = (f"Personalizado — tu aprendido ({default_lufs:g} LUFS, "
+                          f"de {pref['n']} masters)") if pref else f"Personalizado ({default_lufs:g} LUFS)"
+        opciones = [nota_aprendido] + list(TARGETS_PLATAFORMA.keys()) + ["Otro (elegir manual)…"]
+        elegido, ok = QInputDialog.getItem(
+            self, "Master final", "Loudness objetivo — destino:", opciones, 0, False)
         if not ok:
             return
+
+        if elegido == nota_aprendido:
+            target = default_lufs
+        elif elegido in TARGETS_PLATAFORMA:
+            info = TARGETS_PLATAFORMA[elegido]
+            target = info["lufs"]
+            self._status(f"{elegido}: {info['nota']}")
+        else:
+            target, ok = QInputDialog.getDouble(
+                self, "Loudness manual", "LUFS integrado objetivo:", default_lufs, -20.0, -5.0, 1)
+            if not ok:
+                return
         if not self.referencia:
             QMessageBox.information(
                 self, "Sin referencia",
@@ -931,6 +1477,7 @@ class MainWindow(QMainWindow):
             self.wav_activo, self.referencia, target,
             self.proyecto.dir_masters, self.proyecto.dir_entregables,
             version, carpeta_stems)
+        self._master_worker.setParent(self)
         self._master_worker.progreso.connect(self._progreso)
         self._master_worker.terminado.connect(self._master_ok)
         self._master_worker.fallo.connect(self._master_error)
@@ -978,20 +1525,119 @@ class MainWindow(QMainWindow):
             os.startfile(str(Path(resumen["mp3"]).parent))  # abre salida/ con el archivo
         except Exception:
             log.exception("No se pudo abrir la carpeta de salida")
+        self._mostrar_graficas(resumen)
+        self._generar_m50x(resumen)
         self._preguntar_aprobado(resumen)
 
+    def _mostrar_graficas(self, resumen: dict):
+        """Genera el panel de gráficas (espectro pre/post + métricas) y lo muestra."""
+        try:
+            from .graficas import construir_panel_mastering
+            panel = construir_panel_mastering(resumen, self.diagnostico, self.wav_activo)
+            self._graficas_scroll.setWidget(panel)
+            self.tabs_resultado.setCurrentIndex(1)  # salta a la pestaña de gráficas
+        except Exception:
+            log.exception("No se pudieron generar las gráficas")
+
+    # ------------------------------------------------------- escucha comparada
+
+    def _generar_m50x(self, resumen: dict):
+        """Lanza en segundo plano la copia de escucha calibrada M50x."""
+        self.panel_m50x.setVisible(False)
+        self._m50x_path_premaster = self.wav_activo  # None si viene de stems (sin "original" único)
+        self._m50x_path_master = Path(resumen["wav"])
+        self._m50x_path_calibrado = None
+        self._m50x_worker = EscuchaWorker(self._m50x_path_master, self._m50x_path_master.parent)
+        self._m50x_worker.setParent(self)
+        self._m50x_worker.terminado.connect(self._m50x_listo)
+        self._m50x_worker.fallo.connect(self._m50x_error)
+        self._m50x_worker.start()
+
+    def _m50x_listo(self, info: dict):
+        """Copia generada: muestra el panel de escucha comparada."""
+        self._m50x_path_calibrado = Path(info["m50x"]["ruta"])
+        # sin mezcla pre-master única (master por stems): arranca directo en "Master"
+        arranque = 1 if not self._m50x_path_premaster else 0
+        self.combo_escucha.model().item(0).setEnabled(bool(self._m50x_path_premaster))
+        self._m50x_player.setSource(QUrl.fromLocalFile(
+            str(self._m50x_path_premaster or self._m50x_path_master)))
+        self.combo_escucha.blockSignals(True)
+        self.combo_escucha.setCurrentIndex(arranque)
+        self.combo_escucha.blockSignals(False)
+        self.btn_m50x_play.setText("▶ Reproducir")
+        self.panel_m50x.setVisible(True)
+        self._status("Copia de escucha M50x lista.")
+
+    def _m50x_error(self, msg: str):
+        """Falla la copia: no bloquea el flujo, solo se oculta el panel."""
+        log.warning("No se pudo generar la copia de escucha: %s", msg)
+        self.panel_m50x.setVisible(False)
+
+    def _m50x_toggle_play(self):
+        """Play/pausa del reproductor de escucha comparada."""
+        if self._m50x_player.playbackState() == QMediaPlayer.PlayingState:
+            self._m50x_player.pause()
+            self.btn_m50x_play.setText("▶ Reproducir")
+        else:
+            self._m50x_player.play()
+            self.btn_m50x_play.setText("⏸ Pausar")
+
+    def _m50x_cambiar_fuente(self, indice: int):
+        """Cambia entre pre-master / master / M50x, sin perder posición."""
+        rutas = [self._m50x_path_premaster, self._m50x_path_master,
+                  self._m50x_path_calibrado]
+        if indice >= len(rutas) or not rutas[indice]:
+            return
+        sonando = self._m50x_player.playbackState() == QMediaPlayer.PlayingState
+        pos = self._m50x_player.position()
+        self._m50x_player.setSource(QUrl.fromLocalFile(str(rutas[indice])))
+        self._m50x_player.setPosition(pos)
+        if sonando:
+            self._m50x_player.play()
+
+    def _m50x_buscar_posicion(self, valor: int):
+        """El usuario arrastró la barra de reproducción: salta a esa posición."""
+        self._m50x_player.setPosition(valor)
+
+    def _m50x_posicion_cambio(self, pos_ms: int):
+        """Actualiza la barra y el tiempo mientras suena (sin pelear con el arrastre)."""
+        if not self.slider_escucha.isSliderDown():
+            self.slider_escucha.setValue(pos_ms)
+        self.lbl_tiempo.setText(
+            f"{self._m50x_fmt_tiempo(pos_ms)} / {self._m50x_fmt_tiempo(self._m50x_player.duration())}")
+
+    def _m50x_duracion_cambio(self, dur_ms: int):
+        """Ajusta el rango de la barra al largo del audio actual."""
+        self.slider_escucha.setRange(0, dur_ms)
+
+    @staticmethod
+    def _m50x_fmt_tiempo(ms: int) -> str:
+        s = max(0, ms // 1000)
+        return f"{s // 60}:{s % 60:02d}"
+
     def _preguntar_aprobado(self, resumen: dict):
-        """¿Master aprobado? Si sí, la app aprende tu preferencia del género."""
+        """¿Master aprobado? Si sí, la app aprende tu preferencia de sonido.
+
+        Antes avisa (no bloquea) si el score quedó por debajo de tu propio
+        umbral histórico — tu piso real de calidad, no un número inventado.
+        """
         genero = self.settings.genero_activo()
+        pref = preferencias(genero)
+        score = resumen.get("score") or {}
+        umbral = pref.get("score_umbral")
+        aviso = ""
+        if umbral is not None and score.get("global") is not None and score["global"] < umbral:
+            aviso = (f"\n\n⚠ Este master ({score['global']}%) quedó por debajo de tu "
+                     f"estándar histórico (nunca aprobaste algo bajo {umbral}%).")
         r = QMessageBox.question(
             self, "¿Master aprobado?",
             "¿Te gusta este master?\n\nSi dices Sí, la app aprende tu preferencia "
-            f"de loudness para «{genero}» (reversible en Settings → Olvidar aprendizaje).",
+            f"de loudness y crest (reversible en Settings → Olvidar lo aprendido).{aviso}",
             QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
         if r == QMessageBox.Yes:
             try:
                 n = registrar_aprobado(genero, resumen)
-                self._status(f"✓ Aprendido — {n} master(s) aprobado(s) en «{genero}»")
+                self._status(f"✓ Aprendido — {n} master(s) aprobado(s)")
             except Exception:
                 log.exception("No se pudo registrar el aprendizaje")
 
@@ -1000,21 +1646,3 @@ class MainWindow(QMainWindow):
         self._refrescar_estado()
         self._status("Masterizado fallido (ver app.log).")
         QMessageBox.critical(self, "Error", f"No se pudo masterizar:\n{msg}")
-
-    # -------------------------------------------------------- regla género
-
-    def _promover_regla(self):
-        """Fija una regla aprendida en el género activo (versionado)."""
-        regla, ok = QInputDialog.getText(
-            self, "Regla del género",
-            f"Regla a fijar en «{self.settings.genero_activo()}»\n"
-            "(el estado anterior queda versionado, reversible en Settings):")
-        if not ok or not regla.strip():
-            return
-        cancion = self.diagnostico["archivo"] if self.diagnostico else ""
-        try:
-            agregar_regla_genero(self.settings.genero_activo(), regla.strip(), cancion)
-            self._status(f"Regla guardada en generos/{self.settings.genero_activo()}.md")
-        except Exception as e:
-            log.exception("Error guardando regla del género")
-            QMessageBox.critical(self, "Error", f"No se pudo guardar la regla:\n{e}")

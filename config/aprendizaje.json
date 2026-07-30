@@ -1,0 +1,30 @@
+{
+  "math_rock": {
+    "aprobados": [
+      {
+        "fecha": "2026-07-28 06:40:01",
+        "target_lufs": -9.0,
+        "lufs_final": -9.3,
+        "crest_final": 11.1,
+        "eq_aplicado_db": {
+          "air": -3.7,
+          "high": -3.9,
+          "high_mid": 1.6,
+          "low": -3.6,
+          "low_mid": 1.7,
+          "mid": 4.0,
+          "sub": 1.8
+        },
+        "score": {
+          "dinamica": 99,
+          "global": 77,
+          "imagen": 84,
+          "tonal": 63
+        },
+        "referencias": [
+          "10 - Perfect Pillow.mp3"
+        ]
+      }
+    ]
+  }
+}

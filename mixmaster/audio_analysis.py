@@ -306,6 +306,45 @@ def analisis_estereo(audio: np.ndarray, sr: int) -> dict:
     }
 
 
+def detectar_problemas_fase(audio: np.ndarray, sr: int, ventana_s: float = 0.5,
+                            umbral: float = 0.2, max_n: int = 5) -> dict:
+    """Detección fina de fase: correlación L/R por VENTANAS de tiempo, no un
+    solo promedio global — encuentra CUÁNDO hay problema, no solo SI hay.
+
+    Un promedio global puede esconder un tramo puntual muy fuera de fase
+    (ej. una cola de reverb ancha, una doble pista desalineada) detrás de
+    un resto del tema bien centrado. Esto lo aísla con timestamp.
+    """
+    if audio.shape[1] < 2:
+        return {"es_mono": True, "momentos_criticos": [], "peor_correlacion": 1.0}
+
+    L, R = audio[:, 0], audio[:, 1]
+    n_ventana = max(int(ventana_s * sr), 1)
+    n_total = len(L)
+    momentos = []
+
+    for inicio in range(0, n_total, n_ventana):
+        fin = min(inicio + n_ventana, n_total)
+        Lv, Rv = L[inicio:fin], R[inicio:fin]
+        eL, eR = np.sqrt(np.mean(Lv ** 2)), np.sqrt(np.mean(Rv ** 2))
+        if eL <= 1e-6 or eR <= 1e-6:
+            continue  # silencio — no hay nada que correlacionar
+        corr = float(np.clip(np.mean(Lv * Rv) / (eL * eR), -1.0, 1.0))
+        if corr < umbral:
+            momentos.append({"inicio_s": round(inicio / sr, 1),
+                             "fin_s": round(fin / sr, 1), "correlacion": round(corr, 2)})
+
+    momentos.sort(key=lambda m: m["correlacion"])  # peores primero
+    peor = momentos[0]["correlacion"] if momentos else 1.0
+    return {
+        "es_mono": False,
+        "momentos_criticos": momentos[:max_n],
+        "n_momentos_criticos": len(momentos),
+        "peor_correlacion": peor,
+        "ventana_s": ventana_s,
+    }
+
+
 # ---------------------------------------------------------------- secciones
 
 def analizar_secciones(audio: np.ndarray, sr: int, secciones: list[dict]) -> list[dict]:
@@ -401,7 +440,63 @@ def detectar_resonancias(audio: np.ndarray, sr: int, umbral_db: float = 6.0,
     return encontrados[:max_n]
 
 
+# ---------------------- descriptores sonoros profundos (v2, preset) ----------
+
+def inclinacion_espectral(audio: np.ndarray, sr: int) -> float:
+    """Tilt: pendiente global del espectro en dB/octava (– oscuro, + brillante).
+
+    Ajusta una recta a (log2 f, dB) del espectro suavizado. Un número que
+    resume el carácter tonal: música oscura ~ -3 a -6, brillante ~ 0 a +2.
+    """
+    freqs, esp = espectro_suavizado(audio, sr, n_puntos=40)
+    x = np.log2(freqs)
+    m = np.polyfit(x, esp, 1)[0]  # dB por octava
+    return round(float(m), 2)
+
+
+def definicion_graves(bandas_db: dict) -> float:
+    """Definición del bajo: growl (low_mid 200-500) menos sub (20-60), en dB.
+
+    Positivo alto = bajo definido (se entiende la nota). Negativo = 'bola'
+    (mucho peso sin cuerpo). Es el descriptor del problema clásico de low-end.
+    """
+    return round(float(bandas_db.get("low_mid", -99) - bandas_db.get("sub", -99)), 1)
+
+
+def punch_transientes(audio: np.ndarray, sr: int) -> float:
+    """Índice de pegada: cuán marcados son los ataques respecto del cuerpo.
+
+    Envolvente rápida vs lenta (fase cero). Alto = percusivo/pegado; bajo =
+    sostenido/comprimido. Índice relativo, comparable entre referencias.
+    """
+    mono = np.abs(audio.mean(axis=1) if audio.ndim > 1 else audio)
+    a_f = np.exp(-1.0 / (0.003 * sr))   # ataque ~3 ms
+    a_s = np.exp(-1.0 / (0.150 * sr))   # cuerpo ~150 ms
+    env_f = signal.filtfilt([1 - a_f], [1.0, -a_f], mono)
+    env_s = signal.filtfilt([1 - a_s], [1.0, -a_s], mono)
+    env_s = np.maximum(env_s, 1e-9)
+    ratio = env_f / env_s
+    return round(float(np.percentile(ratio, 95)), 2)
+
+
+def centroide_rolloff(audio: np.ndarray, sr: int) -> tuple[float, float]:
+    """(centroide, rolloff-85%) en Hz: dónde está el 'centro de brillo' y dónde
+    muere el agudo (frecuencia bajo la que cae el 85% de la energía)."""
+    mono = audio.mean(axis=1) if audio.ndim > 1 else audio
+    f, pxx = signal.welch(mono, sr, nperseg=min(8192, len(mono)))
+    total = float(pxx.sum()) + 1e-20
+    centroide = float((f * pxx).sum() / total)
+    acum = np.cumsum(pxx) / total
+    idx = int(np.searchsorted(acum, 0.85))
+    rolloff = float(f[min(idx, len(f) - 1)])
+    return round(centroide, 1), round(rolloff, 1)
+
+
 # --------------------------- caché de análisis de referencias (velocidad) ---
+
+# Versión del análisis de referencia. Al agregar métricas nuevas, subir este
+# número → el caché viejo se invalida solo y las referencias se re-analizan.
+ANALISIS_VERSION_REF = 2
 
 def _cache_refs_path():
     from .app_paths import CONFIG_DIR
@@ -419,8 +514,25 @@ def _cache_refs_leer() -> dict:
     return {}
 
 
+def _hash_archivo(path: Path, bloque: int = 1024 * 1024) -> str:
+    """Huella del CONTENIDO del archivo (no de la ruta) — hash de los bytes,
+    rápido (solo I/O, sin decodificar audio). Así el mismo archivo se
+    reconoce sin importar en qué carpeta/proyecto esté guardado."""
+    import hashlib
+    h = hashlib.blake2b(digest_size=16)
+    with open(path, "rb") as f:
+        while True:
+            trozo = f.read(bloque)
+            if not trozo:
+                break
+            h.update(trozo)
+    return h.hexdigest()
+
+
 def analizar_referencia_cacheada(path: Path) -> dict:
-    """Análisis completo de UNA referencia, cacheado por (ruta, mtime, tamaño).
+    """Análisis completo de UNA referencia, cacheado por CONTENIDO (hash del
+    archivo) — no por ruta. El mismo audio se reconoce aunque esté en otra
+    carpeta, otro proyecto, o se haya renombrado.
 
     Se mide al loudness NATIVO del archivo; quien lo use ajusta con un offset
     de dB (las medidas tonales suman el offset; crest/ancho son invariantes al
@@ -429,28 +541,59 @@ def analizar_referencia_cacheada(path: Path) -> dict:
     import json
     path = Path(path)
     st = path.stat()
-    clave = str(path.resolve())
+    contenido_hash = _hash_archivo(path)
     cache = _cache_refs_leer()
-    e = cache.get(clave)
-    if e and e.get("mtime") == st.st_mtime and e.get("size") == st.st_size:
-        return e
+
+    e = cache.get(contenido_hash)
+    if e and e.get("version") == ANALISIS_VERSION_REF:
+        return e  # ya vista (en cualquier proyecto/ruta) → instantáneo
+
+    # migración desde el caché viejo (clave = ruta): mismo contenido físico
+    # detectado por mtime+size en la ruta actual → reusa el análisis ya
+    # hecho en vez de tirarlo (no se pierde lo ya calculado).
+    clave_vieja = str(path.resolve())
+    e_vieja = cache.get(clave_vieja)
+    if (e_vieja and e_vieja.get("mtime") == st.st_mtime and e_vieja.get("size") == st.st_size
+            and e_vieja.get("version") == ANALISIS_VERSION_REF):
+        e_vieja["hash"] = contenido_hash
+        e_vieja["nombre_archivo"] = path.name
+        cache[contenido_hash] = e_vieja
+        try:
+            _cache_refs_path().write_text(json.dumps(cache), encoding="utf-8")
+        except Exception:
+            log.exception("No se pudo escribir el caché de referencias (migración)")
+        return e_vieja
 
     audio, sr = cargar_audio(path)
     lufs = lufs_integrado(audio, sr)
     freqs, esp = espectro_suavizado(audio, sr)
+    bandas = balance_bandas_db(audio, sr)
+    tp = true_peak_db(audio, sr)
+    centroide, rolloff = centroide_rolloff(audio, sr)
     e = {
+        "version": ANALISIS_VERSION_REF,
         "mtime": st.st_mtime,
         "size": st.st_size,
         "lufs": float(lufs) if np.isfinite(lufs) else None,
-        "bandas_db": balance_bandas_db(audio, sr),
+        "true_peak_db": round(tp, 1),
+        "plr_db": round(tp - float(lufs), 1) if np.isfinite(lufs) else None,
+        "bandas_db": bandas,
         "ancho_por_banda": analisis_estereo(audio, sr)["ancho_por_banda"],
         "crest_db": round(crest_factor_db(audio), 1),
         "crest_por_banda": crest_por_banda(audio, sr),
         "espectro_freqs": [float(x) for x in freqs],
         "espectro_db": [float(x) for x in esp],
         "mfcc_mean": cepstral_fingerprint(audio, sr)["mfcc_mean"],
+        # descriptores profundos v2 (preset)
+        "inclinacion_db_oct": inclinacion_espectral(audio, sr),
+        "definicion_graves_db": definicion_graves(bandas),
+        "punch": punch_transientes(audio, sr),
+        "centroide_hz": centroide,
+        "rolloff_hz": rolloff,
+        "hash": contenido_hash,
+        "nombre_archivo": path.name,
     }
-    cache[clave] = e
+    cache[contenido_hash] = e
     try:
         _cache_refs_path().write_text(json.dumps(cache), encoding="utf-8")
     except Exception:
@@ -575,6 +718,17 @@ def generar_alertas(diag: dict, umbrales: dict | None = None) -> list[str]:
             alertas.append(
                 f"Correlación estéreo {c:.2f} en {banda} (<{u['correlacion_min']:g}) — {u['nota_correlacion']}"
             )
+
+    # Fase fina: momentos puntuales fuera de fase que un promedio global esconde
+    fase = estereo.get("fase_fina") or {}
+    momentos = fase.get("momentos_criticos") or []
+    if momentos:
+        peor = momentos[0]
+        alertas.append(
+            f"Fase problemática en {fase.get('n_momentos_criticos', len(momentos))} tramo(s) "
+            f"(peor: {peor['inicio_s']:.0f}s-{peor['fin_s']:.0f}s, corr {peor['correlacion']:.2f}) "
+            "— revisar compatibilidad mono en esos momentos puntuales"
+        )
 
     # Loudness excesivo para el género
     if np.isfinite(g["lufs_i"]) and g["lufs_i"] > u["lufs_max"]:
@@ -970,9 +1124,18 @@ def analizar_wav(path_wav: Path, marcadores_txt: str = "",
 
     avisar("Analizando balance espectral…")
     bandas = balance_bandas_db(audio, sr)
+    freqs_fino, db_fino = espectro_suavizado(audio, sr, n_puntos=40)
+
+    avisar("Calculando carácter tonal (tilt, definición, punch)…")
+    tilt = inclinacion_espectral(audio, sr)
+    def_graves = definicion_graves(bandas)
+    punch_v = punch_transientes(audio, sr)
+    centroide, rolloff = centroide_rolloff(audio, sr)
+    plr = round(tp - float(lufs_i), 1) if np.isfinite(lufs_i) else None
 
     avisar("Analizando imagen estéreo…")
     estereo = analisis_estereo(audio, sr)
+    fase_fina = detectar_problemas_fase(audio, sr)
 
     secciones = []
     marcas = []
@@ -1014,11 +1177,24 @@ def analizar_wav(path_wav: Path, marcadores_txt: str = "",
         },
         "clipping_global": clip,
         "bandas_db": bandas,
+        "espectro_fino": {
+            "freqs": [round(float(f), 1) for f in freqs_fino],
+            "db": [round(float(d), 1) for d in db_fino],
+        },
+        "caracter": {
+            "inclinacion_db_oct": tilt,
+            "definicion_graves_db": def_graves,
+            "punch": punch_v,
+            "centroide_hz": centroide,
+            "rolloff_hz": rolloff,
+            "plr_db": plr,
+        },
         "estereo": {
             "correlacion_global": estereo["correlacion_global"],
             "correlacion_por_banda": estereo["correlacion_por_banda"],
             "ancho_por_banda": estereo["ancho_por_banda"],
             "perdida_mono_db": estereo["perdida_mono_db"],
+            "fase_fina": fase_fina,
         },
         "secciones": secciones,
         "vs_referencia": None,

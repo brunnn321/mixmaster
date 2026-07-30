@@ -1,7 +1,4 @@
-"""Carga y guardado de config/settings.json.
-
-La API key vive aquí (archivo local), nunca en el código.
-"""
+"""Carga y guardado de config/settings.json."""
 
 import json
 from pathlib import Path
@@ -14,10 +11,6 @@ log = get_logger("mixmaster.settings")
 
 DEFAULTS = {
     "ruta_proyectos": str(APP_ROOT / "proyectos"),
-    "modo": "manual",              # "api" | "manual"
-    "api_key": "",
-    "modelo": "claude-sonnet-5",   # configurable: sobrevive a cambios de modelo
-    "max_tokens": 2048,
     "perfil_usuario": str(PERFILES_DIR / "bruno.md"),
     "genero_activo": "math_rock",
     "primera_ejecucion": True,

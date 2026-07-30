@@ -130,11 +130,46 @@ PLANTILLA_MATH_ROCK_JSON = {
     "nota_lufs": "muy fuerte para math rock — riesgo de fatiga",
 }
 
-PLANTILLA_FUNK_MD = """# Género — Funk · v0 (esqueleto de ejemplo)
-> Preset de género de ejemplo. Rellenar antes de usar en serio.
+
+# ------------------------------------------------------------------ gestión
+
+def asegurar_perfiles_default() -> None:
+    """Crea la estructura de perfiles/géneros con plantillas si no existe.
+
+    Migración v0.1 → v0.1.1: el viejo config/perfil_bruno.md se conserva
+    intacto; las plantillas nuevas ya contienen su contenido separado en capas.
+    """
+    ensure_app_dirs()
+    defaults = {
+        PERFILES_DIR / "bruno.md": PLANTILLA_BRUNO,
+        PERFILES_DIR / "daniel.md": PLANTILLA_DANIEL,
+        GENEROS_DIR / "math_rock.md": PLANTILLA_MATH_ROCK_MD,
+    }
+    for path, contenido in defaults.items():
+        if not path.exists():
+            path.write_text(contenido, encoding="utf-8")
+            log.info("Plantilla creada: %s", path)
+
+    for path, datos in {
+        GENEROS_DIR / "math_rock.json": PLANTILLA_MATH_ROCK_JSON,
+    }.items():
+        if not path.exists():
+            path.write_text(json.dumps(datos, indent=2, ensure_ascii=False), encoding="utf-8")
+            log.info("Umbrales creados: %s", path)
+
+    if PERFIL_FILE.exists():
+        log.info("Perfil v0.1 (%s) conservado; la app usa perfiles/ y generos/", PERFIL_FILE.name)
+
+    # Biblioteca de referencias: una carpeta por género existente
+    for genero in listar_generos():
+        (REFERENCIAS_DIR / genero).mkdir(parents=True, exist_ok=True)
+
+
+PLANTILLA_GENERO_VACIO = """# Género — {titulo} · v0
+> Preset nuevo, creado desde la app. Rellenar según se vaya afinando de oído.
 
 ## Identidad sonora
-- (pendiente: groove, protagonismo de la sección rítmica, etc.)
+- (pendiente)
 
 ## Referencias
 | Referencia | Usar por | Escuchar específicamente |
@@ -151,55 +186,29 @@ PLANTILLA_FUNK_MD = """# Género — Funk · v0 (esqueleto de ejemplo)
 (vacío)
 """
 
-PLANTILLA_FUNK_JSON = {
-    "nombre": "Funk",
-    "low_mid_delta_max_db": 3.0,
-    "crest_min_db": 10.0,
-    "sub_min_db": -26.0,
-    "correlacion_min": 0.7,
-    "lufs_max": -7.0,
-    "nota_low_mid": "revisar acumulación en 200–500 Hz",
-    "nota_crest": "groove aplastado — vigilar compresión",
-    "nota_sub": "low-end insuficiente para funk",
-    "nota_correlacion": "imagen estéreo inestable",
-    "nota_lufs": "loudness excesivo — pierde bounce",
-}
 
+def crear_genero(nombre: str) -> str:
+    """Crea un género nuevo (slug + .md + .json con umbrales default). Idempotente.
 
-# ------------------------------------------------------------------ gestión
-
-def asegurar_perfiles_default() -> None:
-    """Crea la estructura de perfiles/géneros con plantillas si no existe.
-
-    Migración v0.1 → v0.1.1: el viejo config/perfil_bruno.md se conserva
-    intacto; las plantillas nuevas ya contienen su contenido separado en capas.
+    Devuelve el slug final (nombre normalizado usado como nombre de archivo).
     """
     ensure_app_dirs()
-    defaults = {
-        PERFILES_DIR / "bruno.md": PLANTILLA_BRUNO,
-        PERFILES_DIR / "daniel.md": PLANTILLA_DANIEL,
-        GENEROS_DIR / "math_rock.md": PLANTILLA_MATH_ROCK_MD,
-        GENEROS_DIR / "funk.md": PLANTILLA_FUNK_MD,
-    }
-    for path, contenido in defaults.items():
-        if not path.exists():
-            path.write_text(contenido, encoding="utf-8")
-            log.info("Plantilla creada: %s", path)
+    slug = re.sub(r"[^a-z0-9_]+", "_", nombre.strip().lower()).strip("_")
+    if not slug:
+        raise ValueError("Nombre de género vacío")
 
-    for path, datos in {
-        GENEROS_DIR / "math_rock.json": PLANTILLA_MATH_ROCK_JSON,
-        GENEROS_DIR / "funk.json": PLANTILLA_FUNK_JSON,
-    }.items():
-        if not path.exists():
-            path.write_text(json.dumps(datos, indent=2, ensure_ascii=False), encoding="utf-8")
-            log.info("Umbrales creados: %s", path)
+    md = GENEROS_DIR / f"{slug}.md"
+    js = GENEROS_DIR / f"{slug}.json"
+    if not md.exists():
+        md.write_text(PLANTILLA_GENERO_VACIO.format(titulo=nombre.strip()), encoding="utf-8")
+    if not js.exists():
+        datos = dict(UMBRALES_DEFAULT)
+        datos["nombre"] = nombre.strip()
+        js.write_text(json.dumps(datos, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    if PERFIL_FILE.exists():
-        log.info("Perfil v0.1 (%s) conservado; la app usa perfiles/ y generos/", PERFIL_FILE.name)
-
-    # Biblioteca de referencias: una carpeta por género existente
-    for genero in listar_generos():
-        (REFERENCIAS_DIR / genero).mkdir(parents=True, exist_ok=True)
+    (REFERENCIAS_DIR / slug).mkdir(parents=True, exist_ok=True)
+    log.info("Género creado: %s", slug)
+    return slug
 
 
 def listar_generos() -> list[str]:

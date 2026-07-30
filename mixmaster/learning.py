@@ -42,7 +42,11 @@ def registrar_aprobado(genero: str, resumen: dict) -> int:
         "target_lufs": resumen.get("target_lufs"),
         "lufs_final": resumen.get("lufs_final"),
         "crest_final": resumen.get("crest_final"),
+        "true_peak_final": resumen.get("true_peak_final"),
         "eq_aplicado_db": resumen.get("eq_aplicado_db"),
+        "ajuste_ancho_db": resumen.get("ajuste_ancho_db"),
+        "multibanda_db": resumen.get("multibanda_db"),
+        "mono_bass_hz": resumen.get("mono_bass_hz"),
         "score": resumen.get("score"),
         "referencias": resumen.get("referencias"),
     })
@@ -52,16 +56,74 @@ def registrar_aprobado(genero: str, resumen: dict) -> int:
     return n
 
 
+def _promedio_por_banda(aprobados: list[dict], clave: str) -> dict[str, float]:
+    """Promedia un dict-por-banda (ej. eq_aplicado_db) a través de los aprobados."""
+    acumulado: dict[str, list[float]] = {}
+    for a in aprobados:
+        d = a.get(clave) or {}
+        for banda, valor in d.items():
+            if isinstance(valor, (int, float)):
+                acumulado.setdefault(banda, []).append(valor)
+    return {banda: round(sum(vals) / len(vals), 1) for banda, vals in acumulado.items()}
+
+
 def preferencias(genero: str) -> dict:
-    """Defaults aprendidos del género a partir de los masters aprobados."""
+    """Defaults aprendidos del género a partir de los masters aprobados.
+
+    Cada campo se calcula solo si hay datos suficientes; sonido más "tuyo"
+    cuantos más masters apruebes. Todo viene de datos ya guardados en
+    registrar_aprobado — nada se re-analiza, solo se promedia.
+    """
     aprobados = _cargar().get(genero, {}).get("aprobados", [])
     lufs = [a["target_lufs"] for a in aprobados if a.get("target_lufs") is not None]
     if not lufs:
         return {}
-    return {
+
+    resultado = {
         "target_lufs": round(sum(lufs) / len(lufs) * 2) / 2,  # media redondeada a 0.5
         "n": len(aprobados),
     }
+
+    crest = [a["crest_final"] for a in aprobados if a.get("crest_final") is not None]
+    if crest:
+        resultado["crest_target"] = round(sum(crest) / len(crest), 1)
+
+    eq_sig = _promedio_por_banda(aprobados, "eq_aplicado_db")
+    if eq_sig:
+        resultado["eq_signature"] = eq_sig
+
+    ancho_sig = _promedio_por_banda(aprobados, "ajuste_ancho_db")
+    if ancho_sig:
+        resultado["ancho_signature"] = ancho_sig
+
+    mb_sig = _promedio_por_banda(aprobados, "multibanda_db")
+    if mb_sig:
+        resultado["multibanda_signature"] = mb_sig
+
+    tp = [a["true_peak_final"] for a in aprobados if a.get("true_peak_final") is not None]
+    if tp:
+        resultado["true_peak_margin"] = round(sum(tp) / len(tp), 1)
+
+    mono_bass = [a["mono_bass_hz"] for a in aprobados if a.get("mono_bass_hz")]
+    if mono_bass:
+        resultado["mono_bass_hz"] = round(sum(mono_bass) / len(mono_bass))
+
+    # tu umbral de calidad: el score más bajo que SÍ aprobaste (piso real, no promedio)
+    scores = [a["score"]["global"] for a in aprobados
+              if isinstance(a.get("score"), dict) and a["score"].get("global") is not None]
+    if scores:
+        resultado["score_umbral"] = min(scores)
+
+    # referencias que más repetís (tu sonido de cabecera)
+    conteo: dict[str, int] = {}
+    for a in aprobados:
+        for ref in (a.get("referencias") or []):
+            conteo[ref] = conteo.get(ref, 0) + 1
+    if conteo:
+        top = sorted(conteo.items(), key=lambda kv: kv[1], reverse=True)[:3]
+        resultado["referencias_top"] = [{"nombre": n, "veces": v} for n, v in top if v > 1]
+
+    return resultado
 
 
 def olvidar(genero: str | None = None) -> None:
