@@ -13,10 +13,10 @@ from PySide6.QtCore import (
 from PySide6.QtGui import QAction, QColor
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import (
-    QCheckBox, QFileDialog, QFrame, QGraphicsDropShadowEffect, QHBoxLayout,
-    QInputDialog, QLabel, QLineEdit, QMainWindow, QMessageBox, QProgressBar,
-    QPushButton, QScrollArea, QSlider, QStackedWidget, QStyle, QSystemTrayIcon,
-    QTextEdit, QVBoxLayout, QWidget,
+    QCheckBox, QComboBox, QFileDialog, QFrame, QGraphicsDropShadowEffect,
+    QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMainWindow, QMessageBox,
+    QProgressBar, QPushButton, QScrollArea, QSlider, QStackedWidget, QStyle,
+    QSystemTrayIcon, QTextEdit, QVBoxLayout, QWidget,
 )
 
 from .. import __version__
@@ -31,6 +31,7 @@ from ..references import detectar_etiqueta_sugerida
 from ..report import comparar_progreso, guardar_diagnostico, reporte_legible
 from ..settings import Settings
 from ..stems import procesar_stems, reporte_stems_legible
+from ..voice_processing import cargar_config_voz, procesar_voz
 from .historial_dialog import HistorialDialog
 from .settings_dialog import SettingsDialog
 
@@ -244,6 +245,32 @@ class MasterWorker(QThread):
             self.fallo.emit(str(e))
 
 
+class VoiceWorker(QThread):
+    """Ejecuta el pipeline de voz/podcast fuera del hilo de la UI."""
+
+    progreso = Signal(str)
+    terminado = Signal(dict)
+    fallo = Signal(str)
+
+    def __init__(self, entrada, salida, referencia=None, target_lufs=None, cfg=None):
+        super().__init__()
+        self.entrada, self.salida = entrada, salida
+        self.referencia, self.target_lufs, self.cfg = referencia, target_lufs, cfg
+
+    def run(self):
+        """Corre la cadena de voz y emite el resumen o el error."""
+        try:
+            resumen = procesar_voz(
+                self.entrada, self.salida, cfg=self.cfg,
+                path_referencia=self.referencia, target_lufs=self.target_lufs,
+                progreso=self.progreso.emit,
+            )
+            self.terminado.emit(resumen)
+        except Exception as e:
+            log.exception("Fallo en el procesamiento de voz")
+            self.fallo.emit(str(e))
+
+
 class StemsWorker(QThread):
     """Procesa los stems del proyecto fuera del hilo de la UI."""
 
@@ -452,6 +479,26 @@ class MainWindow(QMainWindow):
         self.lbl_fuente.setMinimumHeight(150)
         self.lbl_fuente.clicked.connect(self._cargar_fuente_dialogo)
         lay1.addWidget(self.lbl_fuente)
+
+        # Modo de procesamiento: música (cadena completa) vs voz/podcast
+        # (cadena propia: gate/comp/de-esser/limitador). Manual a propósito —
+        # la detección automática no es confiable.
+        fila_modo = QHBoxLayout()
+        fila_modo.addWidget(QLabel("Tipo de audio:"))
+        self.combo_modo = QComboBox()
+        self.combo_modo.addItems(["🎵 Música", "🎙️ Voz / Podcast"])
+        self.combo_modo.setToolTip(
+            "Música: cadena completa (EQ matching fino, multibanda, imagen estéreo,\n"
+            "densidad, loudness competitivo).\n"
+            "Voz/Podcast: cadena propia — puerta de ruido, compresión suave,\n"
+            "de-esser y limitador, con loudness de plataformas de voz\n"
+            "(-16 LUFS mono / -19 estéreo). La referencia es OPCIONAL y solo\n"
+            "hace un matching tonal suave (±2 dB).")
+        self.combo_modo.currentIndexChanged.connect(self._modo_cambiado)
+        fila_modo.addWidget(self.combo_modo)
+        fila_modo.addStretch()
+        lay1.addLayout(fila_modo)
+
         self.chk_mi_mezcla = QCheckBox("Es una mezcla mía (aprender de mi sonido)")
         self.chk_mi_mezcla.setChecked(True)
         self.chk_mi_mezcla.setToolTip(
@@ -536,7 +583,6 @@ class MainWindow(QMainWindow):
         fila_m50x = QHBoxLayout()
         self.btn_m50x_play = QPushButton("▶ Reproducir")
         self.btn_m50x_play.clicked.connect(self._m50x_toggle_play)
-        from PySide6.QtWidgets import QComboBox
         self.combo_escucha = QComboBox()
         self.combo_escucha.addItems([
             "Mezcla original (sin masterizar)", "Master",
@@ -1434,9 +1480,90 @@ class MainWindow(QMainWindow):
             QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         return r == QMessageBox.Yes
 
+    def _modo_voz(self) -> bool:
+        """True si el usuario eligió el modo Voz/Podcast en PASO 1."""
+        return self.combo_modo.currentIndex() == 1
+
+    def _modo_cambiado(self, _idx: int):
+        """Ajusta el botón principal y avisa qué cadena se va a usar."""
+        if self._modo_voz():
+            self.btn_master.setText("PROCESAR VOZ")
+            self._status("Modo Voz/Podcast: gate + compresión + de-esser + limitador.")
+        else:
+            self.btn_master.setText("MASTER")
+            self._status("Modo Música: cadena de mastering completa.")
+
+    def _procesar_voz(self):
+        """Corre la cadena de voz/podcast sobre el audio cargado."""
+        if not self.wav_activo:
+            QMessageBox.information(self, "Sin fuente", "Vuelve al PASO 1 y carga un audio.")
+            return
+
+        cfg = cargar_config_voz()
+        entrada = Path(self.wav_activo)
+        # el default depende de mono/estéreo, que solo sabe el motor al cargar;
+        # se ofrece el de mono como punto de partida y se aclara en el diálogo
+        sugerido = float(cfg["target_lufs_mono"])
+        target, ok = QInputDialog.getDouble(
+            self, "Voz / Podcast",
+            "LUFS integrado objetivo\n"
+            "(-16 mono / -19 estéreo son los estándar de plataformas de podcast;\n"
+            "subilo o bajalo según cuán potente quieras la voz):",
+            sugerido, -30.0, -6.0, 1)
+        if not ok:
+            return
+
+        ref = self.referencia
+        if isinstance(ref, list):
+            ref = ref[0] if ref else None
+        if ref:
+            self._status(f"Voz con matching tonal suave hacia {Path(ref).name}.")
+
+        salida = self.proyecto.dir_entregables / f"{entrada.stem}_voz.wav"
+        self.btn_master.setEnabled(False)
+        self._barra_activa(True)
+        self._status("Procesando voz…")
+        self._voice_worker = VoiceWorker(entrada, salida, referencia=ref,
+                                         target_lufs=target, cfg=cfg)
+        self._voice_worker.setParent(self)
+        self._voice_worker.progreso.connect(self._progreso)
+        self._voice_worker.terminado.connect(self._voz_ok)
+        self._voice_worker.fallo.connect(self._voz_error)
+        self._voice_worker.start()
+
+    def _voz_ok(self, resumen: dict):
+        """Muestra el resultado del procesamiento de voz.
+
+        No pasa por `_preguntar_aprobado`/`_generar_m50x`/gráficas: esas son
+        del flujo musical (aprenden LUFS/EQ/crest por género y comparan contra
+        referencias de música), meter voz ahí ensuciaría ese aprendizaje.
+        """
+        self._barra_activa(False)
+        self._refrescar_estado()
+        eq = resumen.get("eq_referencia_db") or {}
+        eq_txt = ("\n  EQ hacia la referencia (dB): "
+                  + ", ".join(f"{b} {v:+.1f}" for b, v in eq.items() if abs(v) >= 0.1)
+                  + f"\n  Referencia: {resumen['referencia']}") if eq else ""
+        canal = "mono" if resumen.get("mono") else "estéreo"
+        self.txt_resultado.append(
+            f"\n══ VOZ / PODCAST LISTO ({canal}) ══\n"
+            f"  LUFS final: {resumen['lufs_final']} (objetivo {resumen['target_lufs']})\n"
+            f"  True peak: {resumen['true_peak_final']} dBTP   "
+            f"Crest: {resumen.get('crest_final', '?')} dB{eq_txt}\n"
+            f"  WAV: {resumen['wav']}")
+        self._status(f"Voz lista → {Path(resumen['wav']).name}")
+        try:
+            import os
+            os.startfile(str(Path(resumen["wav"]).parent))
+        except Exception:
+            log.exception("No se pudo abrir la carpeta de salida")
+
     def _masterizar(self):
         """Masteriza la mezcla o los stems nivelados → WAV + MP3 en salida/."""
         if not self.proyecto:
+            return
+        if self._modo_voz():
+            self._procesar_voz()
             return
         dir_niveladas = self.proyecto.dir_stems_niveladas
         hay_stems = dir_niveladas.is_dir() and any(dir_niveladas.glob("*.wav"))
@@ -1666,3 +1793,9 @@ class MainWindow(QMainWindow):
         self._refrescar_estado()
         self._status("Masterizado fallido (ver app.log).")
         QMessageBox.critical(self, "Error", f"No se pudo masterizar:\n{msg}")
+
+    def _voz_error(self, msg: str):
+        self._barra_activa(False)
+        self._refrescar_estado()
+        self._status("Procesamiento de voz fallido (ver app.log).")
+        QMessageBox.critical(self, "Error", f"No se pudo procesar la voz:\n{msg}")
