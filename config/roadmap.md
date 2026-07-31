@@ -89,7 +89,7 @@ luego el resto según se vaya confirmando.
 14. [x] **Loudness War Score** — `graficas.py::_LoudnessWarScore`, mapa LUFS×Crest con zona sana (verde) y zona de riesgo/sobre-comprimido (roja), tu master marcado con punto. En el monitor, tras cada master.
 12. [ ] **Export de stems de mastering** (bandas/M-S procesadas) — permite re-balance sin re-masterizar
 13. [x] **Null test** — `null_test.py::generar_diferencia` (resta de fase, iguala loudness antes de restar, normaliza a -3dBFS) + menú "🔬 Null test". Probado: idénticos → silencio; con diferencia real → la detecta.
-14. [ ] **Integración DAW vía carpeta watched** — detecta bounces nuevos automáticamente
+14. [x] **Integración DAW vía carpeta watched** — `daw_watch.py::DetectorBounces` + menú Proyecto → "📁 Carpeta del DAW…". **La ruta se guarda POR PROYECTO** (pedido de Bruno: poner la carpeta de exportación de cada canción del DAW), en `config-proyecto.json` dentro del proyecto — `Project.leer_config/set_config/carpeta_daw`, nuevo. Al aparecer un bounce nuevo avisa y lo carga con 1 clic (elegido sobre carga automática: no pisa lo que estés comparando). **Detalle clave:** el DAW escribe el archivo de a poco, así que un bounce NO se reporta hasta que su tamaño se mantiene igual entre dos revisiones — si no, se cargaba un WAV incompleto. Sondeo por QTimer cada 2 s en vez de QFileSystemWatcher (un listdir es barato y el watcher nativo pierde eventos). Test: `tests/test_daw_watch.py`, 16 checks. — 2026-07-30
 15. [x] **A/B ciego** — `ui/ab_ciego_dialog.py`, compara los 2 masters más recientes del proyecto sin revelar cuál es cuál hasta elegir, menú "🙈 A/B ciego" — 2026-07-21
 
 ---

@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 from .. import __version__
 from ..app_paths import REFERENCIAS_DIR
 from ..audio_analysis import analizar_wav
+from ..daw_watch import DetectorBounces
 from ..learning import consejo_mezcla, preferencias, registrar_aprobado, registrar_mezcla_propia
 from ..logger import get_logger
 from ..processing import cargar_config_master, masterizar
@@ -347,6 +348,14 @@ class MainWindow(QMainWindow):
         self._m50x_path_calibrado: Path | None = None
         self._m50x_worker = None
 
+        # Vigilancia de la carpeta de bounces del DAW (ruta por proyecto).
+        # Sondeo por timer en vez de QFileSystemWatcher: un listdir cada 2 s es
+        # barato y evita los huecos conocidos del watcher nativo (eventos que
+        # se pierden, rutas que hay que re-agregar tras cada cambio).
+        self._detector_daw: DetectorBounces | None = None
+        self._timer_daw = QTimer(self)
+        self._timer_daw.timeout.connect(self._revisar_daw)
+
         # Aviso de cansancio auditivo — cada 90 min de sesión abierta
         self._timer_fatiga = QTimer(self)
         self._timer_fatiga.setInterval(90 * 60 * 1000)
@@ -432,7 +441,13 @@ class MainWindow(QMainWindow):
         acc_carpeta.triggered.connect(self._abrir_carpeta)
         acc_borrar = QAction("🗑 Borrar proyecto…", self)
         acc_borrar.triggered.connect(self._borrar_proyecto)
-        m_proyecto.addActions([acc_nuevo, acc_abrir, acc_carpeta, acc_borrar])
+        self.acc_daw = QAction("📁 Carpeta del DAW…", self)
+        self.acc_daw.setToolTip(
+            "Elegí la carpeta donde tu DAW exporta los bounces de ESTA canción.\n"
+            "Cuando aparezca un bounce nuevo, MixMaster te avisa para cargarlo\n"
+            "sin que tengas que buscarlo a mano. Se guarda por proyecto.")
+        self.acc_daw.triggered.connect(self._elegir_carpeta_daw)
+        m_proyecto.addActions([acc_nuevo, acc_abrir, acc_carpeta, acc_borrar, self.acc_daw])
 
         m_settings = self.menuBar().addMenu("&Settings")
         acc_settings = QAction("Configuración…", self)
@@ -887,7 +902,54 @@ class MainWindow(QMainWindow):
                 log.exception("No se pudo cargar el diagnóstico previo")
         else:
             self.txt_resultado.clear()
+        self._arrancar_vigilancia_daw()
         self._ir(0)
+
+    # -------------------------------------------------- carpeta del DAW
+
+    def _elegir_carpeta_daw(self):
+        """Elige la carpeta de bounces del DAW para el proyecto activo."""
+        if not self.proyecto:
+            QMessageBox.information(
+                self, "Sin proyecto",
+                "Abrí o creá un proyecto primero: la carpeta se guarda por proyecto.")
+            return
+        actual = self.proyecto.carpeta_daw
+        elegida = QFileDialog.getExistingDirectory(
+            self, "Carpeta donde tu DAW exporta los bounces",
+            str(actual) if actual else "")
+        if not elegida:
+            return
+        self.proyecto.set_config("carpeta_daw", elegida)
+        self._arrancar_vigilancia_daw()
+        self._status(f"Vigilando bounces en {Path(elegida).name}.")
+
+    def _arrancar_vigilancia_daw(self):
+        """Arranca (o detiene) la vigilancia según la config del proyecto."""
+        carpeta = self.proyecto.carpeta_daw if self.proyecto else None
+        if not carpeta or not Path(carpeta).is_dir():
+            self._detector_daw = None
+            self._timer_daw.stop()
+            return
+        self._detector_daw = DetectorBounces(carpeta)
+        self._timer_daw.start(2000)   # sondeo liviano: un listdir cada 2 s
+        log.info("Vigilando carpeta del DAW: %s", carpeta)
+
+    def _revisar_daw(self):
+        """Avisa de bounces nuevos ya terminados de escribir."""
+        if not self._detector_daw:
+            return
+        nuevos = self._detector_daw.revisar()
+        if not nuevos:
+            return
+        # si cayeron varios de una, el más reciente es el que interesa
+        bounce = nuevos[-1]
+        resp = QMessageBox.question(
+            self, "Bounce nuevo del DAW",
+            f"Apareció un bounce nuevo:\n\n{bounce.name}\n\n¿Lo cargo como mezcla activa?",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
+        if resp == QMessageBox.Yes:
+            self._cargar_audio_desde_path(str(bounce))
 
     # ------------------------------------------------------------- proyectos
 
