@@ -13,15 +13,16 @@ from PySide6.QtCore import (
 from PySide6.QtGui import QAction, QColor
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import (
-    QCheckBox, QFileDialog, QFrame, QGraphicsDropShadowEffect, QHBoxLayout,
-    QInputDialog, QLabel, QLineEdit, QMainWindow, QMessageBox, QProgressBar,
-    QPushButton, QScrollArea, QSlider, QStackedWidget, QStyle, QSystemTrayIcon,
-    QTextEdit, QVBoxLayout, QWidget,
+    QCheckBox, QComboBox, QDialog, QFileDialog, QFrame,
+    QGraphicsDropShadowEffect, QHBoxLayout, QInputDialog, QLabel, QLineEdit,
+    QMainWindow, QMessageBox, QProgressBar, QPushButton, QScrollArea, QSlider,
+    QStackedWidget, QStyle, QSystemTrayIcon, QTextEdit, QVBoxLayout, QWidget,
 )
 
 from .. import __version__
 from ..app_paths import REFERENCIAS_DIR
 from ..audio_analysis import analizar_wav
+from ..daw_watch import DetectorBounces
 from ..learning import consejo_mezcla, preferencias, registrar_aprobado, registrar_mezcla_propia
 from ..logger import get_logger
 from ..processing import cargar_config_master, masterizar
@@ -31,6 +32,7 @@ from ..references import detectar_etiqueta_sugerida
 from ..report import comparar_progreso, guardar_diagnostico, reporte_legible
 from ..settings import Settings
 from ..stems import procesar_stems, reporte_stems_legible
+from ..voice_processing import cargar_config_voz, procesar_voz
 from .historial_dialog import HistorialDialog
 from .settings_dialog import SettingsDialog
 
@@ -244,6 +246,32 @@ class MasterWorker(QThread):
             self.fallo.emit(str(e))
 
 
+class VoiceWorker(QThread):
+    """Ejecuta el pipeline de voz/podcast fuera del hilo de la UI."""
+
+    progreso = Signal(str)
+    terminado = Signal(dict)
+    fallo = Signal(str)
+
+    def __init__(self, entrada, salida, referencia=None, target_lufs=None, cfg=None):
+        super().__init__()
+        self.entrada, self.salida = entrada, salida
+        self.referencia, self.target_lufs, self.cfg = referencia, target_lufs, cfg
+
+    def run(self):
+        """Corre la cadena de voz y emite el resumen o el error."""
+        try:
+            resumen = procesar_voz(
+                self.entrada, self.salida, cfg=self.cfg,
+                path_referencia=self.referencia, target_lufs=self.target_lufs,
+                progreso=self.progreso.emit,
+            )
+            self.terminado.emit(resumen)
+        except Exception as e:
+            log.exception("Fallo en el procesamiento de voz")
+            self.fallo.emit(str(e))
+
+
 class StemsWorker(QThread):
     """Procesa los stems del proyecto fuera del hilo de la UI."""
 
@@ -319,6 +347,17 @@ class MainWindow(QMainWindow):
         self._m50x_path_master: Path | None = None
         self._m50x_path_calibrado: Path | None = None
         self._m50x_worker = None
+
+        # "musica" | "voz" — se define al cargar, en `_preguntar_tipo_audio`
+        self._modo_audio = "musica"
+
+        # Vigilancia de la carpeta de bounces del DAW (ruta por proyecto).
+        # Sondeo por timer en vez de QFileSystemWatcher: un listdir cada 2 s es
+        # barato y evita los huecos conocidos del watcher nativo (eventos que
+        # se pierden, rutas que hay que re-agregar tras cada cambio).
+        self._detector_daw: DetectorBounces | None = None
+        self._timer_daw = QTimer(self)
+        self._timer_daw.timeout.connect(self._revisar_daw)
 
         # Aviso de cansancio auditivo — cada 90 min de sesión abierta
         self._timer_fatiga = QTimer(self)
@@ -405,7 +444,13 @@ class MainWindow(QMainWindow):
         acc_carpeta.triggered.connect(self._abrir_carpeta)
         acc_borrar = QAction("🗑 Borrar proyecto…", self)
         acc_borrar.triggered.connect(self._borrar_proyecto)
-        m_proyecto.addActions([acc_nuevo, acc_abrir, acc_carpeta, acc_borrar])
+        self.acc_daw = QAction("📁 Carpeta del DAW…", self)
+        self.acc_daw.setToolTip(
+            "Elegí la carpeta donde tu DAW exporta los bounces de ESTA canción.\n"
+            "Cuando aparezca un bounce nuevo, MixMaster te avisa para cargarlo\n"
+            "sin que tengas que buscarlo a mano. Se guarda por proyecto.")
+        self.acc_daw.triggered.connect(self._elegir_carpeta_daw)
+        m_proyecto.addActions([acc_nuevo, acc_abrir, acc_carpeta, acc_borrar, self.acc_daw])
 
         m_settings = self.menuBar().addMenu("&Settings")
         acc_settings = QAction("Configuración…", self)
@@ -452,6 +497,14 @@ class MainWindow(QMainWindow):
         self.lbl_fuente.setMinimumHeight(150)
         self.lbl_fuente.clicked.connect(self._cargar_fuente_dialogo)
         lay1.addWidget(self.lbl_fuente)
+
+        # El tipo de audio (música / voz) NO se elige acá: se pregunta al
+        # cargar, en `_preguntar_tipo_audio`. Un desplegable fijo se puede
+        # ignorar sin querer y arrancás la cadena equivocada.
+        self.lbl_modo = QLabel("")
+        self.lbl_modo.setStyleSheet("color: #8a97b0;")
+        lay1.addWidget(self.lbl_modo)
+
         self.chk_mi_mezcla = QCheckBox("Es una mezcla mía (aprender de mi sonido)")
         self.chk_mi_mezcla.setChecked(True)
         self.chk_mi_mezcla.setToolTip(
@@ -536,7 +589,6 @@ class MainWindow(QMainWindow):
         fila_m50x = QHBoxLayout()
         self.btn_m50x_play = QPushButton("▶ Reproducir")
         self.btn_m50x_play.clicked.connect(self._m50x_toggle_play)
-        from PySide6.QtWidgets import QComboBox
         self.combo_escucha = QComboBox()
         self.combo_escucha.addItems([
             "Mezcla original (sin masterizar)", "Master",
@@ -829,6 +881,9 @@ class MainWindow(QMainWindow):
         self.diagnostico = None
         self.wav_activo = None
         self.referencia = None
+        # el modo vuelve a música: se redefine al cargar audio (los stems
+        # siempre son música, por eso no preguntan)
+        self._aplicar_modo_audio("musica")
         self.settings.set("ultimo_proyecto", str(proyecto.root))
 
         ultimo = proyecto.ultimo_diagnostico()
@@ -841,7 +896,54 @@ class MainWindow(QMainWindow):
                 log.exception("No se pudo cargar el diagnóstico previo")
         else:
             self.txt_resultado.clear()
+        self._arrancar_vigilancia_daw()
         self._ir(0)
+
+    # -------------------------------------------------- carpeta del DAW
+
+    def _elegir_carpeta_daw(self):
+        """Elige la carpeta de bounces del DAW para el proyecto activo."""
+        if not self.proyecto:
+            QMessageBox.information(
+                self, "Sin proyecto",
+                "Abrí o creá un proyecto primero: la carpeta se guarda por proyecto.")
+            return
+        actual = self.proyecto.carpeta_daw
+        elegida = QFileDialog.getExistingDirectory(
+            self, "Carpeta donde tu DAW exporta los bounces",
+            str(actual) if actual else "")
+        if not elegida:
+            return
+        self.proyecto.set_config("carpeta_daw", elegida)
+        self._arrancar_vigilancia_daw()
+        self._status(f"Vigilando bounces en {Path(elegida).name}.")
+
+    def _arrancar_vigilancia_daw(self):
+        """Arranca (o detiene) la vigilancia según la config del proyecto."""
+        carpeta = self.proyecto.carpeta_daw if self.proyecto else None
+        if not carpeta or not Path(carpeta).is_dir():
+            self._detector_daw = None
+            self._timer_daw.stop()
+            return
+        self._detector_daw = DetectorBounces(carpeta)
+        self._timer_daw.start(2000)   # sondeo liviano: un listdir cada 2 s
+        log.info("Vigilando carpeta del DAW: %s", carpeta)
+
+    def _revisar_daw(self):
+        """Avisa de bounces nuevos ya terminados de escribir."""
+        if not self._detector_daw:
+            return
+        nuevos = self._detector_daw.revisar()
+        if not nuevos:
+            return
+        # si cayeron varios de una, el más reciente es el que interesa
+        bounce = nuevos[-1]
+        resp = QMessageBox.question(
+            self, "Bounce nuevo del DAW",
+            f"Apareció un bounce nuevo:\n\n{bounce.name}\n\n¿Lo cargo como mezcla activa?",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
+        if resp == QMessageBox.Yes:
+            self._cargar_audio_desde_path(str(bounce))
 
     # ------------------------------------------------------------- proyectos
 
@@ -1095,6 +1197,14 @@ class MainWindow(QMainWindow):
         Si ya existe uno con ese nombre, lo reabre.
         """
         archivo = Path(path)
+
+        # Se pregunta ANTES de crear nada: si cancela, no queda un proyecto
+        # a medio hacer ni saltamos de paso sin que haya elegido.
+        modo = self._preguntar_tipo_audio(archivo)
+        if modo is None:
+            self._status("Carga cancelada.")
+            return
+
         try:
             base = self.settings.ruta_proyectos
             base.mkdir(parents=True, exist_ok=True)
@@ -1108,8 +1218,12 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Error", f"No se pudo crear el proyecto:\n{e}")
             return
         self.wav_activo = archivo
-        self._status(f"Proyecto «{self.proyecto.nombre}» — mezcla: {archivo.name}")
-        self._ir(1)  # auto-avanza a referencias
+        self._aplicar_modo_audio(modo)
+        self._status(f"Proyecto «{self.proyecto.nombre}» — {archivo.name}")
+        # Voz también pasa por PASO 2: ahí es donde se carga la referencia
+        # (opcional en ambos modos, pero si no se pasa por la pantalla no hay
+        # forma de agregarla).
+        self._ir(1)
 
     # ------------------------------------------------------- drag & drop
 
@@ -1290,6 +1404,15 @@ class MainWindow(QMainWindow):
             self._status(f"Se usa 1 referencia: {refs[0].name} (el master no promedia varias).")
         self.referencia = [refs[0]]   # lista de 1 (el motor espera lista)
 
+        if self._modo_voz():
+            # Voz no usa el análisis de música (MFCC, imaging, spectral
+            # flux…): es lento, irrelevante para voz, y encima registraba la
+            # grabación como "mezcla propia" del género activo — ensuciaba
+            # el aprendizaje de música con datos de voz. Directo al paso 3.
+            self._refrescar_estado()
+            self._ir(2)
+            return
+
         from PySide6.QtWidgets import QApplication
         self._barra_activa(True)
         QApplication.processEvents()
@@ -1434,9 +1557,150 @@ class MainWindow(QMainWindow):
             QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         return r == QMessageBox.Yes
 
+    def _modo_voz(self) -> bool:
+        """True si el audio cargado se marcó como voz/podcast."""
+        return self._modo_audio == "voz"
+
+    def _preguntar_tipo_audio(self, archivo: Path) -> str | None:
+        """Popup al cargar: ¿música o voz? Devuelve 'musica'/'voz' o None.
+
+        Se pregunta acá y no con un control fijo en PASO 1 porque cada cadena
+        es distinta de punta a punta: elegir mal y darse cuenta al final
+        significa rehacer todo.
+        """
+        # QDialog propio en vez de QMessageBox: el QMessageBox de Qt solo
+        # habilita la X del título y Esc si le agregás un botón con
+        # RejectRole, o sea un tercer botón "Cancelar" en pantalla. Acá van
+        # DOS botones y la X / Esc cancelan igual. Sin explicaciones en
+        # pantalla: el detalle de cada cadena está en el tooltip.
+        dlg = QDialog(self)
+        dlg.setWindowTitle("MixMaster")
+
+        lay = QVBoxLayout(dlg)
+        lbl = QLabel(f"<b>{archivo.name}</b>")
+        lbl.setAlignment(Qt.AlignCenter)
+        lay.addWidget(lbl)
+
+        fila = QHBoxLayout()
+        btn_musica = QPushButton("🎵  Música")
+        btn_musica.setToolTip("EQ hacia tus referencias, multibanda, imagen "
+                              "estéreo, densidad y loudness competitivo.")
+        btn_musica.setMinimumHeight(44)
+        btn_musica.setDefault(True)
+        btn_voz = QPushButton("🎙️  Voz")
+        btn_voz.setToolTip("Puerta de ruido, compresión suave, de-esser y "
+                           "limitador. Loudness de plataformas de voz.")
+        btn_voz.setMinimumHeight(44)
+        fila.addWidget(btn_musica)
+        fila.addWidget(btn_voz)
+        lay.addLayout(fila)
+
+        elegido = {"modo": None}
+        btn_musica.clicked.connect(lambda: (elegido.update(modo="musica"), dlg.accept()))
+        btn_voz.clicked.connect(lambda: (elegido.update(modo="voz"), dlg.accept()))
+
+        dlg.exec()          # cerrar con la X o Esc deja 'modo' en None
+        return elegido["modo"]
+
+    def _aplicar_modo_audio(self, modo: str):
+        """Fija el modo y adapta el botón principal y el aviso de PASO 1."""
+        self._modo_audio = modo
+        if modo == "voz":
+            self.btn_master.setText("PROCESAR VOZ")
+            self.lbl_modo.setText("🎙️ Voz / Podcast — gate, compresión, de-esser, limitador")
+            self._status("Modo Voz/Podcast.")
+        else:
+            self.btn_master.setText("MASTER")
+            self.lbl_modo.setText("🎵 Música — cadena de mastering completa")
+            self._status("Modo Música.")
+
+    def _procesar_voz(self):
+        """Corre la cadena de voz/podcast sobre el audio cargado."""
+        if not self.wav_activo:
+            QMessageBox.information(self, "Sin fuente", "Vuelve al PASO 1 y carga un audio.")
+            return
+
+        cfg = cargar_config_voz()
+        entrada = Path(self.wav_activo)
+        # el default depende de mono/estéreo, que solo sabe el motor al cargar;
+        # se ofrece el de mono como punto de partida y se aclara en el diálogo
+        sugerido = float(cfg["target_lufs_mono"])
+        target, ok = QInputDialog.getDouble(
+            self, "Voz / Podcast",
+            "LUFS integrado objetivo\n"
+            "(-16 mono / -19 estéreo son los estándar de plataformas de podcast;\n"
+            "subilo o bajalo según cuán potente quieras la voz):",
+            sugerido, -30.0, -6.0, 1)
+        if not ok:
+            return
+
+        ref = self.referencia
+        if isinstance(ref, list):
+            ref = ref[0] if ref else None
+        if ref:
+            self._status(f"Voz con matching tonal suave hacia {Path(ref).name}.")
+
+        # Copia la grabación original y la referencia a salida/, junto al
+        # resultado: para voz no hay biblioteca de referencias curada como
+        # en música, suelen ser archivos sueltos (una descarga, una toma) —
+        # si se borran de donde estaban, el proyecto los conserva igual.
+        self.proyecto.dir_entregables.mkdir(parents=True, exist_ok=True)
+        import shutil
+        for origen in (entrada, Path(ref) if ref else None):
+            if origen is None:
+                continue
+            destino = self.proyecto.dir_entregables / origen.name
+            try:
+                if origen.resolve() != destino.resolve():
+                    shutil.copy2(str(origen), str(destino))
+            except Exception:
+                log.exception("No se pudo copiar %s a la carpeta del proyecto", origen)
+
+        salida = self.proyecto.dir_entregables / f"{entrada.stem}_voz.wav"
+        self.btn_master.setEnabled(False)
+        self._barra_activa(True)
+        self._status("Procesando voz…")
+        self._voice_worker = VoiceWorker(entrada, salida, referencia=ref,
+                                         target_lufs=target, cfg=cfg)
+        self._voice_worker.setParent(self)
+        self._voice_worker.progreso.connect(self._progreso)
+        self._voice_worker.terminado.connect(self._voz_ok)
+        self._voice_worker.fallo.connect(self._voz_error)
+        self._voice_worker.start()
+
+    def _voz_ok(self, resumen: dict):
+        """Muestra el resultado del procesamiento de voz.
+
+        No pasa por `_preguntar_aprobado`/`_generar_m50x`/gráficas: esas son
+        del flujo musical (aprenden LUFS/EQ/crest por género y comparan contra
+        referencias de música), meter voz ahí ensuciaría ese aprendizaje.
+        """
+        self._barra_activa(False)
+        self._refrescar_estado()
+        eq = resumen.get("eq_referencia_db") or {}
+        eq_txt = ("\n  EQ hacia la referencia (dB): "
+                  + ", ".join(f"{b} {v:+.1f}" for b, v in eq.items() if abs(v) >= 0.1)
+                  + f"\n  Referencia: {resumen['referencia']}") if eq else ""
+        canal = "mono" if resumen.get("mono") else "estéreo"
+        self.txt_resultado.append(
+            f"\n══ VOZ / PODCAST LISTO ({canal}) ══\n"
+            f"  LUFS final: {resumen['lufs_final']} (objetivo {resumen['target_lufs']})\n"
+            f"  True peak: {resumen['true_peak_final']} dBTP   "
+            f"Crest: {resumen.get('crest_final', '?')} dB{eq_txt}\n"
+            f"  WAV: {resumen['wav']}")
+        self._status(f"Voz lista → {Path(resumen['wav']).name}")
+        try:
+            import os
+            os.startfile(str(Path(resumen["wav"]).parent))
+        except Exception:
+            log.exception("No se pudo abrir la carpeta de salida")
+
     def _masterizar(self):
         """Masteriza la mezcla o los stems nivelados → WAV + MP3 en salida/."""
         if not self.proyecto:
+            return
+        if self._modo_voz():
+            self._procesar_voz()
             return
         dir_niveladas = self.proyecto.dir_stems_niveladas
         hay_stems = dir_niveladas.is_dir() and any(dir_niveladas.glob("*.wav"))
@@ -1666,3 +1930,9 @@ class MainWindow(QMainWindow):
         self._refrescar_estado()
         self._status("Masterizado fallido (ver app.log).")
         QMessageBox.critical(self, "Error", f"No se pudo masterizar:\n{msg}")
+
+    def _voz_error(self, msg: str):
+        self._barra_activa(False)
+        self._refrescar_estado()
+        self._status("Procesamiento de voz fallido (ver app.log).")
+        QMessageBox.critical(self, "Error", f"No se pudo procesar la voz:\n{msg}")

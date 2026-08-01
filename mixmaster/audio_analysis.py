@@ -100,7 +100,17 @@ def cargar_audio(path: Path) -> tuple[np.ndarray, int]:
     except Exception:
         log.info("soundfile no pudo leer %s; probando librosa", path.name)
         import librosa
-        y, sr = librosa.load(str(path), sr=None, mono=False)
+        try:
+            y, sr = librosa.load(str(path), sr=None, mono=False)
+        except Exception as exc:
+            if path.suffix.lower() in (".m4a", ".wma"):
+                raise RuntimeError(
+                    f"No se pudo leer '{path.name}': este formato ({path.suffix}) "
+                    "necesita ffmpeg instalado en el sistema y no se encontró. "
+                    "Instalá ffmpeg (ej. 'winget install ffmpeg') o convertí el "
+                    "archivo a WAV/MP3/FLAC/OGG/AIFF."
+                ) from exc
+            raise
         audio = y.T if y.ndim > 1 else y[:, np.newaxis]
     if audio.shape[1] > 2:
         audio = audio[:, :2]  # solo consideramos L/R
