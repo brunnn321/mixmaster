@@ -13,10 +13,10 @@ from PySide6.QtCore import (
 from PySide6.QtGui import QAction, QColor
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import (
-    QCheckBox, QComboBox, QFileDialog, QFrame, QGraphicsDropShadowEffect,
-    QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMainWindow, QMessageBox,
-    QProgressBar, QPushButton, QScrollArea, QSlider, QStackedWidget, QStyle,
-    QSystemTrayIcon, QTextEdit, QVBoxLayout, QWidget,
+    QCheckBox, QComboBox, QDialog, QFileDialog, QFrame,
+    QGraphicsDropShadowEffect, QHBoxLayout, QInputDialog, QLabel, QLineEdit,
+    QMainWindow, QMessageBox, QProgressBar, QPushButton, QScrollArea, QSlider,
+    QStackedWidget, QStyle, QSystemTrayIcon, QTextEdit, QVBoxLayout, QWidget,
 )
 
 from .. import __version__
@@ -348,6 +348,9 @@ class MainWindow(QMainWindow):
         self._m50x_path_calibrado: Path | None = None
         self._m50x_worker = None
 
+        # "musica" | "voz" — se define al cargar, en `_preguntar_tipo_audio`
+        self._modo_audio = "musica"
+
         # Vigilancia de la carpeta de bounces del DAW (ruta por proyecto).
         # Sondeo por timer en vez de QFileSystemWatcher: un listdir cada 2 s es
         # barato y evita los huecos conocidos del watcher nativo (eventos que
@@ -495,24 +498,12 @@ class MainWindow(QMainWindow):
         self.lbl_fuente.clicked.connect(self._cargar_fuente_dialogo)
         lay1.addWidget(self.lbl_fuente)
 
-        # Modo de procesamiento: música (cadena completa) vs voz/podcast
-        # (cadena propia: gate/comp/de-esser/limitador). Manual a propósito —
-        # la detección automática no es confiable.
-        fila_modo = QHBoxLayout()
-        fila_modo.addWidget(QLabel("Tipo de audio:"))
-        self.combo_modo = QComboBox()
-        self.combo_modo.addItems(["🎵 Música", "🎙️ Voz / Podcast"])
-        self.combo_modo.setToolTip(
-            "Música: cadena completa (EQ matching fino, multibanda, imagen estéreo,\n"
-            "densidad, loudness competitivo).\n"
-            "Voz/Podcast: cadena propia — puerta de ruido, compresión suave,\n"
-            "de-esser y limitador, con loudness de plataformas de voz\n"
-            "(-16 LUFS mono / -19 estéreo). La referencia es OPCIONAL y solo\n"
-            "hace un matching tonal suave (±2 dB).")
-        self.combo_modo.currentIndexChanged.connect(self._modo_cambiado)
-        fila_modo.addWidget(self.combo_modo)
-        fila_modo.addStretch()
-        lay1.addLayout(fila_modo)
+        # El tipo de audio (música / voz) NO se elige acá: se pregunta al
+        # cargar, en `_preguntar_tipo_audio`. Un desplegable fijo se puede
+        # ignorar sin querer y arrancás la cadena equivocada.
+        self.lbl_modo = QLabel("")
+        self.lbl_modo.setStyleSheet("color: #8a97b0;")
+        lay1.addWidget(self.lbl_modo)
 
         self.chk_mi_mezcla = QCheckBox("Es una mezcla mía (aprender de mi sonido)")
         self.chk_mi_mezcla.setChecked(True)
@@ -890,6 +881,9 @@ class MainWindow(QMainWindow):
         self.diagnostico = None
         self.wav_activo = None
         self.referencia = None
+        # el modo vuelve a música: se redefine al cargar audio (los stems
+        # siempre son música, por eso no preguntan)
+        self._aplicar_modo_audio("musica")
         self.settings.set("ultimo_proyecto", str(proyecto.root))
 
         ultimo = proyecto.ultimo_diagnostico()
@@ -1203,6 +1197,14 @@ class MainWindow(QMainWindow):
         Si ya existe uno con ese nombre, lo reabre.
         """
         archivo = Path(path)
+
+        # Se pregunta ANTES de crear nada: si cancela, no queda un proyecto
+        # a medio hacer ni saltamos de paso sin que haya elegido.
+        modo = self._preguntar_tipo_audio(archivo)
+        if modo is None:
+            self._status("Carga cancelada.")
+            return
+
         try:
             base = self.settings.ruta_proyectos
             base.mkdir(parents=True, exist_ok=True)
@@ -1216,8 +1218,12 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Error", f"No se pudo crear el proyecto:\n{e}")
             return
         self.wav_activo = archivo
-        self._status(f"Proyecto «{self.proyecto.nombre}» — mezcla: {archivo.name}")
-        self._ir(1)  # auto-avanza a referencias
+        self._aplicar_modo_audio(modo)
+        self._status(f"Proyecto «{self.proyecto.nombre}» — {archivo.name}")
+        # Voz también pasa por PASO 2: ahí es donde se carga la referencia
+        # (opcional en ambos modos, pero si no se pasa por la pantalla no hay
+        # forma de agregarla).
+        self._ir(1)
 
     # ------------------------------------------------------- drag & drop
 
@@ -1398,6 +1404,15 @@ class MainWindow(QMainWindow):
             self._status(f"Se usa 1 referencia: {refs[0].name} (el master no promedia varias).")
         self.referencia = [refs[0]]   # lista de 1 (el motor espera lista)
 
+        if self._modo_voz():
+            # Voz no usa el análisis de música (MFCC, imaging, spectral
+            # flux…): es lento, irrelevante para voz, y encima registraba la
+            # grabación como "mezcla propia" del género activo — ensuciaba
+            # el aprendizaje de música con datos de voz. Directo al paso 3.
+            self._refrescar_estado()
+            self._ir(2)
+            return
+
         from PySide6.QtWidgets import QApplication
         self._barra_activa(True)
         QApplication.processEvents()
@@ -1543,17 +1558,61 @@ class MainWindow(QMainWindow):
         return r == QMessageBox.Yes
 
     def _modo_voz(self) -> bool:
-        """True si el usuario eligió el modo Voz/Podcast en PASO 1."""
-        return self.combo_modo.currentIndex() == 1
+        """True si el audio cargado se marcó como voz/podcast."""
+        return self._modo_audio == "voz"
 
-    def _modo_cambiado(self, _idx: int):
-        """Ajusta el botón principal y avisa qué cadena se va a usar."""
-        if self._modo_voz():
+    def _preguntar_tipo_audio(self, archivo: Path) -> str | None:
+        """Popup al cargar: ¿música o voz? Devuelve 'musica'/'voz' o None.
+
+        Se pregunta acá y no con un control fijo en PASO 1 porque cada cadena
+        es distinta de punta a punta: elegir mal y darse cuenta al final
+        significa rehacer todo.
+        """
+        # QDialog propio en vez de QMessageBox: el QMessageBox de Qt solo
+        # habilita la X del título y Esc si le agregás un botón con
+        # RejectRole, o sea un tercer botón "Cancelar" en pantalla. Acá van
+        # DOS botones y la X / Esc cancelan igual. Sin explicaciones en
+        # pantalla: el detalle de cada cadena está en el tooltip.
+        dlg = QDialog(self)
+        dlg.setWindowTitle("MixMaster")
+
+        lay = QVBoxLayout(dlg)
+        lbl = QLabel(f"<b>{archivo.name}</b>")
+        lbl.setAlignment(Qt.AlignCenter)
+        lay.addWidget(lbl)
+
+        fila = QHBoxLayout()
+        btn_musica = QPushButton("🎵  Música")
+        btn_musica.setToolTip("EQ hacia tus referencias, multibanda, imagen "
+                              "estéreo, densidad y loudness competitivo.")
+        btn_musica.setMinimumHeight(44)
+        btn_musica.setDefault(True)
+        btn_voz = QPushButton("🎙️  Voz")
+        btn_voz.setToolTip("Puerta de ruido, compresión suave, de-esser y "
+                           "limitador. Loudness de plataformas de voz.")
+        btn_voz.setMinimumHeight(44)
+        fila.addWidget(btn_musica)
+        fila.addWidget(btn_voz)
+        lay.addLayout(fila)
+
+        elegido = {"modo": None}
+        btn_musica.clicked.connect(lambda: (elegido.update(modo="musica"), dlg.accept()))
+        btn_voz.clicked.connect(lambda: (elegido.update(modo="voz"), dlg.accept()))
+
+        dlg.exec()          # cerrar con la X o Esc deja 'modo' en None
+        return elegido["modo"]
+
+    def _aplicar_modo_audio(self, modo: str):
+        """Fija el modo y adapta el botón principal y el aviso de PASO 1."""
+        self._modo_audio = modo
+        if modo == "voz":
             self.btn_master.setText("PROCESAR VOZ")
-            self._status("Modo Voz/Podcast: gate + compresión + de-esser + limitador.")
+            self.lbl_modo.setText("🎙️ Voz / Podcast — gate, compresión, de-esser, limitador")
+            self._status("Modo Voz/Podcast.")
         else:
             self.btn_master.setText("MASTER")
-            self._status("Modo Música: cadena de mastering completa.")
+            self.lbl_modo.setText("🎵 Música — cadena de mastering completa")
+            self._status("Modo Música.")
 
     def _procesar_voz(self):
         """Corre la cadena de voz/podcast sobre el audio cargado."""
@@ -1580,6 +1639,22 @@ class MainWindow(QMainWindow):
             ref = ref[0] if ref else None
         if ref:
             self._status(f"Voz con matching tonal suave hacia {Path(ref).name}.")
+
+        # Copia la grabación original y la referencia a salida/, junto al
+        # resultado: para voz no hay biblioteca de referencias curada como
+        # en música, suelen ser archivos sueltos (una descarga, una toma) —
+        # si se borran de donde estaban, el proyecto los conserva igual.
+        self.proyecto.dir_entregables.mkdir(parents=True, exist_ok=True)
+        import shutil
+        for origen in (entrada, Path(ref) if ref else None):
+            if origen is None:
+                continue
+            destino = self.proyecto.dir_entregables / origen.name
+            try:
+                if origen.resolve() != destino.resolve():
+                    shutil.copy2(str(origen), str(destino))
+            except Exception:
+                log.exception("No se pudo copiar %s a la carpeta del proyecto", origen)
 
         salida = self.proyecto.dir_entregables / f"{entrada.stem}_voz.wav"
         self.btn_master.setEnabled(False)

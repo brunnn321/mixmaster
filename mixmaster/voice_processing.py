@@ -1,10 +1,12 @@
 """Motor de procesamiento de voz/podcast.
 
 Cadena DISTINTA a la de música (`processing.py::masterizar`): sin multibanda
-por referencia, sin imagen estéreo, sin matching fino de 1/3 de octava. Sí:
-puerta de ruido (gate), compresión suave de voz, de-esser, limitador, y un
-matching tonal SUAVE y opcional hacia una referencia. Diseño acordado con el
-usuario, ver config/roadmap.md "Modo Voz/Podcast".
+por referencia, sin imagen estéreo. Sí: puerta de ruido (gate), compresión
+suave de voz, de-esser, limitador, y un matching tonal opcional hacia una
+referencia — usa el mismo matching FINO de 1/3 de octava que música (curva
+completa, no 7 bloques), con tope más generoso (±6 dB) porque el gap real
+entre una toma cruda y una referencia ya masterizada suele ser grande.
+Diseño acordado con el usuario, ver config/roadmap.md "Modo Voz/Podcast".
 
 Nota honesta de alcance: NO es streaming por bloques desde disco (la cadena
 es liviana — sin copias multibanda — así que cargar completo en memoria ya es
@@ -21,10 +23,11 @@ import soundfile as sf
 from scipy import signal
 
 from .audio_analysis import (
-    balance_bandas_db, cargar_audio, crest_factor_db, lufs_integrado, true_peak_db,
+    BANDAS_HZ, cargar_audio, crest_factor_db, espectro_suavizado,
+    lufs_integrado, true_peak_db,
 )
 from .logger import get_logger
-from .processing import _aplicar_fir, _comprimir_banda, _curva_fir, _limitador
+from .processing import _aplicar_fir, _comprimir_banda, _curva_fir_fina, _limitador
 
 log = get_logger("mixmaster.voice")
 
@@ -64,10 +67,19 @@ CONFIG_VOZ_DEFAULT = {
         # 1/3 de octava: en voz una curva fina copia el timbre de OTRA persona
         # y suena artificial — acá solo se busca acercar presencia/brillo.
         "activo": True,
-        "max_correccion_db": 2.0,
-        # sub/low solo se pueden BAJAR (nunca subir): si la referencia trae
-        # música o una voz más grave, subir el grave de tu voz mete retumbe
-        "solo_cortar": ("sub", "low"),
+        # 2026-08-01: subido de 2.0 a 6.0. Con ±2 el matching contra una
+        # referencia de voz real (podcast) quedaba muy corto — el gap típico
+        # entre una toma cruda con antipop (menos efecto de proximidad) y una
+        # referencia ya masterizada puede ser de +7 dB en graves. Validado
+        # con audio real de Bruno: 5 de 7 bandas topeaban en ±2, la voz
+        # procesada terminaba "distinta" a la referencia, no parecida.
+        "max_correccion_db": 6.0,
+        # Solo "sub" (20-60 Hz) se restringe a bajar nunca subir: ahí no hay
+        # cuerpo de voz real, solo rumble/ruido de manejo — subirlo no suma
+        # calidez, solo mete barro. "low" (60-200 Hz) SÍ puede subir: es
+        # justo el rango de cuerpo/calidez de la voz (efecto de proximidad),
+        # y es la banda que más gap mostró en la prueba real.
+        "solo_cortar": ("sub",),
     },
     "limitador": {
         "ceiling_dbtp": -1.0,
@@ -83,17 +95,24 @@ def cargar_config_voz() -> dict:
 
 def _match_referencia(audio: np.ndarray, sr: int, path_ref: Path,
                       cfg_match: dict) -> tuple[np.ndarray, dict]:
-    """Acerca el balance tonal de la voz al de una referencia (suave, 7 bandas).
+    """Acerca el balance tonal de la voz al de una referencia.
 
-    Reusa `_curva_fir`/`_aplicar_fir` del motor musical: es un FIR de FASE
-    LINEAL con retardo de grupo compensado, así que se trasplanta bien a voz
-    (no introduce el problema de causalidad que sí tenía el detector del gate
-    — ver "Reglas de trabajo" en config/roadmap.md).
+    Usa la misma curva FINA de 1/3 de octava que el modo música por defecto
+    (`espectro_suavizado` + `_curva_fir_fina`), no un promedio grosero de 7
+    bandas — mucho más preciso para "sonar parecido" a una referencia real
+    (2026-08-01: antes usaba 7 bandas, se subió a la curva fina tras probar
+    con audio real y ver que el matching grueso no se acercaba lo suficiente).
+    `_curva_fir_fina`/`_aplicar_fir` son FIR de fase LINEAL con retardo
+    compensado, así que se trasplantan bien a voz (no introduce el problema
+    de causalidad que sí tenía el detector del gate — ver "Reglas de
+    trabajo" en config/roadmap.md).
 
-    Devuelve (audio, correccion_db_por_banda).
+    Devuelve (audio, correccion_db_por_banda) — el resumen de 7 bandas es
+    solo para mostrar en el reporte; el EQ real aplicado es la curva fina
+    completa (~30 puntos), más preciso que lo que ese resumen muestra.
     """
-    tope = float(cfg_match.get("max_correccion_db", 2.0))
-    solo_cortar = tuple(cfg_match.get("solo_cortar", ("sub", "low")))
+    tope = float(cfg_match.get("max_correccion_db", 6.0))
+    solo_cortar = tuple(cfg_match.get("solo_cortar", ("sub",)))
 
     ref, sr_ref = cargar_audio(Path(path_ref))
     # nivela la referencia al loudness de la voz: si no, la diferencia de
@@ -102,19 +121,29 @@ def _match_referencia(audio: np.ndarray, sr: int, path_ref: Path,
     if np.isfinite(l_voz) and np.isfinite(l_ref):
         ref = ref * 10 ** ((l_voz - l_ref) / 20)
 
-    bandas_voz = balance_bandas_db(audio, sr)
-    bandas_ref = balance_bandas_db(ref, sr_ref)
+    freqs, esp_voz = espectro_suavizado(audio, sr)
+    _, esp_ref = espectro_suavizado(ref, sr_ref)
+    delta = esp_ref - esp_voz
+    delta = delta - float(np.mean(delta))       # solo forma, no nivel
+    delta = np.clip(delta, -tope, tope)
+
+    # Bandas restringidas a solo-cortar (ej. "sub" = rumble, no cuerpo de
+    # voz): en los puntos de la curva que caen ahí, nunca se sube.
+    for banda in solo_cortar:
+        f_lo, f_hi = BANDAS_HZ[banda]
+        sel = (freqs >= f_lo) & (freqs < f_hi)
+        delta[sel] = np.minimum(delta[sel], 0.0)
+
+    delta = np.convolve(delta, [0.25, 0.5, 0.25], mode="same")  # suaviza
 
     correccion = {}
-    for banda, db_voz in bandas_voz.items():
-        delta = float(np.clip(bandas_ref[banda] - db_voz, -tope, tope))
-        if banda in solo_cortar:
-            delta = min(delta, 0.0)
-        correccion[banda] = round(delta, 1)
+    for banda, (f_lo, f_hi) in BANDAS_HZ.items():
+        sel = (freqs >= f_lo) & (freqs < f_hi)
+        correccion[banda] = round(float(delta[sel].mean()), 1) if sel.any() else 0.0
 
     if all(abs(v) < 0.1 for v in correccion.values()):
         return audio, {}
-    return _aplicar_fir(audio, _curva_fir(correccion, sr)), correccion
+    return _aplicar_fir(audio, _curva_fir_fina(freqs, delta, sr)), correccion
 
 
 def _gate(audio: np.ndarray, sr: int, cfg_gate: dict) -> np.ndarray:

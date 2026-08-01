@@ -143,7 +143,8 @@ def main() -> int:
         # --- matching de referencia: acerca el balance tonal, acotado ---
         # Referencia = la misma voz pero MÁS BRILLANTE (agudos +6dB): el
         # matching debe subir los agudos de la voz hacia ella, sin pasarse
-        # del tope de ±2 dB.
+        # del tope de ±6 dB (subido de 2 tras probar con audio real, ver
+        # voice_processing.py CONFIG_VOZ_DEFAULT).
         from mixmaster.voice_processing import _match_referencia
         from scipy import signal as sp2
         sos_hi = sp2.butter(2, 3000, "high", fs=SR, output="sos")
@@ -154,12 +155,12 @@ def main() -> int:
         cfg_m = cargar_config_voz()["match_referencia"]
         out_m, corr = _match_referencia(audio_in, sr, wav_ref, cfg_m)
         check("match ref: devuelve corrección por banda", bool(corr), str(corr))
-        check("match ref: respeta el tope de ±2 dB",
-              all(abs(v) <= 2.0 + 1e-9 for v in corr.values()), str(corr))
+        check("match ref: respeta el tope de ±6 dB",
+              all(abs(v) <= 6.0 + 1e-9 for v in corr.values()), str(corr))
         check("match ref: sube los agudos hacia la referencia brillante",
               corr.get("high", 0) > 0 or corr.get("air", 0) > 0, str(corr))
-        check("match ref: NUNCA sube sub/low (solo corta)",
-              corr.get("sub", 0) <= 0 and corr.get("low", 0) <= 0, str(corr))
+        check("match ref: NUNCA sube sub (solo corta), low SÍ puede subir",
+              corr.get("sub", 0) <= 0, str(corr))
         # El BRILLO RELATIVO (agudos/graves) debe subir tras aplicar el FIR.
         # Se mide la relación, no la energía absoluta de agudos: el matching
         # llega al brillo de la referencia sobre todo CORTANDO graves (ver la

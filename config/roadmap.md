@@ -11,27 +11,48 @@
 > con el ítem 3 sin portarlo). Todo el resto verificó OK. Ambos corregidos a
 > `[~]` abajo con su explicación.
 
-## ⏭️ PRÓXIMA SESIÓN (acordado 2026-07-30, en este orden)
+## ⏭️ PRÓXIMA SESIÓN (actualizado 2026-07-31, en este orden)
 
-1. **Commitear el trabajo del 2026-07-30** — quedó todo sin commitear:
-   `mixmaster/voice_processing.py`, `tests/test_voice_smoke.py`,
-   `tests/test_interaccion_etapas.py`, el fix de `.m4a` en `audio_analysis.py`,
-   el modo Voz en `ui/main_window.py`, y este roadmap.
-2. **Limpiar el tracking de git** (bloquea cualquier idea de publicar):
-   - `.gitignore` ya lista `logs/` y `proyectos/` pero **esos archivos siguen
-     trackeados** — el .gitignore no saca lo que ya estaba en el índice. Hace
-     falta `git rm -r --cached logs proyectos config/cache_referencias.json`
-     (por eso `git status` muestra ~26 archivos de proyectos "borrados").
-   - **22 archivos de audio trackeados, 9 son referencias MP3 comerciales**
-     (Polyphia, CHON, etc. en `config/generos/referencias/math_rock/`) →
-     material con copyright dentro del repo. Sacarlas del tracking. Decisión
-     pendiente de Bruno: borrarlas del repo vs. reemplazarlas por una lista de
-     nombres. NO hay remoto configurado todavía, así que nada salió afuera.
-3. **Probar el modo Voz de oído** — los defaults del gate/compresor/de-esser
-   están validados solo con señal sintética, y `_match_referencia` nunca se
-   escuchó, solo se midió. Es el único ítem donde el oído de Bruno es
-   imprescindible.
-4. Si queda tiempo: cualquiera de los `[ ]` abiertos de abajo (ninguno urgente).
+1. ~~Commitear el trabajo del 2026-07-30~~ ✅ hecho (`73974d3`, `8ca33e5`,
+   `eb6762a` en `feature/modo-voz-podcast`).
+2. ~~Limpiar el tracking de `logs/`, `proyectos/` y el cache~~ ✅ hecho
+   (`8ca33e5`). Las referencias MP3 comerciales se **dejan trackeadas a
+   pedido explícito de Bruno** (2026-07-30) — no es un pendiente, es decisión.
+3. **Probar de oído el modo Voz y la vigilancia del DAW** — siguen sin
+   validarse con uso real. Sigue siendo el paso que bloquea mergear
+   `feature/modo-voz-podcast` a `master`.
+4. **Rediseño visual — DESPUÉS del punto 3, acotado a UNA sesión** (veredicto
+   de El Consejo, 2026-07-31): la app hoy es QSS escrito a mano widget por
+   widget, colores hardcodeados inconsistentes (2 verdes distintos para lo
+   que debería ser el mismo acento), emojis como íconos. Objetivo: que dé
+   ganas de abrirla, sin convertirse en un proyecto sin fin que compita con
+   el roadmap real. Orden acordado, no todo junto:
+   - Paso 1: paleta con nombre (6-8 colores, un solo diccionario en Python,
+     ej. `ui/tema.py`), no hex sueltos por archivo.
+   - Paso 2: aplicarla primero a lo que es "estado puro" — gráficas
+     (espectro, goniómetro, medidores LED) y barra de progreso. Ahí no hay
+     riesgo de romper lógica funcional.
+   - Paso 3: migrar los widgets de interacción (dropzone, botón MASTER,
+     menús) al mismo diccionario, **conservando** la lógica de estado que
+     hoy vive mezclada con el estilo (vacío/lleno/hover, habilitado/
+     deshabilitado) — cambian los colores, no la estructura.
+   - Paso 4 (opcional, menor impacto): emojis del menú → íconos SVG
+     monocromáticos, solo si sobra tiempo.
+   - Parar ahí. Si Bruno quiere seguir después de esos 4 pasos, que sea una
+     decisión nueva explícita, no continuación automática.
+5. Si queda tiempo: cualquiera de los `[ ]` abiertos de abajo (ninguno urgente).
+
+## 🎙️ Modo Voz/Podcast — validado de oído (2026-08-01)
+
+Probado con audio real de Bruno (AT2020 + antipop, referencia Radiolab). 3 rondas de ajuste con datos medidos, no a ciegas:
+
+- [x] **Matching tonal FINO** (1/3 de octava, no 7 bandas) — con 7 bandas el resultado quedaba "distinto" a la referencia aunque el EQ estuviera dentro de tope; medido: 5-6 de 7 bandas topeaban en ±2 dB, faltaba resolución. Ahora reusa `espectro_suavizado`/`_curva_fir_fina` del motor musical (que YA usa este modo por defecto — voz se puso al día, no es una mejora nueva para música).
+- [x] **Tope subido a ±6 dB** (era ±2) — el gap real entre una toma cruda con antipop (menos efecto de proximidad) y una referencia ya masterizada puede ser de +7 dB en graves. Medido con audio real, no estimado.
+- [x] **`solo_cortar` reducido a solo "sub"** (era sub+low) — "low" (60-200 Hz) es el cuerpo/calidez de la voz, no rumble; impedir que suba privaba de la corrección más necesaria. "sub" (20-60 Hz) sigue sin poder subir: ahí sí es solo ruido de manejo.
+- [x] **Bug: cargar referencia en modo Voz corría el análisis de MÚSICA** (`_analizar_auto`, ~10s: MFCC, imaging, spectral flux…) y encima registraba la grabación como "mezcla propia" del género activo (`math_rock`), contaminando el aprendizaje de música con datos de voz. `_set_referencias_desde_paths` ahora corta directo a PASO 3 si el modo es voz.
+- [x] **Grabación + referencia se copian a `salida/` del proyecto** junto al resultado — para voz no hay biblioteca curada como en música, suelen ser archivos sueltos (una descarga, una toma) que se pueden perder si se borran de donde estaban.
+- [ ] Al terminar el proceso, `os.startfile` no siempre parece abrir la carpeta visiblemente — sin excepción en el log, sospecha de que la abre detrás de la ventana (mismo problema de foco de Windows que tuvo la ventana principal). Sin confirmar si es un bug real; pendiente que Bruno confirme si la carpeta aparece en la barra de tareas.
+- Config de voz sigue SIN persistir a disco (a diferencia de música con `config/master.json`) — cada apertura usa los defaults del código. Suficiente por ahora.
 
 ## 🧭 RUTA ACTIVA (acordada 2026-07-23)
 
