@@ -86,14 +86,20 @@ def parse_marcadores(texto: str, duracion_s: float) -> list[dict]:
 
 # ------------------------------------------------------------ carga de audio
 
-FORMATOS_SOPORTADOS = (".wav", ".mp3", ".flac", ".ogg", ".aiff", ".aif", ".m4a", ".wma")
+FORMATOS_SOPORTADOS = (".wav", ".mp3", ".flac", ".ogg", ".aiff", ".aif", ".m4a", ".wma",
+                       ".mpeg", ".mpg", ".mp4", ".mpga")
+
+# Formatos que dependen de ffmpeg vía librosa/audioread (no los lee soundfile
+# directo). Todos MPEG-family: WhatsApp manda de más las tomas como .mp4/.mpeg.
+_REQUIERE_FFMPEG = (".m4a", ".wma", ".mpeg", ".mpg", ".mp4", ".mpga")
 
 
 def cargar_audio(path: Path) -> tuple[np.ndarray, int]:
     """Carga un archivo de audio (WAV, MP3, FLAC, OGG…) como float64.
 
     Intenta soundfile (rápido, formatos nativos de libsndfile) y si el
-    formato no está soportado cae a librosa/audioread (m4a, wma, etc.).
+    formato no está soportado cae a librosa/audioread (m4a, wma, mp4/mpeg
+    con pista de audio, etc.).
     """
     try:
         audio, sr = sf.read(str(path), always_2d=True)
@@ -103,7 +109,7 @@ def cargar_audio(path: Path) -> tuple[np.ndarray, int]:
         try:
             y, sr = librosa.load(str(path), sr=None, mono=False)
         except Exception as exc:
-            if path.suffix.lower() in (".m4a", ".wma"):
+            if path.suffix.lower() in _REQUIERE_FFMPEG:
                 raise RuntimeError(
                     f"No se pudo leer '{path.name}': este formato ({path.suffix}) "
                     "necesita ffmpeg instalado en el sistema y no se encontró. "

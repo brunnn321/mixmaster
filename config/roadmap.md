@@ -18,28 +18,36 @@
 2. ~~Limpiar el tracking de `logs/`, `proyectos/` y el cache~~ ✅ hecho
    (`8ca33e5`). Las referencias MP3 comerciales se **dejan trackeadas a
    pedido explícito de Bruno** (2026-07-30) — no es un pendiente, es decisión.
-3. **Probar de oído el modo Voz y la vigilancia del DAW** — siguen sin
-   validarse con uso real. Sigue siendo el paso que bloquea mergear
-   `feature/modo-voz-podcast` a `master`.
-4. **Rediseño visual — DESPUÉS del punto 3, acotado a UNA sesión** (veredicto
-   de El Consejo, 2026-07-31): la app hoy es QSS escrito a mano widget por
-   widget, colores hardcodeados inconsistentes (2 verdes distintos para lo
-   que debería ser el mismo acento), emojis como íconos. Objetivo: que dé
-   ganas de abrirla, sin convertirse en un proyecto sin fin que compita con
-   el roadmap real. Orden acordado, no todo junto:
-   - Paso 1: paleta con nombre (6-8 colores, un solo diccionario en Python,
-     ej. `ui/tema.py`), no hex sueltos por archivo.
-   - Paso 2: aplicarla primero a lo que es "estado puro" — gráficas
-     (espectro, goniómetro, medidores LED) y barra de progreso. Ahí no hay
-     riesgo de romper lógica funcional.
-   - Paso 3: migrar los widgets de interacción (dropzone, botón MASTER,
-     menús) al mismo diccionario, **conservando** la lógica de estado que
-     hoy vive mezclada con el estilo (vacío/lleno/hover, habilitado/
-     deshabilitado) — cambian los colores, no la estructura.
-   - Paso 4 (opcional, menor impacto): emojis del menú → íconos SVG
-     monocromáticos, solo si sobra tiempo.
-   - Parar ahí. Si Bruno quiere seguir después de esos 4 pasos, que sea una
-     decisión nueva explícita, no continuación automática.
+3. ~~Probar de oído el modo Voz y la vigilancia del DAW~~ ✅ hecho — Bruno
+   confirmó (2026-08-05). Mergeado a `master` (`604da1f`).
+4. **Rediseño visual — DESPUÉS del punto 3, acotado a lo que sigue** (2º
+   veredicto de El Consejo, 2026-08-05, actualiza el del 2026-07-31 abajo).
+   Bruno mostró referencias tipo iZotope Ozone/consola de mastering física
+   y preguntó si se puede llegar a ESE nivel — respuesta honesta del
+   Consejo: NO tal cual (son equipos de diseño dedicados / hardware de
+   $200k), pero "que se sienta instrumento, no formulario oscuro" SÍ es
+   alcanzable. Causa raíz identificada: hoy todo es QSS sobre widgets
+   NATIVOS de Qt (QPushButton, QProgressBar, QSlider) — el QSS solo cambia
+   color/borde/fuente, no la forma. Para el salto real hacen falta widgets
+   CUSTOM (QWidget + `paintEvent()` propio con QPainter). Orden acordado:
+   - Paso 1: definir el lenguaje visual UNA vez antes de construir nada —
+     un estilo de "panel" (fondo, borde, radio, tipografía de valores tipo
+     display digital/mono) y un estilo de "control" (mismo tratamiento de
+     glow/gradiente) que se repite en TODO. Sin esto cada widget nuevo
+     queda como isla.
+   - Paso 2: PRIMER widget real construido = el medidor LED (`_MedidorLED`,
+     ya existe, hoy QSS sobre QProgressBar) reescrito con QPainter propio,
+     glow por celda (`QRadialGradient`/`QGraphicsDropShadowEffect`, ya
+     disponibles en PySide6, sin librería nueva). Es el más chico y barato,
+     valida el patrón completo antes de extender a algo más grande.
+   - Paso 3: con el patrón validado, un knob circular custom reusable
+     (QWidget + QPainter, arco con `QPainterPath` + `QConicalGradient`)
+     en vez de QSlider nativo, mismo lenguaje visual del paso 1.
+   - Paso 4 (opcional, el más caro): migrar gráficas de matplotlib a
+     pyqtgraph (curvas con relleno degradado, más fluido) — librería nueva,
+     migra `graficas.py` entero. Queda de último a propósito.
+   - Techo explícito: estos 4 puntos y PARAR. No reemplaza el roadmap real
+     (checklist pre-mezcla, export de stems, siguen abiertos abajo).
 5. Si queda tiempo: cualquiera de los `[ ]` abiertos de abajo (ninguno urgente).
 
 ## 🎙️ Modo Voz/Podcast — validado de oído (2026-08-01)

@@ -112,6 +112,9 @@ CONFIG_MASTER_DEFAULT = {
 FIR_TAPS = 4097            # filtro de fase lineal para el EQ de matching
 FORMATOS_STEM = (".wav", ".flac", ".aiff", ".aif")
 
+# MP3 (MPEG-1/2/2.5) solo soporta estos sample rates.
+SR_MP3_VALIDOS = (8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000)
+
 # Compatibilidad con la UI/tests previos (modo destino único competitivo)
 DESTINOS = {
     "Master único competitivo — -8.5 LUFS": -8.5,
@@ -807,8 +810,7 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
     # MP3 (MPEG-1/2/2.5) solo soporta ciertos sample rates. Si el original no
     # es uno de ellos (ej. 96000, 88200), se resamplea SOLO para el MP3 — el
     # WAV master queda intacto en el sample rate original.
-    _SR_MP3_VALIDOS = (8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000)
-    if sr in _SR_MP3_VALIDOS:
+    if sr in SR_MP3_VALIDOS:
         sf.write(str(out_mp3), audio, sr)
     else:
         sr_mp3 = 48000 if sr > 44100 else 44100

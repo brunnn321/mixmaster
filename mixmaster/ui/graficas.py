@@ -17,40 +17,33 @@ from PySide6.QtCharts import QChart, QChartView, QLineSeries, QLogValueAxis, QVa
 from PySide6.QtCore import QMargins, QPointF, Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
-    QFrame, QGraphicsDropShadowEffect, QGridLayout, QHBoxLayout, QLabel,
+    QFrame, QGridLayout, QHBoxLayout, QLabel,
     QVBoxLayout, QWidget,
 )
 
 from ..audio_analysis import cargar_audio, espectro_suavizado
 from ..logger import get_logger
+from . import tema
 
 log = get_logger("mixmaster.ui.graficas")
 
-# Paleta (misma del mockup aprobado)
-_VERDE = "#43e08a"
-_VERDE_GLOW = QColor(67, 224, 138, 180)
-_AZUL = "#78b0ff"
-_AMBAR = "#f0b447"
-_ROJO = "#f2593a"
-_INK = "#cddbe8"
-_INK_DIM = "#8598ab"
-_MONO = "Consolas"
+# Paleta: vive en ui/tema.py (lenguaje visual único de la app, Paso 1 del
+# rediseño). Alias locales para no tocar el resto de este archivo.
+_VERDE = tema.VERDE
+_VERDE_GLOW = tema.VERDE_GLOW
+_AZUL = tema.AZUL
+_AMBAR = tema.AMBAR
+_ROJO = tema.ROJO
+_INK = tema.INK
+_INK_DIM = tema.INK_DIM
+_MONO = tema.MONO
+_glow = tema.glow
 
 _COL_PRE = QColor(_AZUL)
 _COL_MASTER = QColor(_VERDE)
 _COL_GLASS = QColor("#070b0d")
 
 _MAX_PUNTOS_GONIO = 5000
-
-
-def _glow(widget, color=_VERDE_GLOW, radio=14):
-    """Aplica un halo (drop-shadow sin desplazamiento) para simular fósforo/LED."""
-    ef = QGraphicsDropShadowEffect(widget)
-    ef.setBlurRadius(radio)
-    ef.setColor(color)
-    ef.setOffset(0, 0)
-    widget.setGraphicsEffect(ef)
-    return widget
 
 
 # ------------------------------------------------------- barras visuales
@@ -409,10 +402,7 @@ class _MedidorLED(QFrame):
 
     def __init__(self, titulo, valor, vmin, vmax, amb_frac=0.82, red_frac=0.92, n=18, parent=None):
         super().__init__(parent)
-        self.setStyleSheet(
-            "QFrame { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
-            " stop:0 #0c141b, stop:1 #16222d); border:1px solid #33495b;"
-            " border-radius:10px; }")
+        self.setStyleSheet(f"QFrame {{ {tema.PANEL_QSS} }}")
         lay = QVBoxLayout(self)
         lay.setContentsMargins(8, 8, 8, 8)
         lay.setSpacing(5)
@@ -463,7 +453,12 @@ class _MedidorLED(QFrame):
             self._timer.stop()
             return
         i, seg = self._segs[self._cur]
-        seg.setStyleSheet(f"background:{self._color(i)}; border-radius:2px;")
+        color = self._color(i)
+        seg.setStyleSheet(f"background:{color}; border-radius:2px;")
+        # cada LED brilla individualmente al encenderse (antes solo el
+        # número de abajo tenía glow) — mismo helper que el resto de la app,
+        # así el "control" del lenguaje visual queda idéntico en todos lados
+        tema.glow(seg, tema.color_glow(color, alpha=200), radio=9)
         self._cur += 1
 
 

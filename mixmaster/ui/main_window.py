@@ -374,7 +374,7 @@ class MainWindow(QMainWindow):
         self._tray.setToolTip("MixMaster")
         self._tray.show()
 
-        self.setWindowTitle(f"MixMaster v{__version__}")
+        self.setWindowTitle(f"v{__version__}")  # _refrescar_estado lo actualiza con el proyecto
         self.resize(880, 680)
         self.setAcceptDrops(True)  # arrastrar audio/referencias a la app
         self._crear_menu()
@@ -470,16 +470,18 @@ class MainWindow(QMainWindow):
         acc_null.triggered.connect(self._abrir_null_test)
         acc_ab_ciego = QAction("🙈 A/B ciego", self)
         acc_ab_ciego.triggered.connect(self._abrir_ab_ciego)
-        m_herr.addActions([acc_hist, acc_masters, acc_notas, acc_null, acc_ab_ciego])
+        acc_convertidor = QAction("🔄 Convertidor", self)
+        acc_convertidor.setToolTip(
+            "Convierte audio (m4a, wma, mp3, flac…) a WAV o MP3.\n"
+            "Para cuando te mandan una toma en un formato que Studio One no reconoce.")
+        acc_convertidor.triggered.connect(self._abrir_convertidor)
+        m_herr.addActions(
+            [acc_hist, acc_masters, acc_notas, acc_null, acc_ab_ciego, acc_convertidor])
 
     def _crear_ui(self):
         """Layout: proyecto → guía → paso actual → navegación → resultados."""
         central = QWidget()
         raiz = QVBoxLayout(central)
-
-        self.lbl_proyecto = QLabel("Proyecto activo: (ninguno)")
-        self.lbl_proyecto.setStyleSheet("font-weight: bold; padding: 4px;")
-        raiz.addWidget(self.lbl_proyecto)
 
         self.lbl_guia = QLabel("")
         self.lbl_guia.setWordWrap(True)
@@ -505,7 +507,7 @@ class MainWindow(QMainWindow):
         self.lbl_modo.setStyleSheet("color: #8a97b0;")
         lay1.addWidget(self.lbl_modo)
 
-        self.chk_mi_mezcla = QCheckBox("Es una mezcla mía (aprender de mi sonido)")
+        self.chk_mi_mezcla = QCheckBox("Mezcla propia")
         self.chk_mi_mezcla.setChecked(True)
         self.chk_mi_mezcla.setToolTip(
             "Si está marcado, la app guarda el carácter tonal de esta mezcla\n"
@@ -765,8 +767,12 @@ class MainWindow(QMainWindow):
     def _refrescar_estado(self):
         """Habilita botones y actualiza guía según proyecto/paso."""
         hay_proyecto = self.proyecto is not None
-        nombre = f'"{self.proyecto.nombre}"' if hay_proyecto else "(ninguno)"
-        self.lbl_proyecto.setText(f"Proyecto activo: {nombre}")
+        # El proyecto va en el título de la ventana (junto a versión y
+        # MixMaster), no como etiqueta aparte en el cuerpo — antes salía
+        # duplicado ("Proyecto activo: X" arriba Y "MixMaster" repetido en
+        # la barra de título).
+        titulo = f"{self.proyecto.nombre} — v{__version__}" if hay_proyecto else f"v{__version__}"
+        self.setWindowTitle(titulo)
 
         idx = self.pila.currentIndex()
         self.btn_master.setEnabled(hay_proyecto and self._fuente_lista())
@@ -1144,6 +1150,11 @@ class MainWindow(QMainWindow):
             return
         from .notas_dialog import NotasDialog
         NotasDialog(self.proyecto, self).exec()
+
+    def _abrir_convertidor(self):
+        """Abre el convertidor de audio (no depende de un proyecto abierto)."""
+        from .convertidor_dialog import ConvertidorDialog
+        ConvertidorDialog(self).exec()
 
     def _abrir_ab_ciego(self):
         """Compara a ciegas los 2 masters más recientes — panel embebido en PASO 3."""
