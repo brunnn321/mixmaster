@@ -16,7 +16,7 @@ from pathlib import Path
 import numpy as np
 
 from .audio_analysis import (
-    BANDAS_HZ, balance_bandas_db, cargar_audio, crest_factor_db,
+    BANDAS_HZ, _filtrar_banda, balance_bandas_db, cargar_audio, crest_factor_db,
 )
 from .logger import get_logger
 
@@ -116,6 +116,85 @@ def diagnosticar_stem(path: Path) -> dict:
         "correlacion": round(corr, 2),
         "observaciones": obs,
     }
+
+
+def _envolvente_banda(mono: np.ndarray, sr: int, f_lo: float, f_hi: float,
+                       ventana_s: float = 0.05) -> np.ndarray:
+    """RMS por ventanas no solapadas de la señal filtrada a una banda —
+    sirve para comparar el RITMO de dos stems en esa banda (no el timbre)."""
+    filtrada = _filtrar_banda(mono, sr, f_lo, f_hi)
+    n = max(1, int(ventana_s * sr))
+    recorte = len(filtrada) - (len(filtrada) % n)
+    if recorte < n:
+        return np.array([np.sqrt(np.mean(filtrada ** 2))])
+    ventanas = filtrada[:recorte].reshape(-1, n)
+    return np.sqrt(np.mean(ventanas ** 2, axis=1))
+
+
+def checklist_pre_mezcla(carpeta: Path) -> list[str]:
+    """Compara los stems ENTRE SÍ (a diferencia de diagnosticar_stem/carpeta,
+    que mira cada uno por separado) y devuelve avisos de:
+
+    - Choque de frecuencias: 2+ stems con su banda dominante en la misma
+      zona (van a competir por espacio ahí).
+    - Masking rítmico: de los que chocan en frecuencia, cuáles además pegan
+      fuerte AL MISMO TIEMPO en esa banda (correlación de envolvente > 0.5)
+      — eso es lo que realmente se enmascara; si se turnan, el choque de
+      frecuencia importa menos.
+
+    Devuelve lista de avisos en texto plano, vacía si hay <2 stems o si no
+    encuentra nada. No usa género — el motor ya quedó con un bucket único
+    (ver roadmap), así que esto no depende de él.
+    """
+    carpeta = Path(carpeta)
+    if not carpeta.is_dir():
+        return []
+    paths = sorted(p for p in carpeta.iterdir()
+                   if p.is_file() and p.suffix.lower() in FORMATOS)
+
+    stems = []
+    for p in paths:
+        try:
+            audio, sr = cargar_audio(p)
+            stems.append({
+                "nombre": p.stem,
+                "mono": audio.mean(axis=1),
+                "sr": sr,
+                "bandas": balance_bandas_db(audio, sr),
+            })
+        except Exception:
+            log.exception("No se pudo cargar %s para el checklist pre-mezcla", p.name)
+    if len(stems) < 2:
+        return []
+
+    def _bandas_dominantes(bandas: dict) -> set:
+        pico = max(bandas.values())
+        return {b for b, v in bandas.items() if v >= pico - 6}
+
+    avisos = []
+    for i in range(len(stems)):
+        for j in range(i + 1, len(stems)):
+            a, b = stems[i], stems[j]
+            compartidas = _bandas_dominantes(a["bandas"]) & _bandas_dominantes(b["bandas"])
+            for banda in sorted(compartidas, key=lambda x: BANDAS_HZ[x][0]):
+                f_lo, f_hi = BANDAS_HZ[banda]
+                ritmo = ""
+                if a["sr"] == b["sr"]:
+                    env_a = _envolvente_banda(a["mono"], a["sr"], f_lo, f_hi)
+                    env_b = _envolvente_banda(b["mono"], b["sr"], f_lo, f_hi)
+                    n = min(len(env_a), len(env_b))
+                    if n > 10 and np.std(env_a[:n]) > 1e-9 and np.std(env_b[:n]) > 1e-9:
+                        corr = float(np.corrcoef(env_a[:n], env_b[:n])[0, 1])
+                        if corr > 0.5:
+                            ritmo = (f" y pegan AL MISMO TIEMPO (correlación rítmica {corr:.2f}) "
+                                     "— esto sí es masking real, no solo choque de EQ")
+                        else:
+                            ritmo = f" pero en momentos distintos (correlación rítmica {corr:.2f}) — se turnan, menor riesgo"
+                avisos.append(
+                    f"«{a['nombre']}» y «{b['nombre']}» compiten en {banda} "
+                    f"({f_lo:.0f}-{f_hi:.0f} Hz){ritmo}."
+                )
+    return avisos
 
 
 def diagnosticar_carpeta(carpeta: Path) -> list[dict]:

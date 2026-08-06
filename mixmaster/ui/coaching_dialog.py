@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
 )
 
 from ..logger import get_logger
-from ..stem_diagnostico import diagnosticar_carpeta
+from ..stem_diagnostico import checklist_pre_mezcla, diagnosticar_carpeta
 
 log = get_logger("mixmaster.ui.coaching")
 
@@ -49,12 +49,37 @@ class CoachingDialog(QDialog):
                              f"{n_alertas} cosa(s) para mejorar")
             resumen.setStyleSheet("color: #43e08a; font-family: Consolas; font-weight: bold; padding: 4px;")
             lay.addWidget(resumen)
+
+            choques = checklist_pre_mezcla(carpeta_stems)
+            if choques:
+                lay.addWidget(self._tarjeta_choques(choques))
+
             for d in diags:
                 lay.addWidget(self._tarjeta_stem(d))
         lay.addStretch()
 
         scroll.setWidget(cont)
         raiz.addWidget(scroll)
+
+    def _tarjeta_choques(self, choques: list[str]) -> QFrame:
+        """Checklist pre-mezcla: cómo interactúan los stems ENTRE SÍ (choque
+        de frecuencias + masking rítmico), a diferencia de las tarjetas de
+        abajo que miran cada stem solo."""
+        f = QFrame()
+        f.setStyleSheet(
+            "QFrame { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
+            " stop:0 #2a1f14, stop:1 #1c150e); border:1px solid #7a5a1e;"
+            " border-radius:10px; }")
+        lay = QVBoxLayout(f)
+        cab = QLabel("⚔️  CHECKLIST PRE-MEZCLA — choques entre stems")
+        cab.setStyleSheet("border:none; color:#f0b447; font-family: Consolas; font-size: 13px; font-weight: bold;")
+        lay.addWidget(cab)
+        for texto in choques:
+            o = QLabel(f"⚠  {texto}")
+            o.setWordWrap(True)
+            o.setStyleSheet("border:none; color:#f0b447; font-family: Consolas; font-size: 12px; padding-left: 6px;")
+            lay.addWidget(o)
+        return f
 
     def _tarjeta_stem(self, d: dict) -> QFrame:
         f = QFrame()

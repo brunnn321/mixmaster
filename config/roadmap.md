@@ -11,7 +11,7 @@
 > con el ítem 3 sin portarlo). Todo el resto verificó OK. Ambos corregidos a
 > `[~]` abajo con su explicación.
 
-## ⏭️ PRÓXIMA SESIÓN (actualizado 2026-07-31, en este orden)
+## ⏭️ PRÓXIMA SESIÓN (actualizado 2026-08-06, en este orden)
 
 1. ~~Commitear el trabajo del 2026-07-30~~ ✅ hecho (`73974d3`, `8ca33e5`,
    `eb6762a` en `feature/modo-voz-podcast`).
@@ -20,35 +20,25 @@
    pedido explícito de Bruno** (2026-07-30) — no es un pendiente, es decisión.
 3. ~~Probar de oído el modo Voz y la vigilancia del DAW~~ ✅ hecho — Bruno
    confirmó (2026-08-05). Mergeado a `master` (`604da1f`).
-4. **Rediseño visual — DESPUÉS del punto 3, acotado a lo que sigue** (2º
-   veredicto de El Consejo, 2026-08-05, actualiza el del 2026-07-31 abajo).
-   Bruno mostró referencias tipo iZotope Ozone/consola de mastering física
-   y preguntó si se puede llegar a ESE nivel — respuesta honesta del
-   Consejo: NO tal cual (son equipos de diseño dedicados / hardware de
-   $200k), pero "que se sienta instrumento, no formulario oscuro" SÍ es
-   alcanzable. Causa raíz identificada: hoy todo es QSS sobre widgets
-   NATIVOS de Qt (QPushButton, QProgressBar, QSlider) — el QSS solo cambia
-   color/borde/fuente, no la forma. Para el salto real hacen falta widgets
-   CUSTOM (QWidget + `paintEvent()` propio con QPainter). Orden acordado:
-   - Paso 1: definir el lenguaje visual UNA vez antes de construir nada —
-     un estilo de "panel" (fondo, borde, radio, tipografía de valores tipo
-     display digital/mono) y un estilo de "control" (mismo tratamiento de
-     glow/gradiente) que se repite en TODO. Sin esto cada widget nuevo
-     queda como isla.
-   - Paso 2: PRIMER widget real construido = el medidor LED (`_MedidorLED`,
-     ya existe, hoy QSS sobre QProgressBar) reescrito con QPainter propio,
-     glow por celda (`QRadialGradient`/`QGraphicsDropShadowEffect`, ya
-     disponibles en PySide6, sin librería nueva). Es el más chico y barato,
-     valida el patrón completo antes de extender a algo más grande.
-   - Paso 3: con el patrón validado, un knob circular custom reusable
-     (QWidget + QPainter, arco con `QPainterPath` + `QConicalGradient`)
-     en vez de QSlider nativo, mismo lenguaje visual del paso 1.
-   - Paso 4 (opcional, el más caro): migrar gráficas de matplotlib a
-     pyqtgraph (curvas con relleno degradado, más fluido) — librería nueva,
-     migra `graficas.py` entero. Queda de último a propósito.
-   - Techo explícito: estos 4 puntos y PARAR. No reemplaza el roadmap real
-     (checklist pre-mezcla, export de stems, siguen abiertos abajo).
-5. Si queda tiempo: cualquiera de los `[ ]` abiertos de abajo (ninguno urgente).
+4. ~~Rediseño visual, Paso 1 (lenguaje visual)~~ ✅ hecho (`dc8a2ac`) —
+   `ui/tema.py` (paleta + glow únicos), reusado por `_MedidorLED` (glow por
+   celda). De paso: convertidor de audio nuevo + soporte mp4/mpeg/mpga.
+5. **PAUSA en Pasos 2-4 del rediseño visual (knob custom, migrar a
+   pyqtgraph) — veredicto de El Consejo (2026-08-05/06):** el objetivo real
+   de Bruno no es vender la app ni pulirla — es crecer como profesional al
+   tope de la industria. El cuello de botella para eso es volumen de
+   trabajo real + feedback externo de alguien mejor, no más features de la
+   app. Seguir ampliando MixMaster (visual, conversor, calibraciones) es la
+   trampa de sentirse productivo sin mover la aguja. No retomar Pasos 2-4
+   salvo pedido explícito nuevo de Bruno.
+6. ~~Checklist de arreglo pre-mezcla~~ ✅ hecho (2026-08-06) — el único ítem
+   de código que El Consejo consideró que sí entrena el oído crítico
+   (obliga a razonar el choque entre stems, no solo medir el resultado).
+7. **`v1.0.0-beta.1`** (bump 2026-08-06, `mixmaster/__init__.py`) — cierre
+   de la etapa 0.9.x. Techo explícito de esta beta: los 2 puntos de arriba
+   y PARAR. Ítems `[ ]` restantes del roadmap (export de stems, sugerencia
+   de biblioteca, más calibraciones) quedan abiertos pero NO priorizados —
+   solo si Bruno los pide explícitamente después de sumar trabajo real.
 
 ## 🎙️ Modo Voz/Podcast — validado de oído (2026-08-01)
 
@@ -106,7 +96,7 @@ luego el resto según se vaya confirmando.
 2. [~] **Dithering TPDF en exports 16-bit** — marcado `[x]` pero vivía en `export_destinos.py::_dither_tpdf`, módulo eliminado al descartar el ítem 3 (multi-destino) sin portar el dithering a ningún lado. Corregido 2026-07-30 (auditoría tras encontrar el fantasma de "Altavoz pequeño"): HOY no hay exports de 16-bit en ningún lado del pipeline (todo sale 24-bit WAV + MP3), así que en la práctica no hace falta — pero si algún día se agrega un export de 16-bit, el dithering hay que reconstruirlo, no está.
 3. [~] **Exportación multi-destino** — DESCARTADO 2026-07-21 (Bruno: nadie usa CD, no pidió YouTube; con el WAV+MP3 del master alcanza). Módulo eliminado.
 4. [x] **Feedback hacia la mezcla (pre-master)** — ya existía: `_analizar_auto()` corre en PASO 2 contra referencias, ANTES de llegar a PASO 3 (master) — verificado 2026-07-21
-5. [ ] **Checklist de arreglo pre-mezcla** — texto generado según diagnóstico + género (choque de frecuencias, masking rítmico)
+5. [x] **Checklist de arreglo pre-mezcla** — `stem_diagnostico.py::checklist_pre_mezcla()`: compara los stems ENTRE SÍ (a diferencia del diagnóstico por stem, que mira cada uno solo). Detecta choque de frecuencias (2+ stems con su banda dominante en la misma zona) y, de esos, cuáles además pegan al mismo tiempo (correlación de envolvente por banda > 0.5 → masking rítmico real) vs cuáles se turnan (choque de EQ pero menor riesgo). Sin género — el motor ya usa un bucket único, no aplica. Integrado en `ui/coaching_dialog.py` como tarjeta "⚔️ CHECKLIST PRE-MEZCLA" antes de las tarjetas por stem. Test: `tests/test_checklist_premezcla.py`, 6 checks (bandas separadas, choque+masking real, choque+se turnan). — 2026-08-06
 6. [x] **Goniómetro (imagen estéreo)** — `ui/goniometro_dialog.py`, snapshot mid/side + correlación, botón en PASO 2 — 2026-07-21 (nota: es foto de la mezcla completa, no en vivo sincronizado al playback)
 7. [~] **Simulación "escucha en auto/celular"** — marcado `[x]` por error, el archivo nunca existió (ver nota en "Fixes de UX"). Corregido 2026-07-29, descartado.
 8. [x] **Session notes / diario de sesión** — `ui/notas_dialog.py`, guarda en `notas-sesion.md` por proyecto, menú "📝 Notas" — 2026-07-21
