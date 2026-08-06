@@ -626,6 +626,18 @@ def main() -> int:
         # limpieza: borra las etiquetas de prueba para no contaminar la config real
         _sh2.rmtree(REFERENCIAS_DIR / ET_A, ignore_errors=True)
         _sh2.rmtree(REFERENCIAS_DIR / ET_B, ignore_errors=True)
+        # ...y también sus entradas en historial_referencias.json — esto NO se
+        # borraba (bug real encontrado 2026-08-06: subir_referencia() en el
+        # PASO A escribe ahí, la limpieza de arriba solo borraba las carpetas
+        # de audio, así que cada corrida del test dejaba entradas _test_* que
+        # se acumulaban para siempre en el historial real).
+        from mixmaster.app_paths import HISTORIAL_REFERENCIAS_JSON as _HIST_JSON
+        if _HIST_JSON.exists():
+            with open(_HIST_JSON, "r", encoding="utf-8") as f:
+                _historial = json.load(f)
+            _historial = [h for h in _historial if h.get("etiqueta") not in (ET_A, ET_B)]
+            with open(_HIST_JSON, "w", encoding="utf-8") as f:
+                json.dump(_historial, f, indent=2, ensure_ascii=False)
 
         # PASO C: cepstral (MFCC 13 coeficientes)
         from mixmaster.audio_analysis import cepstral_fingerprint
