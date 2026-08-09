@@ -556,6 +556,37 @@ def main() -> int:
         learning.olvidar("math_rock")
         check("aprendizaje: olvidar resetea", learning.preferencias("math_rock") == {})
 
+        # --- rechazados: un "no" también se guarda, pero NO promedia con los
+        # aprobados (si contaminara preferencias(), el sonido aprendido sería
+        # el promedio de lo que te gusta y lo que no) ---
+        learning.registrar_aprobado("math_rock", {"target_lufs": -9.0, "lufs_final": -9.1,
+                                                  "crest_final": 10.0})
+        learning.registrar_rechazado("math_rock", {"target_lufs": -6.0, "lufs_final": -6.1,
+                                                   "crest_final": 6.0})
+        pref_con_rechazo = learning.preferencias("math_rock")
+        check("rechazados: no contaminan el loudness aprendido",
+              pref_con_rechazo.get("target_lufs") == -9.0 and pref_con_rechazo.get("n") == 1,
+              str(pref_con_rechazo))
+        check("rechazados: con pocos datos no hay contraste",
+              learning.contraste_aprobado_rechazado("math_rock") == {})
+        # con 3 de cada lado ya se puede comparar
+        for _ in range(2):
+            learning.registrar_aprobado("math_rock", {"target_lufs": -9.0, "lufs_final": -9.1,
+                                                      "crest_final": 10.0})
+            learning.registrar_rechazado("math_rock", {"target_lufs": -6.0, "lufs_final": -6.1,
+                                                       "crest_final": 6.0})
+        contraste = learning.contraste_aprobado_rechazado("math_rock")
+        check("rechazados: contraste con 3+ de cada lado",
+              contraste.get("n_aprobados") == 3 and contraste.get("n_rechazados") == 3,
+              str(contraste))
+        check("rechazados: detecta que aprobás más crest que lo que rechazás",
+              contraste.get("crest_final", {}).get("delta") == 4.0,
+              str(contraste.get("crest_final")))
+        learning.olvidar("math_rock")
+        check("rechazados: olvidar también los borra",
+              learning.contraste_aprobado_rechazado("math_rock") == {}
+              and learning.preferencias("math_rock") == {})
+
         # --- v0.9: listar masters (revert) ---
         proyecto.dir_masters.mkdir(parents=True, exist_ok=True)
         for v in ("v01", "v02"):

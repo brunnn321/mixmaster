@@ -56,6 +56,65 @@ def registrar_aprobado(genero: str, resumen: dict) -> int:
     return n
 
 
+def registrar_rechazado(genero: str, resumen: dict) -> int:
+    """Registra un master que NO aprobaste. Devuelve el total acumulado.
+
+    Guarda exactamente los mismos campos que `registrar_aprobado` pero en
+    una lista aparte: saber qué NO te gusta es tan informativo como saber
+    qué sí, y hasta ahora esa mitad de los datos se descartaba. No afecta
+    a `preferencias()` — los rechazados no promedian con los aprobados,
+    solo quedan disponibles para comparar (ver `contraste_aprobado_rechazado`).
+    """
+    datos = _cargar()
+    g = datos.setdefault(genero, {"aprobados": []})
+    rechazados = g.setdefault("rechazados", [])
+    rechazados.append({
+        "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "target_lufs": resumen.get("target_lufs"),
+        "lufs_final": resumen.get("lufs_final"),
+        "crest_final": resumen.get("crest_final"),
+        "true_peak_final": resumen.get("true_peak_final"),
+        "eq_aplicado_db": resumen.get("eq_aplicado_db"),
+        "ajuste_ancho_db": resumen.get("ajuste_ancho_db"),
+        "multibanda_db": resumen.get("multibanda_db"),
+        "mono_bass_hz": resumen.get("mono_bass_hz"),
+        "score": resumen.get("score"),
+        "referencias": resumen.get("referencias"),
+    })
+    _guardar(datos)
+    n = len(rechazados)
+    log.info("Master rechazado registrado para '%s' (%d total)", genero, n)
+    return n
+
+
+def contraste_aprobado_rechazado(genero: str, minimo: int = 3) -> dict:
+    """Qué separa lo que aprobás de lo que rechazás, métrica por métrica.
+
+    Solo devuelve algo con al menos `minimo` de CADA lado — con menos, la
+    diferencia sería ruido, no patrón. Devuelve {metrica: {aprobado, rechazado,
+    delta}} para las métricas escalares comparables.
+    """
+    g = _cargar().get(genero, {})
+    aprobados, rechazados = g.get("aprobados", []), g.get("rechazados", [])
+    if len(aprobados) < minimo or len(rechazados) < minimo:
+        return {}
+
+    def _media(items: list[dict], clave: str) -> float | None:
+        vals = [i[clave] for i in items if isinstance(i.get(clave), (int, float))]
+        return sum(vals) / len(vals) if vals else None
+
+    resultado = {"n_aprobados": len(aprobados), "n_rechazados": len(rechazados)}
+    for clave in ("target_lufs", "lufs_final", "crest_final", "true_peak_final"):
+        m_ok, m_no = _media(aprobados, clave), _media(rechazados, clave)
+        if m_ok is not None and m_no is not None:
+            resultado[clave] = {
+                "aprobado": round(m_ok, 1),
+                "rechazado": round(m_no, 1),
+                "delta": round(m_ok - m_no, 1),
+            }
+    return resultado
+
+
 def _promedio_por_banda(aprobados: list[dict], clave: str) -> dict[str, float]:
     """Promedia un dict-por-banda (ej. eq_aplicado_db) a través de los aprobados."""
     acumulado: dict[str, list[float]] = {}

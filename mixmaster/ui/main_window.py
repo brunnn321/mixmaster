@@ -23,7 +23,10 @@ from .. import __version__
 from ..app_paths import REFERENCIAS_DIR
 from ..audio_analysis import analizar_wav
 from ..daw_watch import DetectorBounces
-from ..learning import consejo_mezcla, preferencias, registrar_aprobado, registrar_mezcla_propia
+from ..learning import (
+    consejo_mezcla, preferencias, registrar_aprobado, registrar_mezcla_propia,
+    registrar_rechazado,
+)
 from ..logger import get_logger
 from ..processing import cargar_config_master, masterizar
 from ..profiles import listar_referencias_genero
@@ -1929,12 +1932,17 @@ class MainWindow(QMainWindow):
             "¿Te gusta este master?\n\nSi dices Sí, la app aprende tu preferencia "
             f"de loudness, crest, EQ y ancho estéreo.{aviso}",
             QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
-        if r == QMessageBox.Yes:
-            try:
+        try:
+            if r == QMessageBox.Yes:
                 n = registrar_aprobado(genero, resumen)
                 self._status(f"✓ Aprendido — {n} master(s) aprobado(s)")
-            except Exception:
-                log.exception("No se pudo registrar el aprendizaje")
+            else:
+                # Un "no" también es información: qué NO te gusta acota tu
+                # sonido tanto como qué sí. No promedia con los aprobados.
+                n = registrar_rechazado(genero, resumen)
+                self._status(f"Registrado como no aprobado ({n} en total)")
+        except Exception:
+            log.exception("No se pudo registrar el aprendizaje")
 
     def _master_error(self, msg: str):
         self._barra_activa(False)
