@@ -1927,7 +1927,7 @@ class MainWindow(QMainWindow):
         r = QMessageBox.question(
             self, "¿Master aprobado?",
             "¿Te gusta este master?\n\nSi dices Sí, la app aprende tu preferencia "
-            f"de loudness y crest (reversible en Settings → Olvidar lo aprendido).{aviso}",
+            f"de loudness, crest, EQ y ancho estéreo.{aviso}",
             QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
         if r == QMessageBox.Yes:
             try:
