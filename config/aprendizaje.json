@@ -24,6 +24,368 @@
         "referencias": [
           "10 - Perfect Pillow.mp3"
         ]
+      },
+      {
+        "fecha": "2026-08-09 23:50:51",
+        "target_lufs": -9.0,
+        "lufs_final": -9.3,
+        "crest_final": 9.6,
+        "true_peak_final": -1.9,
+        "eq_aplicado_db": null,
+        "ajuste_ancho_db": null,
+        "multibanda_db": null,
+        "mono_bass_hz": null,
+        "score": {
+          "global": 84
+        },
+        "referencias": [
+          "09 - Splash.mp3"
+        ]
+      },
+      {
+        "fecha": "2026-08-09 23:50:51",
+        "target_lufs": -9.0,
+        "lufs_final": -9.3,
+        "crest_final": 10.1,
+        "true_peak_final": -1.9,
+        "eq_aplicado_db": null,
+        "ajuste_ancho_db": null,
+        "multibanda_db": null,
+        "mono_bass_hz": null,
+        "score": {
+          "global": 69
+        },
+        "referencias": [
+          "04 Sketch.mp3"
+        ]
+      },
+      {
+        "fecha": "2026-08-09 23:50:51",
+        "target_lufs": -9.0,
+        "lufs_final": -9.6,
+        "crest_final": 9.4,
+        "true_peak_final": -1.7,
+        "eq_aplicado_db": null,
+        "ajuste_ancho_db": null,
+        "multibanda_db": null,
+        "mono_bass_hz": null,
+        "score": {
+          "global": 80
+        },
+        "referencias": [
+          "Waterslide.mp3"
+        ]
+      },
+      {
+        "fecha": "2026-08-09 23:50:51",
+        "target_lufs": -9.0,
+        "lufs_final": -9.3,
+        "crest_final": 10.7,
+        "true_peak_final": -1.9,
+        "eq_aplicado_db": null,
+        "ajuste_ancho_db": null,
+        "multibanda_db": null,
+        "mono_bass_hz": null,
+        "score": {
+          "global": 76
+        },
+        "referencias": [
+          "12. Euphoria.mp3"
+        ]
+      },
+      {
+        "fecha": "2026-08-09 23:50:51",
+        "target_lufs": -9.0,
+        "lufs_final": -9.3,
+        "crest_final": 9.5,
+        "true_peak_final": -1.9,
+        "eq_aplicado_db": null,
+        "ajuste_ancho_db": null,
+        "multibanda_db": null,
+        "mono_bass_hz": null,
+        "score": null,
+        "referencias": []
+      },
+      {
+        "fecha": "2026-08-09 23:50:51",
+        "target_lufs": -9.0,
+        "lufs_final": -9.4,
+        "crest_final": 10.9,
+        "true_peak_final": -1.8,
+        "eq_aplicado_db": null,
+        "ajuste_ancho_db": null,
+        "multibanda_db": null,
+        "mono_bass_hz": null,
+        "score": null,
+        "referencias": []
+      },
+      {
+        "fecha": "2026-08-09 23:50:51",
+        "target_lufs": -9.0,
+        "lufs_final": -9.3,
+        "crest_final": 10.3,
+        "true_peak_final": -1.9,
+        "eq_aplicado_db": null,
+        "ajuste_ancho_db": null,
+        "multibanda_db": null,
+        "mono_bass_hz": null,
+        "score": null,
+        "referencias": []
+      },
+      {
+        "fecha": "2026-08-09 23:50:51",
+        "target_lufs": -9.0,
+        "lufs_final": -9.3,
+        "crest_final": 9.8,
+        "true_peak_final": -1.9,
+        "eq_aplicado_db": null,
+        "ajuste_ancho_db": null,
+        "multibanda_db": null,
+        "mono_bass_hz": null,
+        "score": null,
+        "referencias": []
+      },
+      {
+        "fecha": "2026-08-09 23:50:51",
+        "target_lufs": -9.0,
+        "lufs_final": -9.5,
+        "crest_final": 12.0,
+        "true_peak_final": -1.8,
+        "eq_aplicado_db": null,
+        "ajuste_ancho_db": null,
+        "multibanda_db": null,
+        "mono_bass_hz": null,
+        "score": null,
+        "referencias": []
+      },
+      {
+        "fecha": "2026-08-09 23:50:51",
+        "target_lufs": -9.0,
+        "lufs_final": -9.3,
+        "crest_final": 10.8,
+        "true_peak_final": -1.9,
+        "eq_aplicado_db": null,
+        "ajuste_ancho_db": null,
+        "multibanda_db": null,
+        "mono_bass_hz": null,
+        "score": null,
+        "referencias": []
+      },
+      {
+        "fecha": "2026-08-09 23:50:51",
+        "target_lufs": -9.0,
+        "lufs_final": -9.3,
+        "crest_final": 9.6,
+        "true_peak_final": -1.7,
+        "eq_aplicado_db": null,
+        "ajuste_ancho_db": null,
+        "multibanda_db": null,
+        "mono_bass_hz": null,
+        "score": null,
+        "referencias": []
+      },
+      {
+        "fecha": "2026-08-09 23:50:51",
+        "target_lufs": -9.0,
+        "lufs_final": -9.2,
+        "crest_final": 11.1,
+        "true_peak_final": -1.9,
+        "eq_aplicado_db": null,
+        "ajuste_ancho_db": null,
+        "multibanda_db": null,
+        "mono_bass_hz": null,
+        "score": null,
+        "referencias": []
+      },
+      {
+        "fecha": "2026-08-09 23:50:51",
+        "target_lufs": -9.0,
+        "lufs_final": -9.3,
+        "crest_final": 10.2,
+        "true_peak_final": -1.9,
+        "eq_aplicado_db": null,
+        "ajuste_ancho_db": null,
+        "multibanda_db": null,
+        "mono_bass_hz": null,
+        "score": null,
+        "referencias": []
+      },
+      {
+        "fecha": "2026-08-09 23:50:51",
+        "target_lufs": -9.0,
+        "lufs_final": -9.3,
+        "crest_final": 10.7,
+        "true_peak_final": -1.6,
+        "eq_aplicado_db": null,
+        "ajuste_ancho_db": null,
+        "multibanda_db": null,
+        "mono_bass_hz": null,
+        "score": null,
+        "referencias": []
+      }
+    ],
+    "mezclas_propias": [
+      {
+        "fecha": "2026-08-09 15:10:03",
+        "inclinacion_db_oct": -6.36,
+        "definicion_graves_db": 6.9,
+        "punch": 1.53,
+        "centroide_hz": 529.6,
+        "rolloff_hz": 737.5,
+        "plr_db": 16.2
+      }
+    ],
+    "rechazados": [
+      {
+        "fecha": "2026-08-09 15:18:52",
+        "target_lufs": -9.0,
+        "lufs_final": -9.4,
+        "crest_final": 10.4,
+        "true_peak_final": -2.1,
+        "eq_aplicado_db": {
+          "air": 1.6,
+          "high": 1.1,
+          "high_mid": -0.3,
+          "low": -0.1,
+          "low_mid": -3.9,
+          "mid": -4.0,
+          "sub": 1.3
+        },
+        "ajuste_ancho_db": {
+          "high_mid": 1.0,
+          "low_mid": 1.0
+        },
+        "multibanda_db": {
+          "air": 3.0,
+          "high": 3.0,
+          "low": 1.8
+        },
+        "mono_bass_hz": 100.0,
+        "score": {
+          "dinamica": 88,
+          "global": 73,
+          "imagen": 84,
+          "tonal": 60
+        },
+        "referencias": [
+          "Waterslide.mp3"
+        ]
+      },
+      {
+        "fecha": "2026-08-09 23:50:51",
+        "target_lufs": -9.0,
+        "lufs_final": -9.3,
+        "crest_final": 10.7,
+        "true_peak_final": -1.9,
+        "eq_aplicado_db": null,
+        "ajuste_ancho_db": null,
+        "multibanda_db": null,
+        "mono_bass_hz": null,
+        "score": {
+          "global": 83
+        },
+        "referencias": [
+          "03 Champagne (feat. Nick Johnston).mp3"
+        ]
+      },
+      {
+        "fecha": "2026-08-09 23:50:51",
+        "target_lufs": -9.0,
+        "lufs_final": -9.2,
+        "crest_final": 10.3,
+        "true_peak_final": -1.6,
+        "eq_aplicado_db": null,
+        "ajuste_ancho_db": null,
+        "multibanda_db": null,
+        "mono_bass_hz": null,
+        "score": {
+          "global": 71
+        },
+        "referencias": [
+          "04 Sketch.mp3"
+        ]
+      },
+      {
+        "fecha": "2026-08-09 23:50:51",
+        "target_lufs": -9.0,
+        "lufs_final": -9.3,
+        "crest_final": 10.0,
+        "true_peak_final": -1.7,
+        "eq_aplicado_db": null,
+        "ajuste_ancho_db": null,
+        "multibanda_db": null,
+        "mono_bass_hz": null,
+        "score": {
+          "global": 65
+        },
+        "referencias": [
+          "Waterslide.mp3"
+        ]
+      },
+      {
+        "fecha": "2026-08-09 23:50:51",
+        "target_lufs": -9.0,
+        "lufs_final": -9.2,
+        "crest_final": 9.6,
+        "true_peak_final": -1.9,
+        "eq_aplicado_db": null,
+        "ajuste_ancho_db": null,
+        "multibanda_db": null,
+        "mono_bass_hz": null,
+        "score": null,
+        "referencias": []
+      },
+      {
+        "fecha": "2026-08-09 23:50:51",
+        "target_lufs": -9.0,
+        "lufs_final": -9.0,
+        "crest_final": 12.2,
+        "true_peak_final": 0.2,
+        "eq_aplicado_db": null,
+        "ajuste_ancho_db": null,
+        "multibanda_db": null,
+        "mono_bass_hz": null,
+        "score": null,
+        "referencias": []
+      },
+      {
+        "fecha": "2026-08-09 23:50:51",
+        "target_lufs": -9.0,
+        "lufs_final": -10.0,
+        "crest_final": 5.8,
+        "true_peak_final": -1.6,
+        "eq_aplicado_db": null,
+        "ajuste_ancho_db": null,
+        "multibanda_db": null,
+        "mono_bass_hz": null,
+        "score": null,
+        "referencias": []
+      },
+      {
+        "fecha": "2026-08-09 23:50:51",
+        "target_lufs": -9.0,
+        "lufs_final": -9.2,
+        "crest_final": 9.9,
+        "true_peak_final": -1.8,
+        "eq_aplicado_db": null,
+        "ajuste_ancho_db": null,
+        "multibanda_db": null,
+        "mono_bass_hz": null,
+        "score": null,
+        "referencias": []
+      },
+      {
+        "fecha": "2026-08-09 23:50:51",
+        "target_lufs": -12.0,
+        "lufs_final": -12.4,
+        "crest_final": 8.1,
+        "true_peak_final": -2.0,
+        "eq_aplicado_db": null,
+        "ajuste_ancho_db": null,
+        "multibanda_db": null,
+        "mono_bass_hz": null,
+        "score": null,
+        "referencias": []
       }
     ]
   }
