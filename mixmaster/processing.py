@@ -774,6 +774,28 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         avisar(f"Limitando picos (techo {cfg_lim['ceiling_dbtp']:g} dBTP, pasada {intento + 1})…")
         audio = _limitador(audio, sr, cfg_lim)
 
+    # SEGURIDAD: el bucle de arriba puede salir por convergencia SIN haber
+    # limitado nunca — si el audio ya estaba dentro de 0.3 LU del target en la
+    # primera vuelta, hace `break` antes de llegar al limitador y entonces nada
+    # garantiza el techo de true peak. Bug real (2026-08-09): "Good Mornig SIN
+    # MEZCLA" salió a +0.04 dBTP CON clipping, y tardó 40s contra 100-500s de
+    # los demás justamente porque se saltó el limitador entero.
+    # El limitador solo actúa sobre lo que pasa el techo, así que si el bucle ya
+    # limitó, esta pasada es prácticamente un no-op.
+    avisar(f"Limitando picos — pasada de seguridad (techo {cfg_lim['ceiling_dbtp']:g} dBTP)…")
+    audio = _limitador(audio, sr, cfg_lim)
+
+    # Aviso de no-convergencia: si tras las 6 pasadas sigue lejos del target,
+    # el material no da para ese loudness sin machacarse (pasó con "Hasta mis
+    # ultimos dias": target -9, quedó en -10.0 con el crest aplastado a 5.8).
+    lufs_tras_bucle = lufs_integrado(audio, sr)
+    convergio = bool(np.isfinite(lufs_tras_bucle)
+                     and abs(target_lufs - lufs_tras_bucle) <= 0.5)
+    if not convergio:
+        log.warning("No convergió al target: %.1f LUFS pedido, %.1f real — "
+                    "el material no da para ese loudness sin comprimir de más",
+                    target_lufs, lufs_tras_bucle)
+
     # Preservación de dinámica macro (v0.8, opt-in): recupera el contorno de
     # secciones y re-limita por seguridad (el nudge puede subir picos).
     dinamica_aplicada = False
@@ -840,6 +862,9 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         "transient_shaping": round(transient_cant, 2) if transient_cant else None,
         "dinamica_macro": dinamica_aplicada,
         "densidad_aplicada": densidad_aplicada,
+        # False = el material no llegó al loudness pedido sin machacarse;
+        # la UI puede avisar en vez de entregar un master aplastado en silencio.
+        "convergio_target": convergio,
         "mono_bass_hz": mono_bass_hz,
         "fuente": "stems" if carpeta_stems else "mezcla",
         "referencias": nombres_ref,
