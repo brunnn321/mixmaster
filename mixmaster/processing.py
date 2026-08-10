@@ -758,32 +758,65 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
     # así que se itera (normalizar → clipper → limitar → medir) hasta el target.
     # El clipper recorta solo picos → el limitador trabaja poco → sin bombeo.
     cfg_clip = cfg.get("clipper", {})
+
+    # SEGURIDAD, y va ANTES del bucle a propósito: el bucle puede salir por
+    # convergencia sin haber limitado nunca (si el audio ya venía en target),
+    # y entonces nada garantiza el techo de true peak. Bug real (2026-08-09):
+    # "Good Mornig SIN MEZCLA" salió a +0.2 dBTP CON clipping y tardó 40 s
+    # contra 100-500 s de los demás, justamente porque se saltó el limitador.
+    # Poniéndola acá y no después, todas las mediciones del bucle son
+    # POST-limitador: el bucle converge al loudness que realmente va a salir.
+    # Con la pasada al final, el limitador se comía ~0.3 LU después de la
+    # última medición y nadie los compensaba — de ahí el sesgo sistemático de
+    # la tanda del 2026-08-09 (18 de 20 por debajo, media -9.33 con target -9).
+    # El limitador solo toca lo que pasa el techo: si no hay nada, es un no-op.
+    avisar(f"Limitando picos — pasada de seguridad (techo {cfg_lim['ceiling_dbtp']:g} dBTP)…")
+    audio = _limitador(audio, sr, cfg_lim)
+
     avisar(f"Normalizando a {target_lufs} LUFS (con convergencia)…")
     # 6 pasadas (antes 4): el limitador de 2 etapas reduce algo más de nivel
     # por pasada que el de 1 etapa — necesita 1-2 vueltas más para converger.
+    # Tolerancia 0.15 LU (antes 0.3): con 0.3 el bucle cortaba apenas entraba
+    # en ventana y, como el limitador SIEMPRE come nivel, el resultado caía
+    # sistemáticamente por debajo — 18 de 20 masters de la tanda del
+    # 2026-08-09 quedaron bajos, media -9.33 con target -9.0.
+    tol_lufs = 0.15
+    # Compensación predictiva: en vez de gastar pasadas extra persiguiendo lo
+    # que el limitador se come, se le suma a la ganancia lo que se comió en la
+    # pasada anterior. Converge en 1-2 vueltas en vez de 4-6 (cada pasada del
+    # limitador cuesta ~45 s en un tema largo).
+    perdida_prev = 0.0
+    mejor: tuple[float, np.ndarray] | None = None
     for intento in range(6):
         lufs_actual = lufs_integrado(audio, sr)
         if not np.isfinite(lufs_actual):
             break
         diff = target_lufs - lufs_actual
-        if abs(diff) <= 0.3:
+        if mejor is None or abs(diff) < mejor[0]:
+            mejor = (abs(diff), audio)
+        if abs(diff) <= tol_lufs:
             break
-        audio = audio * 10 ** (diff / 20)
+        ganancia = diff + perdida_prev
+        esperado = lufs_actual + ganancia
+        audio = audio * 10 ** (ganancia / 20)
         if cfg_clip.get("activo", True):
             audio = _clipper(audio, float(cfg_clip.get("umbral_dbfs", -0.5)))
         avisar(f"Limitando picos (techo {cfg_lim['ceiling_dbtp']:g} dBTP, pasada {intento + 1})…")
         audio = _limitador(audio, sr, cfg_lim)
+        lufs_post = lufs_integrado(audio, sr)
+        if np.isfinite(lufs_post):
+            # tope de 2 LU: si se comió más que eso no fue el limitador
+            # afinando, es material que no da — que lo diga el warning de
+            # no-convergencia y no que dispare la ganancia en la vuelta siguiente
+            perdida_prev = float(np.clip(esperado - lufs_post, 0.0, 2.0))
 
-    # SEGURIDAD: el bucle de arriba puede salir por convergencia SIN haber
-    # limitado nunca — si el audio ya estaba dentro de 0.3 LU del target en la
-    # primera vuelta, hace `break` antes de llegar al limitador y entonces nada
-    # garantiza el techo de true peak. Bug real (2026-08-09): "Good Mornig SIN
-    # MEZCLA" salió a +0.04 dBTP CON clipping, y tardó 40s contra 100-500s de
-    # los demás justamente porque se saltó el limitador entero.
-    # El limitador solo actúa sobre lo que pasa el techo, así que si el bucle ya
-    # limitó, esta pasada es prácticamente un no-op.
-    avisar(f"Limitando picos — pasada de seguridad (techo {cfg_lim['ceiling_dbtp']:g} dBTP)…")
-    audio = _limitador(audio, sr, cfg_lim)
+    # Quedarse con la pasada más cercana al target: subir de más y volver a
+    # limitar puede alejar en vez de acercar, y en ese caso la vuelta anterior
+    # era mejor master (mismo loudness, menos limitador encima).
+    lufs_fin = lufs_integrado(audio, sr)
+    if (mejor is not None and np.isfinite(lufs_fin)
+            and abs(target_lufs - lufs_fin) > mejor[0]):
+        audio = mejor[1]
 
     # Aviso de no-convergencia: si tras las 6 pasadas sigue lejos del target,
     # el material no da para ese loudness sin machacarse (pasó con "Hasta mis

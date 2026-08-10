@@ -423,12 +423,19 @@ def espectro_suavizado(audio: np.ndarray, sr: int, n_puntos: int = 31) -> tuple[
 
 def detectar_resonancias(audio: np.ndarray, sr: int, umbral_db: float = 6.0,
                          max_n: int = 4, f_min: float = 80.0,
-                         f_max: float = 12000.0) -> list[dict]:
+                         f_max: float = 12000.0,
+                         sep_octavas: float = 1 / 6) -> list[dict]:
     """Detecta resonancias: picos ESTRECHOS que sobresalen del espectro suave.
 
     Compara el espectro fino contra su versión suavizada a 1/3 de octava; un
     pico angosto (Q alto) sobresale, una loma tonal ancha no. Devuelve hasta
     max_n resonancias {freq, exceso_db} ordenadas por prominencia.
+
+    `sep_octavas` obliga a que las devueltas estén separadas entre sí: un pico
+    real cae en varios bins vecinos y sin esta regla el mismo pico se llevaba
+    varios de los max_n slots de notch. Pasó de verdad en la tanda del
+    2026-08-09: "CRISIntro 2" gastó 3 de 4 notches en 5275/5577/6153/6255 Hz,
+    que son el mismo pico visto cuatro veces, y dejó sin tocar el resto.
     """
     mono = audio.mean(axis=1) if audio.ndim > 1 else audio
     f, pxx = signal.welch(mono, sr, nperseg=min(8192, len(mono)))
@@ -453,7 +460,18 @@ def detectar_resonancias(audio: np.ndarray, sr: int, umbral_db: float = 6.0,
         ({"freq": round(float(f[i]), 1), "exceso_db": round(float(residual[i]), 1)}
          for i in idx_pico),
         key=lambda r: r["exceso_db"], reverse=True)
-    return encontrados[:max_n]
+
+    # de más prominente a menos, quedándose solo con las suficientemente
+    # separadas de las ya elegidas (el pico más fuerte del grupo gana)
+    razon = 2 ** sep_octavas
+    elegidas: list[dict] = []
+    for cand in encontrados:
+        if len(elegidas) >= max_n:
+            break
+        if all(max(cand["freq"], e["freq"]) / max(min(cand["freq"], e["freq"]), 1e-9)
+               >= razon for e in elegidas):
+            elegidas.append(cand)
+    return elegidas
 
 
 # ---------------------- descriptores sonoros profundos (v2, preset) ----------
