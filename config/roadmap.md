@@ -40,6 +40,54 @@
    de biblioteca, más calibraciones) quedan abiertos pero NO priorizados —
    solo si Bruno los pide explícitamente después de sumar trabajo real.
 
+## 🔥 PENDIENTES DE LA TANDA REAL DEL 2026-08-09 (lo próximo a tocar)
+
+Bruno masterizó 20 temas propios (material variado a propósito, 2007-2019) y
+votó los 22 masters escuchándolos uno por uno: **15 aprobados / 9 rechazados**.
+El aprendizaje pasó de n=1 (dormido) a n=24. Commit del veredicto: `b190617`.
+
+**Umbrales REALES de Bruno, medidos de sus 22 votos (no teoría):**
+- Zona buena: **crest final ~10**
+- **< 6 dB** = lo llama "machacado" (rechazó "Hasta mis ultimos dias", crest 5.8)
+- **> 12 dB** = lo llama "casi no noto diferencia" (rechazó "Good Mornig" v01, crest 12.2)
+- Contradice la hipótesis obvia: crest PERDIDO en aprobados 7.58 dB vs
+  rechazados 4.50 dB. No le molesta cuánto se comprime, le molesta DÓNDE
+  termina. Sus aprobados venían de crest 18-21 y aterrizaron en ~10.
+
+Ordenado por lo que más le molestó escuchando de verdad:
+
+- [ ] **1. Recortar silencio de cabeza y cola (top-and-tail)** — Bruno lo marcó
+  URGENTE. "cm pista" salió con 4 s de aire muerto al principio. Verificado:
+  el original YA los trae (-240 dBFS, ceros exactos) y el master los conserva
+  igual — la app no los agrega, pero tampoco los saca ni avisa, y un master
+  no debería salir así. Recortar o al menos avisar.
+- [ ] **2. Aviso de sobre-limitación / sub-procesamiento** — con los umbrales
+  de arriba ya no hay que adivinar: avisar si el master aterriza fuera de la
+  zona ~10 de crest. Hoy `convergio_target` solo caza la no-convergencia, y
+  "No mires atras" SÍ convergió (-9.2) mientras se comía 5.9 dB de crest.
+  Dato de apoyo: "Hasta mis ultimos dias" pasa el **20.65%** del tiempo a
+  menos de 3 dB del pico (el original, 0.20%) — eso es lo que Bruno escuchó
+  como "el grave satura, el limitador parece apretado".
+- [ ] **3. El matching tonal casi no se nota** — lo dijo en 3 temas ("no se
+  nota la cercanía a la referencia" en Garden cry, "suena a nada, necesita
+  referencia" en Mi TodoREGRABAR). Sospecha: `max_correccion_db = 4.0` es
+  demasiado conservador. Medir si subirlo mejora o rompe, no cambiarlo a ciegas.
+- [ ] **4. Referencias para los temas que no calzan** — 13 de los 20 no
+  calzaban con la biblioteca (solo hay math_rock): distancias de 4.6 a 12.8
+  dB/banda. Varios los aprobó igual sin referencia, pero para los rechazados
+  hay que conseguir referencias del estilo correcto y volver a masterizar.
+- [ ] **5. Avisar cuando la FUENTE ya viene clipeada** — "No mires atras"
+  traía 1330 muestras al tope y pico -0.19 dBFS; el master no agregó clipping
+  digital, pero al subirlo +4 dB dejó esa distorsión expuesta y Bruno la
+  escuchó. `_advertir_si_sobreprocesada()` existe en la UI y debería haber
+  saltado — no se verificó porque la tanda se corrió por script, saltéandose
+  la UI. Confirmar que dispara de verdad.
+
+**Nota de método que funcionó y conviene repetir:** la página local
+`revisar.html` (A/B original vs master + votar + copiar veredicto) hizo que
+votar 22 temas fuera rápido. El generador quedó en el scratchpad de la sesión;
+si se repite la tanda, vale portarlo al repo.
+
 ## 🎙️ Modo Voz/Podcast — validado de oído (2026-08-01)
 
 Probado con audio real de Bruno (AT2020 + antipop, referencia Radiolab). 3 rondas de ajuste con datos medidos, no a ciegas:
