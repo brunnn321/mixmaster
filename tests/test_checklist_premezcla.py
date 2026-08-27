@@ -19,8 +19,8 @@ SR = 44100
 DUR_S = 2.0
 
 
-def _tono(freq_hz: float, envolvente: np.ndarray | None = None) -> np.ndarray:
-    t = np.arange(int(SR * DUR_S)) / SR
+def _tono(freq_hz: float, envolvente: np.ndarray | None = None, sr: int = SR) -> np.ndarray:
+    t = np.arange(int(sr * DUR_S)) / sr
     señal = 0.5 * np.sin(2 * np.pi * freq_hz * t)
     if envolvente is not None:
         señal = señal * envolvente
@@ -84,6 +84,17 @@ def main() -> int:
         check("choque de banda con pulsos desfasados: avisa igual", len(avisos_t) >= 1, str(avisos_t))
         check("pero marca que se turnan (no masking real)",
               any("se turnan" in a for a in avisos_t), str(avisos_t))
+
+        # --- caso 5: sample rate inconsistente entre stems -> avisa ---
+        distinto_sr = tmp / "distinto_sr"
+        distinto_sr.mkdir()
+        sf.write(str(distinto_sr / "bajo.wav"), _tono(100, sr=44100), 44100)
+        sf.write(str(distinto_sr / "guitarra.wav"), _tono(100, sr=48000), 48000)
+        avisos_sr = checklist_pre_mezcla(distinto_sr)
+        check("sample rate distinto: avisa",
+              any("sample rate" in a.lower() for a in avisos_sr), str(avisos_sr))
+        check("sample rate distinto: menciona ambos stems",
+              any("bajo" in a and "guitarra" in a for a in avisos_sr), str(avisos_sr))
 
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

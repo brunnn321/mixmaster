@@ -17,6 +17,7 @@ import numpy as np
 
 from .audio_analysis import (
     BANDAS_HZ, _filtrar_banda, balance_bandas_db, cargar_audio, crest_factor_db,
+    detectar_clipping, true_peak_db,
 )
 from .logger import get_logger
 
@@ -64,6 +65,8 @@ def diagnosticar_stem(path: Path) -> dict:
     bandas = balance_bandas_db(audio, sr)
     crest = crest_factor_db(audio)
     corr = _correlacion(audio)
+    tp = true_peak_db(audio, sr)
+    tiene_clipping = detectar_clipping(audio)
     tipo = _tipo(path.stem)
     obs = []
 
@@ -105,6 +108,24 @@ def diagnosticar_stem(path: Path) -> dict:
         obs.append(("⚠", f"Imagen muy ancha/fuera de fase (corr {corr:.2f}) — riesgo en mono."))
     if _rms_db(audio) < -30:
         obs.append(("·", "Stem muy bajo de nivel — normal si es un elemento de apoyo."))
+
+    # --- headroom, clipping y sobre-procesado (stem ajeno: no confiar en que
+    # venga limpio — ver caso real: "tenía un limitador puesto por seguridad...
+    # creo") ---
+    if tiene_clipping:
+        obs.append(("⚠", "El stem ya viene clipeado en el archivo — esto no es "
+                         "algo que MixMaster pueda arreglar después."))
+    elif tp > -1.0:
+        obs.append(("⚠", f"Pico a {tp:.1f} dBTP, casi sin margen. Si vas a procesar "
+                         "este stem (EQ, compresión) corrés riesgo de clip — pedí un "
+                         "bounce con más headroom si podés."))
+    if crest < 6.0 and tp > -0.3:
+        obs.append(("⚠", f"Este stem tiene pinta de traer compresión/limitador fuerte "
+                         f"ya aplicado (crest {crest:.1f} dB, pico {tp:.1f} dBTP). Si "
+                         "quien te lo mandó dijo que tenía 'un limitador por seguridad', "
+                         "puede que en realidad estuviera masterizando sin darse cuenta "
+                         "— pedile un bounce sin ese proceso si podés."))
+
     if not obs:
         obs.append(("·", "Sin observaciones — este stem está balanceado."))
 
@@ -114,6 +135,7 @@ def diagnosticar_stem(path: Path) -> dict:
         "bandas_db": bandas,
         "crest_db": round(crest, 1),
         "correlacion": round(corr, 2),
+        "true_peak_db": round(tp, 1),
         "observaciones": obs,
     }
 
@@ -172,6 +194,16 @@ def checklist_pre_mezcla(carpeta: Path) -> list[str]:
         return {b for b, v in bandas.items() if v >= pico - 6}
 
     avisos = []
+
+    sr_unicos = {s["sr"] for s in stems}
+    if len(sr_unicos) > 1:
+        detalle = ", ".join(f"{s['nombre']} ({s['sr']} Hz)" for s in stems)
+        avisos.append(
+            f"Sample rate inconsistente entre stems: {detalle}. Resampleá todo al "
+            "mismo SR antes de mezclar — si no, el motor igual puede leerlos pero "
+            "el timing/fase entre pistas puede no ser exacto."
+        )
+
     for i in range(len(stems)):
         for j in range(i + 1, len(stems)):
             a, b = stems[i], stems[j]
