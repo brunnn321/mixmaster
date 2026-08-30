@@ -56,18 +56,27 @@ El aprendizaje pasó de n=1 (dormido) a n=24. Commit del veredicto: `b190617`.
 
 Ordenado por lo que más le molestó escuchando de verdad:
 
-- [ ] **1. Recortar silencio de cabeza y cola (top-and-tail)** — Bruno lo marcó
+- [x] **1. Recortar silencio de cabeza y cola (top-and-tail)** — Bruno lo marcó
   URGENTE. "cm pista" salió con 4 s de aire muerto al principio. Verificado:
   el original YA los trae (-240 dBFS, ceros exactos) y el master los conserva
   igual — la app no los agrega, pero tampoco los saca ni avisa, y un master
-  no debería salir así. Recortar o al menos avisar.
-- [ ] **2. Aviso de sobre-limitación / sub-procesamiento** — con los umbrales
+  no debería salir así. **Hecho (2026-08-30):**
+  `audio_analysis.py::recortar_silencio_extremos` (umbral -60 dBFS, holgado
+  a propósito — no toca material bajo pero real) enganchado al inicio de
+  `masterizar()`, antes de cualquier otro proceso. Reporta segundos
+  recortados en `resumen["recorte_silencio_s"]` y se muestra en la UI.
+  Test: `tests/test_top_and_tail.py`, 8 checks + smoke end-to-end.
+- [x] **2. Aviso de sobre-limitación / sub-procesamiento** — con los umbrales
   de arriba ya no hay que adivinar: avisar si el master aterriza fuera de la
   zona ~10 de crest. Hoy `convergio_target` solo caza la no-convergencia, y
   "No mires atras" SÍ convergió (-9.2) mientras se comía 5.9 dB de crest.
   Dato de apoyo: "Hasta mis ultimos dias" pasa el **20.65%** del tiempo a
   menos de 3 dB del pico (el original, 0.20%) — eso es lo que Bruno escuchó
-  como "el grave satura, el limitador parece apretado".
+  como "el grave satura, el limitador parece apretado". **Hecho (2026-08-30):**
+  `processing.py::masterizar` compara `crest_final` contra los umbrales
+  medidos (< 6 dB = aviso "machacado", > 12 dB = aviso "sub-procesado/casi
+  no se nota"), expuesto en `resumen["aviso_crest_fuera_zona"]` y mostrado
+  en la UI junto al resto del reporte del master. Test: `tests/test_aviso_crest.py`.
 - [ ] **3. El matching tonal casi no se nota** — lo dijo en 3 temas ("no se
   nota la cercanía a la referencia" en Garden cry, "suena a nada, necesita
   referencia" en Mi TodoREGRABAR). Sospecha: `max_correccion_db = 4.0` es

@@ -1809,11 +1809,19 @@ class MainWindow(QMainWindow):
         score_txt = (f"\n  ── SCORE vs referencias: {score['global']}% "
                      f"(tonal {score['tonal']}% · dinámica {score['dinamica']}% · "
                      f"imagen {score['imagen']}%)") if score else ""
+        recorte = resumen.get("recorte_silencio_s") or {}
+        recorte_txt = ""
+        if recorte.get("inicio", 0) > 0 or recorte.get("fin", 0) > 0:
+            recorte_txt = (f"\n  ✂ Recortado silencio: {recorte['inicio']:.2f}s inicio, "
+                            f"{recorte['fin']:.2f}s final")
+        aviso_crest = resumen.get("aviso_crest_fuera_zona")
+        aviso_crest_txt = f"\n  ⚠ {aviso_crest}" if aviso_crest else ""
         self.txt_resultado.append(
             f"\n══ MASTER LISTO ({resumen.get('fuente', 'mezcla')}) ══{score_txt}\n"
             f"  LUFS final: {resumen['lufs_final']} (objetivo {resumen['target_lufs']})\n"
             f"  True peak: {resumen['true_peak_final']} dBTP   "
-            f"Crest: {resumen.get('crest_final', '?')} dB{eq_txt}{ancho_txt}{mbanda_txt}{reso_txt}{tr_txt}{den_txt}{mb_txt}\n"
+            f"Crest: {resumen.get('crest_final', '?')} dB{eq_txt}{ancho_txt}{mbanda_txt}{reso_txt}{tr_txt}{den_txt}{mb_txt}"
+            f"{recorte_txt}{aviso_crest_txt}\n"
             f"  WAV: {resumen['wav']}\n"
             f"  MP3 para subir: {resumen['mp3']}")
         self._refrescar_estado()

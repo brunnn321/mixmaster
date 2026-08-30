@@ -851,6 +851,24 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
     tp_final = true_peak_db(audio, sr)
     crest_final = crest_factor_db(audio)
 
+    # Aviso de sobre-limitación / sub-procesamiento (pendiente #2, tanda real
+    # 2026-08-09): umbrales MEDIDOS de 22 votos reales de Bruno, no teoría —
+    # zona sana ~10 dB de crest; <6 lo rechazó como "machacado", >12 como
+    # "casi no noto diferencia".
+    aviso_crest = None
+    if crest_final < 6.0:
+        aviso_crest = (f"Crest final {crest_final:.1f} dB, por debajo de 6 dB. "
+                       "En tus votos reales rechazaste masters así por \"machacados\" "
+                       "— considerá bajar la ganancia de entrada o aflojar el limitador.")
+    elif crest_final > 12.0:
+        aviso_crest = (f"Crest final {crest_final:.1f} dB, por encima de 12 dB. "
+                       "En tus votos reales rechazaste masters así por \"casi no noto "
+                       "diferencia\" — el master puede estar sub-procesado para el "
+                       "target pedido.")
+    if aviso_crest:
+        log.warning(aviso_crest)
+        avisar(f"⚠ {aviso_crest}")
+
     score = None
     if perfil is not None:
         avisar("Calculando score de similitud vs referencias…")
@@ -906,6 +924,7 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         # False = el material no llegó al loudness pedido sin machacarse;
         # la UI puede avisar en vez de entregar un master aplastado en silencio.
         "convergio_target": convergio,
+        "aviso_crest_fuera_zona": aviso_crest,
         "mono_bass_hz": mono_bass_hz,
         "fuente": "stems" if carpeta_stems else "mezcla",
         "referencias": nombres_ref,
