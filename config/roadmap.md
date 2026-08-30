@@ -102,6 +102,20 @@ Ordenado por lo que más le molestó escuchando de verdad:
   chequeo de mezcla). Verificado con smoke test: detecta el stem clipeado,
   no marca el limpio.
 
+- [x] **6. Severidad de masking por escala de Bark (24 bandas críticas)** —
+  agregado 2026-08-30, motivado por investigación de metodologías científicas
+  a pedido de Bruno. Las 7 bandas del checklist (`BANDAS_HZ`) son anchas a
+  propósito para poder NOMBRARLAS en una sugerencia de EQ ("cortá en low");
+  pero el modelo psicoacústico real de masking usa bandas críticas de Bark
+  (Zwicker, 24 bandas de ancho creciente con la frecuencia) — es lo que usa
+  el Masking Meter de iZotope Neutron y la literatura AES de detección de
+  masking. `stem_diagnostico.py::_severidad_masking_bark` cuenta en cuántas
+  de esas 24-25 bandas críticas dos stems tienen energía significativa a la
+  vez, y lo agrega como cuantificación ("masking severo/moderado") al aviso
+  de choque rítmico ya existente — no reemplaza las 7 bandas (siguen siendo
+  las que dan la sugerencia de EQ), las complementa con precisión real.
+  Test: `tests/test_checklist_premezcla.py`, 2 checks nuevos.
+
 **Nota de método que funcionó y conviene repetir:** la página local
 `revisar.html` (A/B original vs master + votar + copiar veredicto) hizo que
 votar 22 temas fuera rápido. El generador quedó en el scratchpad de la sesión;

@@ -13,7 +13,7 @@ import soundfile as sf
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from mixmaster.stem_diagnostico import checklist_pre_mezcla
+from mixmaster.stem_diagnostico import _severidad_masking_bark, checklist_pre_mezcla
 
 SR = 44100
 DUR_S = 2.0
@@ -119,6 +119,20 @@ def main() -> int:
         check("EQ complementario: mismo tipo -> sin convención clara",
               any("mismo tipo, no hay convención clara" in a for a in avisos_empate),
               str(avisos_empate))
+
+        # --- caso 8: severidad Bark — banda ancha compartida (energía en
+        # bandas críticas MUY separadas dentro de la misma banda ancha de
+        # 7 bandas) vs. choque concentrado en las mismas bandas críticas ---
+        mono_a = _tono(150).mean(axis=1)   # 150 Hz: banda crítica Bark ~7 (150-200ish)
+        mono_b_lejos = _tono(190).mean(axis=1)  # 190 Hz: banda crítica Bark vecina, ambas en "low"
+        n_lejos, total_lejos = _severidad_masking_bark(mono_a, mono_b_lejos, SR)
+        check("severidad Bark: tonos puros -> overlap bajo (<=2 bandas críticas)",
+              n_lejos <= 2, f"{n_lejos}/{total_lejos}")
+
+        mono_b_mismo = _tono(150).mean(axis=1)  # mismo tono exacto -> máximo overlap posible
+        n_mismo, total_mismo = _severidad_masking_bark(mono_a, mono_b_mismo, SR)
+        check("severidad Bark: mismo tono -> overlap total en su banda",
+              n_mismo >= n_lejos, f"{n_mismo}/{total_mismo} vs {n_lejos}/{total_lejos}")
 
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

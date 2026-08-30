@@ -140,6 +140,51 @@ def diagnosticar_stem(path: Path) -> dict:
     }
 
 
+# Escala de Bark (Zwicker, 24 bandas críticas) — el modelo estándar de la
+# PSICOACÚSTICA para masking, no una convención de mezcla: aproxima cómo la
+# cóclea agrupa energía en bandas de ancho creciente con la frecuencia. Es
+# el mismo principio que usa el Masking Meter de iZotope Neutron y la
+# literatura AES de detección de masking ("Solving Frequency Masking in an
+# Audio Mix"). Las 7 bandas de `BANDAS_HZ` (usadas para la sugerencia de EQ
+# complementario, más arriba) son deliberadamente anchas y fáciles de
+# nombrar en una sugerencia ("cortá en low"); Bark es más fina y sirve para
+# CUANTIFICAR qué tan severo es un choque ya detectado, no para nombrarlo.
+BARK_EDGES_HZ = (0, 100, 200, 300, 400, 510, 630, 770, 920, 1080, 1270, 1480,
+                  1720, 2000, 2320, 2700, 3150, 3700, 4400, 5300, 6400, 7700,
+                  9500, 12000, 15500, 20000)
+
+
+def _energia_bark(mono: np.ndarray, sr: int) -> np.ndarray:
+    """RMS por banda crítica de Bark (hasta 24 valores, menos si sr es bajo
+    y Nyquist corta antes de 20 kHz)."""
+    nyquist = sr / 2
+    out = []
+    for f_lo, f_hi in zip(BARK_EDGES_HZ[:-1], BARK_EDGES_HZ[1:]):
+        f_lo = max(f_lo, 20.0)   # 0 Hz no es una frecuencia de corte válida
+        if f_lo >= nyquist - 1:
+            break
+        filtrada = _filtrar_banda(mono, sr, f_lo, min(f_hi, nyquist - 1))
+        out.append(float(np.sqrt(np.mean(filtrada ** 2))))
+    return np.array(out)
+
+
+def _severidad_masking_bark(mono_a: np.ndarray, mono_b: np.ndarray, sr: int,
+                             umbral_db: float = -6.0) -> tuple:
+    """Cuenta en cuántas bandas críticas de Bark ambos stems tienen energía
+    significativa a la vez (dentro de `umbral_db` de su propio pico). Más
+    bandas críticas en común = masking más severo y más difícil de arreglar
+    con un solo corte de EQ ancho. Devuelve (n_bandas_en_comun, n_bandas_totales)."""
+    ea = _energia_bark(mono_a, sr)
+    eb = _energia_bark(mono_b, sr)
+    n = min(len(ea), len(eb))
+    if n == 0:
+        return 0, 0
+    ea, eb = ea[:n], eb[:n]
+    ea_db = 20 * np.log10(np.maximum(ea, 1e-12) / max(float(ea.max()), 1e-12))
+    eb_db = 20 * np.log10(np.maximum(eb, 1e-12) / max(float(eb.max()), 1e-12))
+    return int(np.sum((ea_db > umbral_db) & (eb_db > umbral_db))), n
+
+
 def _envolvente_banda(mono: np.ndarray, sr: int, f_lo: float, f_hi: float,
                        ventana_s: float = 0.05) -> np.ndarray:
     """RMS por ventanas no solapadas de la señal filtrada a una banda —
@@ -258,8 +303,14 @@ def checklist_pre_mezcla(carpeta: Path) -> list[str]:
                     if n > 10 and np.std(env_a[:n]) > 1e-9 and np.std(env_b[:n]) > 1e-9:
                         corr = float(np.corrcoef(env_a[:n], env_b[:n])[0, 1])
                         if corr > 0.5:
+                            n_bark, total_bark = _severidad_masking_bark(
+                                a["mono"], b["mono"], a["sr"])
+                            severidad = ("severo" if total_bark and n_bark / total_bark >= 0.15
+                                         else "moderado")
                             ritmo = (f" y pegan AL MISMO TIEMPO (correlación rítmica {corr:.2f}) "
-                                     "— esto sí es masking real, no solo choque de EQ")
+                                     "— esto sí es masking real, no solo choque de EQ. "
+                                     f"Psicoacústicamente se solapan en {n_bark}/{total_bark} "
+                                     f"bandas críticas (Bark) — masking {severidad}")
                         else:
                             ritmo = f" pero en momentos distintos (correlación rítmica {corr:.2f}) — se turnan, menor riesgo"
                 sugerencia = _sugerencia_eq_complementario(
