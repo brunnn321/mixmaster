@@ -85,12 +85,22 @@ Ordenado por lo que más le molestó escuchando de verdad:
   calzaban con la biblioteca (solo hay math_rock): distancias de 4.6 a 12.8
   dB/banda. Varios los aprobó igual sin referencia, pero para los rechazados
   hay que conseguir referencias del estilo correcto y volver a masterizar.
-- [ ] **5. Avisar cuando la FUENTE ya viene clipeada** — "No mires atras"
+- [x] **5. Avisar cuando la FUENTE ya viene clipeada** — "No mires atras"
   traía 1330 muestras al tope y pico -0.19 dBFS; el master no agregó clipping
   digital, pero al subirlo +4 dB dejó esa distorsión expuesta y Bruno la
   escuchó. `_advertir_si_sobreprocesada()` existe en la UI y debería haber
   saltado — no se verificó porque la tanda se corrió por script, saltéandose
-  la UI. Confirmar que dispara de verdad.
+  la UI. **Hecho (2026-08-30) — bug real encontrado al verificar:** el aviso
+  tenía el guard `if not carpeta_stems and self.diagnostico`, es decir
+  **nunca corría al masterizar desde una carpeta de stems** (solo desde una
+  mezcla ya bounceada con `self.diagnostico` seteado por el análisis previo).
+  "No mires atras" es exactamente ese caso — stems, no mezcla — así que el
+  aviso jamás iba a saltar aunque se hubiera corrido por UI. Fix:
+  `_advertir_si_stems_sobreprocesados()` nueva en `main_window.py`, corre
+  `diagnosticar_carpeta()` sobre los stems antes de masterizar y avisa si
+  algún stem tiene crest <6dB o true peak >-0.3dBTP (mismos umbrales que el
+  chequeo de mezcla). Verificado con smoke test: detecta el stem clipeado,
+  no marca el limpio.
 
 **Nota de método que funcionó y conviene repetir:** la página local
 `revisar.html` (A/B original vs master + votar + copiar veredicto) hizo que

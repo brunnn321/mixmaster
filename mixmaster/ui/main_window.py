@@ -1571,6 +1571,38 @@ class MainWindow(QMainWindow):
             QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         return r == QMessageBox.Yes
 
+    def _advertir_si_stems_sobreprocesados(self, carpeta_stems: Path) -> bool:
+        """Igual que `_advertir_si_sobreprocesada` pero para masterizar desde
+        stems: `self.diagnostico` es del análisis de la MEZCLA y no existe en
+        este flujo, así que sin esto un stem clipeado en la fuente pasaba sin
+        aviso (pendiente #5, tanda real 2026-08-09 — "No mires atras" subió
+        +4dB al masterizar y expuso 1330 muestras al tope que nunca se
+        chequearon porque la tanda corrió por script, saltando la UI).
+
+        Devuelve False si el usuario elige volver atrás (cancela el master).
+        """
+        from ..stem_diagnostico import diagnosticar_carpeta
+        try:
+            diags = diagnosticar_carpeta(carpeta_stems)
+        except Exception:
+            log.exception("No se pudo diagnosticar stems antes de masterizar")
+            return True
+        motivos = [
+            f"«{d['nombre']}»: crest {d['crest_db']} dB, pico {d['true_peak_db']} dBTP"
+            for d in diags if d["crest_db"] < 6.0 or d["true_peak_db"] > -0.3
+        ]
+        if not motivos:
+            return True
+        r = QMessageBox.warning(
+            self, "⚠ Algunos stems ya parecen comprimidos/limitados o clipeados",
+            "Detectamos:\n" + "\n".join(motivos) + "\n\n"
+            "El master no puede recuperar dinámica ni deshacer clipping que ya "
+            "está en el archivo fuente — en el mejor caso queda igual, en el "
+            "peor la distorsión se hace más audible al subir el nivel.\n\n"
+            "¿Masterizar de todos modos?",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        return r == QMessageBox.Yes
+
     def _modo_voz(self) -> bool:
         """True si el audio cargado se marcó como voz/podcast."""
         return self._modo_audio == "voz"
@@ -1733,7 +1765,10 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Sin fuente", "Vuelve al PASO 1 y carga una fuente.")
             return
 
-        if not carpeta_stems and self.diagnostico and not self._advertir_si_sobreprocesada():
+        if carpeta_stems:
+            if not self._advertir_si_stems_sobreprocesados(carpeta_stems):
+                return  # el usuario decidió volver atrás
+        elif self.diagnostico and not self._advertir_si_sobreprocesada():
             return  # el usuario decidió volver atrás
 
         cfg = cargar_config_master()
