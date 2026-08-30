@@ -135,6 +135,19 @@ Ordenado por lo que más le molestó escuchando de verdad:
   de choque rítmico ya existente — no reemplaza las 7 bandas (siguen siendo
   las que dan la sugerencia de EQ), las complementa con precisión real.
   Test: `tests/test_checklist_premezcla.py`, 2 checks nuevos.
+- [x] **7. Declip ligero de la fuente** — agregado 2026-08-30, misma
+  investigación de metodologías científicas. Hasta ahora el clipping de
+  fuente solo se AVISABA (pendiente #5); la literatura AES (Laguna & Lerch,
+  "An Efficient Algorithm For Clipping Detection And Declipping Audio",
+  141st Convention 2016) describe un método simple y no-ML: interpolación
+  cúbica para corridas CORTAS de clipping usando contexto real sin clipear
+  a los dos lados — no inventa el pico en clipping largo/duro, eso se deja
+  intacto a propósito (la interpolación no puede reconstruirlo de forma
+  confiable, coincide con lo que dice la fuente). `audio_analysis.py::declip_ligero`
+  enganchado en `masterizar()` justo después de cargar el audio, antes del
+  top-and-tail. Reporta en `resumen["muestras_declipeadas"]`.
+  Test: `tests/test_declip.py`, 7 checks (repara corto, respeta largo, no
+  toca audio limpio).
 
 **Nota de método que funcionó y conviene repetir:** la página local
 `revisar.html` (A/B original vs master + votar + copiar veredicto) hizo que

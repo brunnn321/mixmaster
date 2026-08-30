@@ -20,8 +20,9 @@ from scipy import signal
 from .app_paths import CONFIG_DIR
 from .audio_analysis import (
     BANDAS_HZ, CRUCES_HZ, analisis_estereo, balance_bandas_db, cargar_audio,
-    crest_factor_db, crest_por_banda, db, detectar_resonancias, espectro_suavizado,
-    lufs_integrado, perfil_referencias, recortar_silencio_extremos, true_peak_db,
+    crest_factor_db, crest_por_banda, db, declip_ligero, detectar_resonancias,
+    espectro_suavizado, lufs_integrado, perfil_referencias, recortar_silencio_extremos,
+    true_peak_db,
 )
 from .logger import get_logger
 
@@ -643,6 +644,15 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
     if audio.shape[1] == 1:
         audio = np.repeat(audio, 2, axis=1)
 
+    # Declip ligero (AES 141st Convention, Laguna & Lerch 2016): repara por
+    # interpolación cúbica las corridas CORTAS de clipping de la fuente —
+    # no toca clipping largo/duro, que no se puede reconstruir de forma
+    # confiable (sigue avisándose más abajo/en el diagnóstico de stems).
+    audio, muestras_declipeadas = declip_ligero(audio)
+    if muestras_declipeadas > 0:
+        avisar(f"Declip ligero: {muestras_declipeadas} muestra(s) reparada(s) "
+               "por interpolación (clipping corto de la fuente).")
+
     # Top-and-tail (pendiente URGENTE, tanda real 2026-08-09): recorta
     # silencio real de cabeza/cola antes de cualquier otro proceso.
     audio, recorte_inicio_s, recorte_fin_s = recortar_silencio_extremos(audio, sr)
@@ -952,6 +962,7 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         },
         "target_lufs": target_lufs,
         "recorte_silencio_s": {"inicio": recorte_inicio_s, "fin": recorte_fin_s},
+        "muestras_declipeadas": muestras_declipeadas,
         "eq_aplicado_db": correccion,
         "ajuste_ancho_db": ajuste_ancho,
         "multibanda_db": multibanda_db,

@@ -11,6 +11,7 @@ import numpy as np
 import pyloudnorm as pyln
 import soundfile as sf
 from scipy import signal
+from scipy.interpolate import CubicSpline
 
 from .logger import get_logger
 
@@ -215,6 +216,48 @@ def recortar_silencio_extremos(audio: np.ndarray, sr: int,
     recorte_ini_s = round(inicio / sr, 3)
     recorte_fin_s = round((len(audio) - fin) / sr, 3)
     return audio[inicio:fin], recorte_ini_s, recorte_fin_s
+
+
+def declip_ligero(audio: np.ndarray, umbral: float = 0.999,
+                   max_muestras_corridas: int = 20, contexto: int = 20) -> tuple:
+    """Repara clipping por interpolación cúbica en corridas CORTAS de la
+    fuente (Laguna & Lerch, "An Efficient Algorithm For Clipping Detection
+    And Declipping Audio", AES 141st Convention, 2016).
+
+    Solo toca corridas de hasta `max_muestras_corridas` muestras con
+    contexto real (sin clipear) de sobra a los dos lados. La interpolación
+    NO puede inventar el pico original en clipping largo/duro — eso se deja
+    intacto a propósito (sigue detectándose con `detectar_clipping`, esto
+    no lo reemplaza, solo repara lo reparable de forma honesta).
+
+    Devuelve (audio_reparado, n_muestras_reparadas).
+    """
+    out = audio.copy()
+    total_reparadas = 0
+    for ch in range(out.shape[1]):
+        canal = out[:, ch]
+        clip = np.abs(canal) >= umbral
+        if not clip.any():
+            continue
+        marcas = np.concatenate(([0], clip.astype(int), [0]))
+        bordes = np.flatnonzero(np.diff(marcas))
+        inicios, fines = bordes[0::2], bordes[1::2]  # corridas [inicio, fin)
+        for i0, i1 in zip(inicios, fines):
+            largo = i1 - i0
+            if largo > max_muestras_corridas:
+                continue  # clipping largo: no se puede reconstruir de forma confiable
+            ctx_ini = max(0, i0 - contexto)
+            ctx_fin = min(len(canal), i1 + contexto)
+            if i0 - ctx_ini < 3 or ctx_fin - i1 < 3:
+                continue  # sin contexto real suficiente a los dos lados
+            xs_validos = np.concatenate([np.arange(ctx_ini, i0), np.arange(i1, ctx_fin)])
+            ys_validos = canal[xs_validos]
+            spline = CubicSpline(xs_validos, ys_validos)
+            xs_reparar = np.arange(i0, i1)
+            canal[xs_reparar] = np.clip(spline(xs_reparar), -1.0, 1.0)
+            total_reparadas += largo
+        out[:, ch] = canal
+    return out, total_reparadas
 
 
 def detectar_clipping(audio: np.ndarray) -> bool:
