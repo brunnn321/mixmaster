@@ -96,6 +96,30 @@ def main() -> int:
         check("sample rate distinto: menciona ambos stems",
               any("bajo" in a and "guitarra" in a for a in avisos_sr), str(avisos_sr))
 
+        # --- caso 6: EQ complementario — bajo.wav vs guitarra.wav chocan en
+        # "low" (60-200 Hz): _PRIORIDAD_BANDA dice bajo > guitarra ahí, así
+        # que debe sugerir cortar la guitarra, no el bajo ---
+        eq = tmp / "eq"
+        eq.mkdir()
+        pulso = _pulsos(periodo_s=0.5)
+        sf.write(str(eq / "bajo.wav"), _tono(150, pulso), SR)
+        sf.write(str(eq / "guitarra.wav"), _tono(180, pulso), SR)
+        avisos_eq = checklist_pre_mezcla(eq)
+        check("EQ complementario: sugiere cortar guitarra (bajo manda en low)",
+              any("cortá «guitarra»" in a for a in avisos_eq), str(avisos_eq))
+        check("EQ complementario: no sugiere cortar el bajo",
+              not any("cortá «bajo»" in a for a in avisos_eq), str(avisos_eq))
+
+        # --- caso 7: mismo tipo en ambos lados -> sin convención clara ---
+        empate = tmp / "empate"
+        empate.mkdir()
+        sf.write(str(empate / "guitarra1.wav"), _tono(150, pulso), SR)
+        sf.write(str(empate / "guitarra2.wav"), _tono(180, pulso), SR)
+        avisos_empate = checklist_pre_mezcla(empate)
+        check("EQ complementario: mismo tipo -> sin convención clara",
+              any("mismo tipo, no hay convención clara" in a for a in avisos_empate),
+              str(avisos_empate))
+
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

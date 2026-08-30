@@ -153,12 +153,51 @@ def _envolvente_banda(mono: np.ndarray, sr: int, f_lo: float, f_hi: float,
     return np.sqrt(np.mean(ventanas ** 2, axis=1))
 
 
+# Prioridad por banda: qué tipo de instrumento tiene más derecho convencional
+# a esa zona del espectro en una mezcla (no es una medición — es la práctica
+# estándar de mezcla: bajo/bombo mandan en graves, voz manda en medios donde
+# se juega la inteligibilidad). El otro tipo es candidato a cortar primero.
+# Tipos no listados en la tupla de una banda (no debería pasar, cubre las 5
+# categorías de `_tipo`) caen al final por `len(orden)`.
+_PRIORIDAD_BANDA = {
+    "sub":      ("bajo", "bateria", "generico", "guitarra", "voz"),
+    "low":      ("bateria", "bajo", "generico", "guitarra", "voz"),
+    "low_mid":  ("voz", "guitarra", "bajo", "bateria", "generico"),
+    "mid":      ("voz", "guitarra", "bateria", "bajo", "generico"),
+    "high_mid": ("voz", "bateria", "guitarra", "bajo", "generico"),
+    "high":     ("bateria", "voz", "guitarra", "bajo", "generico"),
+    "air":      ("bateria", "voz", "guitarra", "bajo", "generico"),
+}
+
+
+def _sugerencia_eq_complementario(banda: str, f_lo: float, f_hi: float,
+                                   nombre_a: str, tipo_a: str,
+                                   nombre_b: str, tipo_b: str) -> str:
+    """EQ complementario (sustractivo, no aditivo): de los dos stems que
+    compiten en `banda`, sugiere cuál cortar primero según la prioridad
+    convencional de `_PRIORIDAD_BANDA` — cortar es más transparente que subir
+    (mentor, síntesis de I5-electronica-produccion.md/B1-texturas.md). Si
+    ambos son del mismo tipo no hay convención que los distinga."""
+    orden = _PRIORIDAD_BANDA.get(banda, ())
+    rango_a = orden.index(tipo_a) if tipo_a in orden else len(orden)
+    rango_b = orden.index(tipo_b) if tipo_b in orden else len(orden)
+    if rango_a == rango_b:
+        return (f" Sugerencia: son del mismo tipo, no hay convención clara — "
+                f"decidí cuál manda en {banda} ({f_lo:.0f}-{f_hi:.0f} Hz) y "
+                "cortale 2-3 dB ahí al otro.")
+    perdedor, ganador = (nombre_a, nombre_b) if rango_a > rango_b else (nombre_b, nombre_a)
+    return (f" Sugerencia: cortá «{perdedor}» 2-3 dB en {banda} "
+            f"({f_lo:.0f}-{f_hi:.0f} Hz) — «{ganador}» tiene más derecho a esa "
+            "zona (EQ complementario: cortar es más transparente que subir).")
+
+
 def checklist_pre_mezcla(carpeta: Path) -> list[str]:
     """Compara los stems ENTRE SÍ (a diferencia de diagnosticar_stem/carpeta,
     que mira cada uno por separado) y devuelve avisos de:
 
     - Choque de frecuencias: 2+ stems con su banda dominante en la misma
-      zona (van a competir por espacio ahí).
+      zona (van a competir por espacio ahí), con una sugerencia de EQ
+      complementario (cuál cortar y cuánto) según `_PRIORIDAD_BANDA`.
     - Masking rítmico: de los que chocan en frecuencia, cuáles además pegan
       fuerte AL MISMO TIEMPO en esa banda (correlación de envolvente > 0.5)
       — eso es lo que realmente se enmascara; si se turnan, el choque de
@@ -180,6 +219,7 @@ def checklist_pre_mezcla(carpeta: Path) -> list[str]:
             audio, sr = cargar_audio(p)
             stems.append({
                 "nombre": p.stem,
+                "tipo": _tipo(p.stem),
                 "mono": audio.mean(axis=1),
                 "sr": sr,
                 "bandas": balance_bandas_db(audio, sr),
@@ -222,9 +262,11 @@ def checklist_pre_mezcla(carpeta: Path) -> list[str]:
                                      "— esto sí es masking real, no solo choque de EQ")
                         else:
                             ritmo = f" pero en momentos distintos (correlación rítmica {corr:.2f}) — se turnan, menor riesgo"
+                sugerencia = _sugerencia_eq_complementario(
+                    banda, f_lo, f_hi, a["nombre"], a["tipo"], b["nombre"], b["tipo"])
                 avisos.append(
                     f"«{a['nombre']}» y «{b['nombre']}» compiten en {banda} "
-                    f"({f_lo:.0f}-{f_hi:.0f} Hz){ritmo}."
+                    f"({f_lo:.0f}-{f_hi:.0f} Hz){ritmo}.{sugerencia}"
                 )
     return avisos
 

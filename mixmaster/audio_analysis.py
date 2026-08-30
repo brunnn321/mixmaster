@@ -191,6 +191,32 @@ def crest_factor_db(audio: np.ndarray) -> float:
     return db(pico) - db(rms)
 
 
+def recortar_silencio_extremos(audio: np.ndarray, sr: int,
+                                umbral_dbfs: float = -60.0) -> tuple:
+    """Recorta silencio real de cabeza y cola (top-and-tail).
+
+    Pendiente URGENTE de la tanda real 2026-08-09: un original puede traer
+    aire muerto exacto al principio/final (-240 dBFS, ceros) y el master lo
+    conservaba igual sin avisar. -60 dBFS es holgado a propósito — no toca
+    material bajo pero real, solo silencio verdadero.
+
+    Devuelve (audio_recortado, segundos_recortados_inicio, segundos_recortados_fin).
+    Si todo el audio es silencio, no recorta nada (caso degenerado).
+    """
+    if audio.size == 0:
+        return audio, 0.0, 0.0
+    umbral_lineal = 10 ** (umbral_dbfs / 20)
+    envolvente = np.max(np.abs(audio), axis=1)
+    sobre_umbral = np.flatnonzero(envolvente > umbral_lineal)
+    if sobre_umbral.size == 0:
+        return audio, 0.0, 0.0
+    inicio = int(sobre_umbral[0])
+    fin = int(sobre_umbral[-1]) + 1
+    recorte_ini_s = round(inicio / sr, 3)
+    recorte_fin_s = round((len(audio) - fin) / sr, 3)
+    return audio[inicio:fin], recorte_ini_s, recorte_fin_s
+
+
 def detectar_clipping(audio: np.ndarray) -> bool:
     """True si hay >= MUESTRAS_CLIP muestras consecutivas pegadas al techo."""
     for ch in range(audio.shape[1]):
