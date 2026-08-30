@@ -1851,12 +1851,14 @@ class MainWindow(QMainWindow):
                             f"{recorte['fin']:.2f}s final")
         aviso_crest = resumen.get("aviso_crest_fuera_zona")
         aviso_crest_txt = f"\n  ⚠ {aviso_crest}" if aviso_crest else ""
+        aviso_ref = resumen.get("aviso_referencia_no_calza")
+        aviso_ref_txt = f"\n  ⚠ {aviso_ref}" if aviso_ref else ""
         self.txt_resultado.append(
             f"\n══ MASTER LISTO ({resumen.get('fuente', 'mezcla')}) ══{score_txt}\n"
             f"  LUFS final: {resumen['lufs_final']} (objetivo {resumen['target_lufs']})\n"
             f"  True peak: {resumen['true_peak_final']} dBTP   "
             f"Crest: {resumen.get('crest_final', '?')} dB{eq_txt}{ancho_txt}{mbanda_txt}{reso_txt}{tr_txt}{den_txt}{mb_txt}"
-            f"{recorte_txt}{aviso_crest_txt}\n"
+            f"{recorte_txt}{aviso_crest_txt}{aviso_ref_txt}\n"
             f"  WAV: {resumen['wav']}\n"
             f"  MP3 para subir: {resumen['mp3']}")
         self._refrescar_estado()

@@ -77,14 +77,34 @@ Ordenado por lo que más le molestó escuchando de verdad:
   medidos (< 6 dB = aviso "machacado", > 12 dB = aviso "sub-procesado/casi
   no se nota"), expuesto en `resumen["aviso_crest_fuera_zona"]` y mostrado
   en la UI junto al resto del reporte del master. Test: `tests/test_aviso_crest.py`.
-- [ ] **3. El matching tonal casi no se nota** — lo dijo en 3 temas ("no se
+- [x] **3. El matching tonal casi no se nota** — lo dijo en 3 temas ("no se
   nota la cercanía a la referencia" en Garden cry, "suena a nada, necesita
   referencia" en Mi TodoREGRABAR). Sospecha: `max_correccion_db = 4.0` es
   demasiado conservador. Medir si subirlo mejora o rompe, no cambiarlo a ciegas.
-- [ ] **4. Referencias para los temas que no calzan** — 13 de los 20 no
+  **Hecho (2026-08-30) — medido con datos reales, no a ciegas:** se auditó
+  `config/aprendizaje.json` (los 22 votos reales) y **5/22 masters pegaban
+  exacto en el techo de ±4.0 dB** en la corrección de EQ aplicada (tanto
+  aprobados como rechazados) — el algoritmo pedía más corrección de la que
+  el tope dejaba pasar. Subido a **6.0 dB** (`config/master.json` +
+  `CONFIG_MASTER_DEFAULT` en `processing.py`), con el cambio documentado en
+  el propio código. **Sigue pendiente de oído:** esto es evidencia de que el
+  tope estaba limitando, no prueba de que 6.0 sea el número correcto —
+  confirmar en la próxima tanda real que no se pasa de rosca.
+- [x] **4. Referencias para los temas que no calzan** — 13 de los 20 no
   calzaban con la biblioteca (solo hay math_rock): distancias de 4.6 a 12.8
   dB/banda. Varios los aprobó igual sin referencia, pero para los rechazados
   hay que conseguir referencias del estilo correcto y volver a masterizar.
+  **Parcialmente hecho (2026-08-30) — lo codeable, no lo que requiere audio
+  nuevo:** conseguir referencias reales del estilo correcto no es algo que
+  se pueda codear (necesita audio real curado por Bruno). Lo que sí se
+  agregó: `masterizar()` ahora mide la distancia SIN RECORTAR mix↔referencia
+  por banda (antes de aplicarle el tope de `max_correccion_db`) y avisa si
+  la media supera 4.6 dB/banda — el mismo umbral medido en la tanda real
+  donde el matching "sonó a nada". Expuesto en `resumen["distancia_referencia_db"]`
+  y `resumen["aviso_referencia_no_calza"]`, mostrado en la UI. Así, la
+  próxima vez que una referencia no calce, avisa ANTES de que el master
+  salga con un matching que no se nota, en vez de descubrirlo de oído
+  después. Test: `tests/test_aviso_referencia.py`.
 - [x] **5. Avisar cuando la FUENTE ya viene clipeada** — "No mires atras"
   traía 1330 muestras al tope y pico -0.19 dBFS; el master no agregó clipping
   digital, pero al subirlo +4 dB dejó esa distorsión expuesta y Bruno la

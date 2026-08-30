@@ -34,7 +34,14 @@ CONFIG_MASTER_DEFAULT = {
     "eq_correctivo": {
         "activo": True,
         "modo": "fino",              # "fino" = curva 1/3 octava · "bandas" = 7 bloques
-        "max_correccion_db": 4.0,
+        # Subido de 4.0 a 6.0 (2026-08-30) con evidencia real, no a ciegas:
+        # en config/aprendizaje.json, 5/22 masters votados por Bruno pegaban
+        # exacto en el techo de ±4.0dB (tanto aprobados como rechazados) —
+        # el algoritmo pedía más corrección de la que el tope dejaba aplicar.
+        # Coincide con el pendiente #3 de la tanda real 2026-08-09: "el
+        # matching tonal casi no se nota" en 3 temas. Pendiente confirmar de
+        # oído en la próxima tanda real que 6.0 no se pase de rosca.
+        "max_correccion_db": 6.0,
         "analizar_imagen_stereo": True,
         "max_ajuste_ancho_db": 1.0,
     },
@@ -661,6 +668,7 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
 
     correccion, ajuste_ancho = {}, {}
     nombres_ref, perfil = [], None
+    distancia_bandas_db, aviso_referencia = {}, None
     if path_referencia and cfg_eq.get("activo", True):
         refs = path_referencia if isinstance(path_referencia, list) else [path_referencia]
         avisar(f"Analizando {len(refs)} referencia(s) (niveladas, perfil promedio)…")
@@ -669,14 +677,26 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         nombres_ref = perfil["nombres"]
         tope = float(cfg_eq.get("max_correccion_db", 4.0))
 
+        # Distancia SIN RECORTAR mix<->referencia por banda (pendiente #4,
+        # tanda real 2026-08-09): 13/20 temas no calzaban con la biblioteca
+        # (solo había math_rock), medido en 4.6-12.8 dB/banda de distancia —
+        # varios sonaron "a nada" o "sin cercanía a la referencia" pese a
+        # converger en loudness. No hay atajo para conseguir referencias del
+        # estilo correcto, pero sí se puede avisar ANTES de confiar en un
+        # matching que no va a sonar a nada.
+        distancia_bandas_db = {}
+
         if cfg_eq.get("modo", "fino") == "fino":
             # Matching espectral FINO: curva completa a 1/3 de octava
             avisar(f"Matching espectral fino (1/3 octava, máx ±{tope:g} dB)…")
             freqs, esp_mix = espectro_suavizado(audio, sr)
             esp_ref = np.asarray(perfil["espectro_db"])
-            delta = esp_ref - esp_mix
-            delta = delta - float(np.mean(delta))       # solo forma, no nivel
-            delta = np.clip(delta, -tope, tope)
+            delta_sin_tope = esp_ref - esp_mix
+            delta_sin_tope = delta_sin_tope - float(np.mean(delta_sin_tope))  # solo forma, no nivel
+            for b, (f_lo, f_hi) in BANDAS_HZ.items():
+                sel = (freqs >= f_lo) & (freqs < f_hi)
+                distancia_bandas_db[b] = round(float(np.abs(delta_sin_tope[sel]).mean()), 1) if sel.any() else 0.0
+            delta = np.clip(delta_sin_tope, -tope, tope)
             delta = np.convolve(delta, [0.25, 0.5, 0.25], mode="same")  # suaviza
             audio = _aplicar_fir(audio, _curva_fir_fina(freqs, delta, sr))
             # resumen por banda para el reporte
@@ -687,12 +707,30 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         else:
             # Modo clásico: EQ correctivo de 7 bandas
             bandas_mix = balance_bandas_db(audio, sr)
+            distancia_bandas_db = {
+                b: round(float(abs(perfil["bandas_db"][b] - bandas_mix[b])), 1) for b in BANDAS_HZ
+            }
             correccion = {
                 b: round(float(np.clip(perfil["bandas_db"][b] - bandas_mix[b], -tope, tope)), 1)
                 for b in BANDAS_HZ
             }
             avisar(f"Aplicando EQ correctivo 7 bandas (máx ±{tope:g} dB)…")
             audio = _aplicar_fir(audio, _curva_fir(correccion, sr))
+
+        distancia_media_db = round(float(np.mean(list(distancia_bandas_db.values()))), 1) if distancia_bandas_db else 0.0
+        aviso_referencia = None
+        if distancia_media_db >= 4.6:
+            peor_banda = max(distancia_bandas_db, key=distancia_bandas_db.get)
+            aviso_referencia = (
+                f"La(s) referencia(s) elegida(s) están lejos del timbre de tu mezcla "
+                f"(distancia media {distancia_media_db:.1f} dB/banda, peor en «{peor_banda}» "
+                f"con {distancia_bandas_db[peor_banda]:.1f} dB). En tu tanda real, distancias "
+                "así (4.6-12.8 dB/banda) sonaron \"a nada\" o \"sin cercanía a la referencia\" "
+                "pese a converger en loudness — considerá buscar una referencia más parecida "
+                "en estilo/instrumentación."
+            )
+            log.warning(aviso_referencia)
+            avisar(f"⚠ {aviso_referencia}")
 
         # Imagen estéreo: acerca el ancho por banda al promedio de referencias
         if cfg_eq.get("analizar_imagen_stereo", True):
@@ -925,6 +963,8 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         # la UI puede avisar en vez de entregar un master aplastado en silencio.
         "convergio_target": convergio,
         "aviso_crest_fuera_zona": aviso_crest,
+        "distancia_referencia_db": distancia_bandas_db,
+        "aviso_referencia_no_calza": aviso_referencia,
         "mono_bass_hz": mono_bass_hz,
         "fuente": "stems" if carpeta_stems else "mezcla",
         "referencias": nombres_ref,
