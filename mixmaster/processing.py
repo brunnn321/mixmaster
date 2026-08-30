@@ -168,7 +168,7 @@ def _es_percusion(nombre: str) -> bool:
 
 
 def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
-                transient_cant: float = 0.3) -> tuple[np.ndarray, int]:
+                transient_cant: float = 0.3, progreso=None) -> tuple[np.ndarray, int]:
     """Suma todos los stems de una carpeta en una mezcla virtual estéreo.
 
     Alinea longitudes al stem más largo y deja headroom (pico a -6 dBFS)
@@ -181,6 +181,26 @@ def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
                       if p.is_file() and p.suffix.lower() in FORMATOS_STEM)
     if not archivos:
         raise FileNotFoundError(f"No hay stems en {carpeta}")
+
+    # Estimación de RAM previa (barata: solo lee cabeceras, no decodifica) —
+    # cada stem se carga completo como float64 y TODOS quedan en memoria a
+    # la vez hasta sumarlos. Sin esto, con muchas pistas el primer síntoma
+    # de quedarse sin RAM es la app colgada sin explicación.
+    try:
+        gb_estimado = sum(
+            sf.info(str(p)).frames * sf.info(str(p)).channels * 8
+            for p in archivos
+        ) / 1e9
+        if gb_estimado > 4.0:
+            msg = (f"⚠ Sumando {len(archivos)} stems: ~{gb_estimado:.1f} GB de RAM "
+                   "estimados antes de sumarlos (cada uno se carga completo en "
+                   "memoria). Si la máquina tiene menos RAM libre que eso, puede "
+                   "ir muy lento o fallar con MemoryError.")
+            log.warning(msg)
+            if progreso:
+                progreso(msg)
+    except Exception:
+        log.exception("No se pudo estimar RAM previa para %s", carpeta)
 
     pistas, srs = [], []
     for p in archivos:
@@ -635,7 +655,8 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         audio, sr = sumar_stems(
             Path(carpeta_stems),
             mejorar_percusion=cfg_sm.get("mejorar_percusion", True),
-            transient_cant=float(cfg_sm.get("transient_cantidad", 0.3)))
+            transient_cant=float(cfg_sm.get("transient_cantidad", 0.3)),
+            progreso=progreso)
         nombre_base = "stems"
     else:
         avisar("Cargando mezcla…")
