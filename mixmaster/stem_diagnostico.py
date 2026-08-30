@@ -14,6 +14,7 @@ Reglas por tipo de instrumento (deducido del nombre del archivo):
 from pathlib import Path
 
 import numpy as np
+from scipy import signal as _sp_signal
 
 from .audio_analysis import (
     BANDAS_HZ, _filtrar_banda, balance_bandas_db, cargar_audio, crest_factor_db,
@@ -198,6 +199,93 @@ def _envolvente_banda(mono: np.ndarray, sr: int, f_lo: float, f_hi: float,
     return np.sqrt(np.mean(ventanas ** 2, axis=1))
 
 
+def _cross_correlacion_maxima(mono_a: np.ndarray, mono_b: np.ndarray, sr: int,
+                               max_lag_ms: float = 30.0) -> tuple:
+    """Cross-correlación normalizada entre dos señales, acotada a un lag
+    máximo — los mics de una misma fuente en una grabación en vivo rara vez
+    están a más de ~10m de diferencia de camino (~30ms). Correlación alta
+    (con cualquier signo) en el pico = las dos señales comparten mucha
+    energía, típico de bleed/multi-mic sobre la MISMA fuente (kick in/out,
+    overheads, room mic). Devuelve (lag_muestras, correlación_en_el_pico)."""
+    max_lag = max(1, int(sr * max_lag_ms / 1000))
+    n = min(len(mono_a), len(mono_b))
+    if n < max_lag * 2:
+        return 0, 0.0
+    a = mono_a[:n] - np.mean(mono_a[:n])
+    b = mono_b[:n] - np.mean(mono_b[:n])
+    norm = np.sqrt(np.sum(a ** 2) * np.sum(b ** 2))
+    if norm < 1e-9:
+        return 0, 0.0
+    completa = _sp_signal.correlate(a, b, mode="full") / norm
+    centro = len(completa) // 2
+    ventana = completa[centro - max_lag: centro + max_lag + 1]
+    idx = int(np.argmax(np.abs(ventana)))
+    lag = idx - max_lag
+    return lag, float(ventana[idx])
+
+
+def avisos_fase_multitrack(carpeta: Path, umbral_correlacion: float = 0.6,
+                            max_lag_ms: float = 30.0) -> list[str]:
+    """Detecta problemas de fase/polaridad entre stems que probablemente
+    capturan la MISMA fuente por mics distintos — el caso clásico de una
+    grabación en vivo multi-mic (kick in/out, overheads, room mic sobre la
+    batería, etc.), donde comb filtering y cancelación de fase son la causa
+    #1 de que "el bombo no pega" o "el low end desaparece al sumar todo".
+
+    Método: cross-correlación acotada a `max_lag_ms` (GCC clásico, sin
+    aprendizaje automático). Si dos stems correlacionan fuerte al alinearlos
+    (probable misma fuente por bleed), avisa:
+      - Correlación fuerte NEGATIVA → polaridad invertida, se están
+        cancelando (fix: invertir fase de uno).
+      - Correlación fuerte positiva pero con lag != 0 → desalineados en el
+        tiempo (fix: alinear antes de mezclar, evita comb filtering).
+
+    No asume qué stems son "la misma fuente" por nombre — lo detecta por la
+    correlación misma, así que sirve tanto para nombres genéricos (mic1/mic2)
+    como para los ya reconocidos por `_tipo`.
+    """
+    carpeta = Path(carpeta)
+    if not carpeta.is_dir():
+        return []
+    paths = sorted(p for p in carpeta.iterdir()
+                   if p.is_file() and p.suffix.lower() in FORMATOS)
+    stems = []
+    for p in paths:
+        try:
+            audio, sr = cargar_audio(p)
+            stems.append({"nombre": p.stem, "mono": audio.mean(axis=1), "sr": sr})
+        except Exception:
+            log.exception("No se pudo cargar %s para el chequeo de fase multitrack", p.name)
+    if len(stems) < 2:
+        return []
+
+    avisos = []
+    for i in range(len(stems)):
+        for j in range(i + 1, len(stems)):
+            a, b = stems[i], stems[j]
+            if a["sr"] != b["sr"]:
+                continue  # ya se avisa el SR inconsistente en checklist_pre_mezcla
+            lag, corr = _cross_correlacion_maxima(a["mono"], b["mono"], a["sr"], max_lag_ms)
+            if abs(corr) < umbral_correlacion:
+                continue
+            lag_ms = lag / a["sr"] * 1000
+            if corr < 0:
+                avisos.append(
+                    f"«{a['nombre']}» y «{b['nombre']}» probablemente captan la MISMA "
+                    f"fuente por mics distintos (correlación {corr:.2f} a {lag_ms:+.1f}ms) "
+                    "con POLARIDAD INVERTIDA — se están cancelando entre sí. Probá "
+                    "invertir la fase de uno de los dos."
+                )
+            elif abs(lag_ms) > 0.3:
+                avisos.append(
+                    f"«{a['nombre']}» y «{b['nombre']}» probablemente captan la MISMA "
+                    f"fuente por mics distintos (correlación {corr:.2f}) pero desalineados "
+                    f"{lag_ms:+.1f}ms — alinealos en el tiempo antes de mezclar, si no vas "
+                    "a tener comb filtering (huecos y picos en el espectro, sonido hueco/nasal)."
+                )
+    return avisos
+
+
 # Prioridad por banda: qué tipo de instrumento tiene más derecho convencional
 # a esa zona del espectro en una mezcla (no es una medición — es la práctica
 # estándar de mezcla: bajo/bombo mandan en graves, voz manda en medios donde
@@ -319,6 +407,8 @@ def checklist_pre_mezcla(carpeta: Path) -> list[str]:
                     f"«{a['nombre']}» y «{b['nombre']}» compiten en {banda} "
                     f"({f_lo:.0f}-{f_hi:.0f} Hz){ritmo}.{sugerencia}"
                 )
+
+    avisos += avisos_fase_multitrack(carpeta)
     return avisos
 
 

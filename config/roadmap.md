@@ -148,6 +148,24 @@ Ordenado por lo que más le molestó escuchando de verdad:
   top-and-tail. Reporta en `resumen["muestras_declipeadas"]`.
   Test: `tests/test_declip.py`, 7 checks (repara corto, respeta largo, no
   toca audio limpio).
+- [x] **8. Fase/polaridad multitrack (comb filtering en grabaciones en
+  vivo)** — agregado 2026-08-30, motivado directamente por el bottleneck
+  real de Bruno: tiene shows enteros en vivo grabados pendientes de mezclar,
+  y una grabación en vivo multi-mic (batería con kick in/out, overheads,
+  room mic) es EXACTAMENTE donde más aparece comb filtering y cancelación
+  de fase por bleed entre mics — "el bombo no pega" o "el low end desaparece
+  al sumar todo" es casi siempre esto, no un problema de EQ. Investigado:
+  cross-correlación acotada a un lag máximo (mics de la misma fuente rara
+  vez a más de ~10m, ~30ms) es el método clásico (GCC), sin ML.
+  `stem_diagnostico.py::avisos_fase_multitrack` detecta pares de stems que
+  probablemente captan la MISMA fuente (correlación fuerte al alinearlos) y
+  avisa: polaridad invertida (correlación negativa fuerte → invertir fase)
+  o desalineación temporal (correlación positiva pero con lag → alinear
+  antes de mezclar). No asume por nombre de archivo, lo detecta por la
+  correlación misma. Enganchado en `checklist_pre_mezcla` (aparece en la
+  misma tarjeta "⚔️ CHECKLIST PRE-MEZCLA" de la UI, sin código nuevo ahí).
+  Test: `tests/test_checklist_premezcla.py`, 3 checks (desalineación,
+  polaridad invertida, fuentes independientes sin falso positivo).
 
 **Nota de método que funcionó y conviene repetir:** la página local
 `revisar.html` (A/B original vs master + votar + copiar veredicto) hizo que

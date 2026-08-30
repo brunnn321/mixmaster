@@ -13,7 +13,9 @@ import soundfile as sf
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from mixmaster.stem_diagnostico import _severidad_masking_bark, checklist_pre_mezcla
+from mixmaster.stem_diagnostico import (
+    _severidad_masking_bark, avisos_fase_multitrack, checklist_pre_mezcla,
+)
 
 SR = 44100
 DUR_S = 2.0
@@ -133,6 +135,52 @@ def main() -> int:
         n_mismo, total_mismo = _severidad_masking_bark(mono_a, mono_b_mismo, SR)
         check("severidad Bark: mismo tono -> overlap total en su banda",
               n_mismo >= n_lejos, f"{n_mismo}/{total_mismo} vs {n_lejos}/{total_lejos}")
+
+        # --- caso 9: fase multitrack — dos "mics" de la MISMA fuente
+        # (ruido de banda ancha, como un golpe de batería) desalineados en
+        # el tiempo -> detecta el lag y avisa desalineación ---
+        rng = np.random.default_rng(42)
+        fuente = rng.normal(0, 0.3, int(SR * DUR_S))
+        fuente[:int(SR * 0.02)] *= np.linspace(0, 1, int(SR * 0.02))  # fade-in, evita click
+
+        delay_muestras = int(SR * 0.005)  # 5 ms, típico overhead vs close mic
+        mic_a = fuente.copy()
+        mic_b = np.concatenate([np.zeros(delay_muestras), fuente])[:len(fuente)]
+
+        fase_desalineada = tmp / "fase_desalineada"
+        fase_desalineada.mkdir()
+        sf.write(str(fase_desalineada / "kick_in.wav"),
+                 np.repeat(mic_a.reshape(-1, 1), 2, axis=1), SR)
+        sf.write(str(fase_desalineada / "kick_out.wav"),
+                 np.repeat(mic_b.reshape(-1, 1), 2, axis=1), SR)
+        avisos_fase = avisos_fase_multitrack(fase_desalineada)
+        check("fase multitrack: detecta misma fuente desalineada",
+              any("desalineados" in a for a in avisos_fase), str(avisos_fase))
+
+        # --- caso 10: fase multitrack — misma fuente, SIN delay pero
+        # polaridad invertida -> avisa cancelación, no desalineación ---
+        fase_invertida = tmp / "fase_invertida"
+        fase_invertida.mkdir()
+        sf.write(str(fase_invertida / "mic1.wav"),
+                 np.repeat(fuente.reshape(-1, 1), 2, axis=1), SR)
+        sf.write(str(fase_invertida / "mic2.wav"),
+                 np.repeat((-fuente).reshape(-1, 1), 2, axis=1), SR)
+        avisos_inv = avisos_fase_multitrack(fase_invertida)
+        check("fase multitrack: detecta polaridad invertida",
+              any("POLARIDAD INVERTIDA" in a for a in avisos_inv), str(avisos_inv))
+
+        # --- caso 11: dos fuentes independientes (sin relación) -> sin avisos ---
+        fase_ok = tmp / "fase_ok"
+        fase_ok.mkdir()
+        rng2 = np.random.default_rng(99)
+        independiente = rng2.normal(0, 0.3, int(SR * DUR_S))
+        sf.write(str(fase_ok / "guitarra.wav"),
+                 np.repeat(fuente.reshape(-1, 1), 2, axis=1), SR)
+        sf.write(str(fase_ok / "voz.wav"),
+                 np.repeat(independiente.reshape(-1, 1), 2, axis=1), SR)
+        avisos_indep = avisos_fase_multitrack(fase_ok)
+        check("fase multitrack: fuentes independientes -> sin avisos",
+              avisos_indep == [], str(avisos_indep))
 
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
