@@ -8,7 +8,6 @@ from PySide6.QtWidgets import (
 )
 
 from ..logger import get_logger
-from ..stem_diagnostico import checklist_pre_mezcla, diagnosticar_carpeta
 
 log = get_logger("mixmaster.ui.coaching")
 
@@ -17,9 +16,18 @@ _TIPO_ICONO = {"bajo": "🎸", "bateria": "🥁", "guitarra": "🎸",
 
 
 class CoachingDialog(QDialog):
-    """Ventana con el diagnóstico stem por stem del proyecto activo."""
+    """Ventana con el diagnóstico stem por stem del proyecto activo.
 
-    def __init__(self, carpeta_stems, parent=None):
+    Recibe `diags`/`choques` YA CALCULADOS (no una carpeta) a propósito:
+    con muchas pistas (33 en un caso real), `diagnosticar_carpeta` +
+    `checklist_pre_mezcla` pueden tardar minutos — calcularlos acá adentro
+    congelaba la ventana entera sin feedback (indistinguible de "se
+    colgó"). El cómputo pesado se movió a `CoachingWorker` en un QThread,
+    con la barra de progreso ya existente de la app; este diálogo solo
+    RENDERIZA el resultado.
+    """
+
+    def __init__(self, diags: list[dict], choques: list[str], parent=None):
         super().__init__(parent)
         self.setWindowTitle("🔬 Diagnóstico de stems — sin maquillaje")
         self.resize(620, 640)
@@ -40,7 +48,6 @@ class CoachingDialog(QDialog):
         cont.setStyleSheet("background: #0e1820;")
         lay = QVBoxLayout(cont)
 
-        diags = diagnosticar_carpeta(carpeta_stems)
         if not diags:
             lay.addWidget(QLabel("No hay stems para diagnosticar en este proyecto."))
         else:
@@ -50,7 +57,6 @@ class CoachingDialog(QDialog):
             resumen.setStyleSheet("color: #43e08a; font-family: Consolas; font-weight: bold; padding: 4px;")
             lay.addWidget(resumen)
 
-            choques = checklist_pre_mezcla(carpeta_stems)
             if choques:
                 lay.addWidget(self._tarjeta_choques(choques))
 

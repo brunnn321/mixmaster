@@ -167,6 +167,32 @@ Ordenado por lo que más le molestó escuchando de verdad:
   Test: `tests/test_checklist_premezcla.py`, 3 checks (desalineación,
   polaridad invertida, fuentes independientes sin falso positivo).
 
+- [x] **9. Rendimiento con muchas pistas (33+) — bug real encontrado al
+  responder "¿la app soporta 33 pistas o se cuelga?"** (2026-08-31). Medido
+  con profiling, no supuesto: `checklist_pre_mezcla` + `avisos_fase_multitrack`
+  eran **O(n²) en cómputo pesado** — con 33 stems (528 pares), la envolvente
+  por banda, la severidad Bark (24 filtros) y la cross-correlación de fase
+  se recalculaban en CADA PAR aunque solo dependieran de UN stem. Con 33
+  pistas de un tema de 3 min, esto tardaba **varios minutos sin completar**
+  (timeout de 280s, medido). Encima, `CoachingDialog` corría todo esto
+  DIRECTO en el hilo de la UI → la ventana se congelaba entera sin
+  feedback, indistinguible de "se colgó" (que es literalmente lo que Bruno
+  preguntó). Fix en dos partes:
+  1. **Precómputo por stem, no por par** — envolvente de banda, energía
+     Bark y señal decimada para cross-correlación ahora se calculan UNA
+     VEZ por stem (`stem_diagnostico.py`), no una vez por par. Pasa de
+     O(n²) a O(n) en la parte cara. Con 33 stems de 3 min: de "no termina
+     en 280s" a **~180s en el peor caso sintético** (ruido blanco, donde
+     todo choca con todo — audio real da bastante menos avisos y por lo
+     tanto menos trabajo).
+  2. **CoachingWorker (QThread)** — el diagnóstico de stems ahora corre en
+     background con la barra de progreso ya existente de la app
+     (`_barra_activa`), igual que stems/análisis/master. `CoachingDialog`
+     ya no calcula nada, solo renderiza el resultado que le pasan.
+  Verificado offscreen (sin crash, ambos casos con datos y vacío). Sigue
+  sin haber límite de pistas en el código — el límite real pasa a ser
+  tiempo de espera (con barra de progreso visible), no memoria ni cuelgue.
+
 **Nota de método que funcionó y conviene repetir:** la página local
 `revisar.html` (A/B original vs master + votar + copiar veredicto) hizo que
 votar 22 temas fuera rápido. El generador quedó en el scratchpad de la sesión;

@@ -295,6 +295,34 @@ class StemsWorker(QThread):
             self.fallo.emit(str(e))
 
 
+class CoachingWorker(QThread):
+    """Corre el diagnóstico de stems (por stem + checklist pre-mezcla) fuera
+    del hilo de la UI. Con muchas pistas (33 en un caso real) esto puede
+    tardar minutos — antes se calculaba directo en CoachingDialog.__init__,
+    en el hilo de la UI, así que la ventana entera se congelaba sin
+    feedback (indistinguible de "se colgó")."""
+
+    progreso = Signal(str)
+    terminado = Signal(dict)
+    fallo = Signal(str)
+
+    def __init__(self, carpeta_stems: Path):
+        super().__init__()
+        self.carpeta_stems = carpeta_stems
+
+    def run(self):
+        try:
+            from ..stem_diagnostico import checklist_pre_mezcla, diagnosticar_carpeta
+            self.progreso.emit("Diagnosticando stems…")
+            diags = diagnosticar_carpeta(self.carpeta_stems)
+            self.progreso.emit("Buscando choques entre stems (puede tardar con muchas pistas)…")
+            choques = checklist_pre_mezcla(self.carpeta_stems)
+            self.terminado.emit({"diags": diags, "choques": choques})
+        except Exception as e:
+            log.exception("Fallo en el diagnóstico de stems")
+            self.fallo.emit(str(e))
+
+
 class EscuchaWorker(QThread):
     """Genera la copia de escucha calibrada M50x fuera del hilo de la UI."""
 
@@ -1369,8 +1397,23 @@ class MainWindow(QMainWindow):
                 "Cargá varios archivos (stems) en el PASO 1 para usarlo. "
                 "Con una mezcla única (1 archivo) no aplica.")
             return
+        self._barra_activa(True, pasos=2)
+        self._status("Diagnosticando stems…")
+        self._coaching_worker = CoachingWorker(carpeta)
+        self._coaching_worker.setParent(self)
+        self._coaching_worker.progreso.connect(self._progreso)
+        self._coaching_worker.terminado.connect(self._coaching_ok)
+        self._coaching_worker.fallo.connect(self._coaching_error)
+        self._coaching_worker.start()
+
+    def _coaching_ok(self, resultado: dict):
+        self._barra_activa(False)
         from .coaching_dialog import CoachingDialog
-        CoachingDialog(carpeta, self).exec()
+        CoachingDialog(resultado["diags"], resultado["choques"], self).exec()
+
+    def _coaching_error(self, msg: str):
+        self._barra_activa(False)
+        QMessageBox.critical(self, "Error", f"No se pudo diagnosticar los stems:\n{msg}")
 
     def _toggle_goniometro(self):
         """Muestra/oculta el goniómetro embebido (foto de la mezcla, no en vivo)."""

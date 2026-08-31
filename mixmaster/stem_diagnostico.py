@@ -169,14 +169,17 @@ def _energia_bark(mono: np.ndarray, sr: int) -> np.ndarray:
     return np.array(out)
 
 
-def _severidad_masking_bark(mono_a: np.ndarray, mono_b: np.ndarray, sr: int,
-                             umbral_db: float = -6.0) -> tuple:
+def _severidad_desde_bark(ea: np.ndarray, eb: np.ndarray, umbral_db: float = -6.0) -> tuple:
     """Cuenta en cuántas bandas críticas de Bark ambos stems tienen energía
-    significativa a la vez (dentro de `umbral_db` de su propio pico). Más
-    bandas críticas en común = masking más severo y más difícil de arreglar
-    con un solo corte de EQ ancho. Devuelve (n_bandas_en_comun, n_bandas_totales)."""
-    ea = _energia_bark(mono_a, sr)
-    eb = _energia_bark(mono_b, sr)
+    significativa a la vez (dentro de `umbral_db` de su propio pico), a
+    partir de las energías Bark YA CALCULADAS. Más bandas críticas en común
+    = masking más severo y más difícil de arreglar con un solo corte de EQ
+    ancho. Devuelve (n_bandas_en_comun, n_bandas_totales).
+
+    Recibe las energías precomputadas (no el audio crudo) a propósito: en
+    `checklist_pre_mezcla` se calculan UNA VEZ por stem, no una vez por PAR
+    — con muchos stems, recalcular 24 filtros por cada par que comparte
+    banda dominante era el cuello de botella real (medido con profiling)."""
     n = min(len(ea), len(eb))
     if n == 0:
         return 0, 0
@@ -184,6 +187,14 @@ def _severidad_masking_bark(mono_a: np.ndarray, mono_b: np.ndarray, sr: int,
     ea_db = 20 * np.log10(np.maximum(ea, 1e-12) / max(float(ea.max()), 1e-12))
     eb_db = 20 * np.log10(np.maximum(eb, 1e-12) / max(float(eb.max()), 1e-12))
     return int(np.sum((ea_db > umbral_db) & (eb_db > umbral_db))), n
+
+
+def _severidad_masking_bark(mono_a: np.ndarray, mono_b: np.ndarray, sr: int,
+                             umbral_db: float = -6.0) -> tuple:
+    """Versión que calcula las energías Bark al vuelo desde audio crudo —
+    conveniente para uso puntual/tests. `checklist_pre_mezcla` usa
+    `_severidad_desde_bark` directamente con energías precomputadas."""
+    return _severidad_desde_bark(_energia_bark(mono_a, sr), _energia_bark(mono_b, sr), umbral_db)
 
 
 def _envolvente_banda(mono: np.ndarray, sr: int, f_lo: float, f_hi: float,
@@ -199,29 +210,46 @@ def _envolvente_banda(mono: np.ndarray, sr: int, f_lo: float, f_hi: float,
     return np.sqrt(np.mean(ventanas ** 2, axis=1))
 
 
-def _cross_correlacion_maxima(mono_a: np.ndarray, mono_b: np.ndarray, sr: int,
-                               max_lag_ms: float = 30.0) -> tuple:
-    """Cross-correlación normalizada entre dos señales, acotada a un lag
-    máximo — los mics de una misma fuente en una grabación en vivo rara vez
-    están a más de ~10m de diferencia de camino (~30ms). Correlación alta
-    (con cualquier signo) en el pico = las dos señales comparten mucha
-    energía, típico de bleed/multi-mic sobre la MISMA fuente (kick in/out,
-    overheads, room mic). Devuelve (lag_muestras, correlación_en_el_pico)."""
-    max_lag = max(1, int(sr * max_lag_ms / 1000))
-    n = min(len(mono_a), len(mono_b))
+def _decimar_para_correlacion(mono: np.ndarray, sr: int) -> tuple:
+    """Decima una señal para cross-correlación barata (hasta 10x, apunta a
+    ~4-8kHz efectivo) — para estimar un delay grueso de fase no hace falta
+    el ancho de banda completo. Se llama UNA VEZ por stem (no por par): con
+    muchas pistas, decimar de nuevo en cada par es el mismo patrón de
+    recómputo redundante que ya se sacó de las envolventes/Bark — medido
+    con profiling, era el cuello de botella que quedaba tras decimar
+    (528 pares × 2 decimaciones cada uno, la mayoría repetidas).
+    Devuelve (señal_decimada, sr_efectivo)."""
+    n = len(mono)
+    a = mono - np.mean(mono)
+    factor = min(10, max(1, int(sr // 4000)))
+    if factor > 1 and n > factor * 30:
+        return _sp_signal.decimate(a, factor, zero_phase=True), sr / factor
+    return a, float(sr)
+
+
+def _cross_correlacion_maxima(mono_a_dec: np.ndarray, mono_b_dec: np.ndarray,
+                               sr_efectivo: float, max_lag_ms: float = 30.0) -> tuple:
+    """Cross-correlación normalizada entre dos señales YA DECIMADAS (ver
+    `_decimar_para_correlacion`), acotada a un lag máximo — los mics de una
+    misma fuente en una grabación en vivo rara vez están a más de ~10m de
+    diferencia de camino (~30ms). Correlación alta (con cualquier signo) en
+    el pico = las dos señales comparten mucha energía, típico de bleed/
+    multi-mic sobre la MISMA fuente (kick in/out, overheads, room mic).
+    Devuelve (lag_ms, correlación_en_el_pico)."""
+    n = min(len(mono_a_dec), len(mono_b_dec))
+    max_lag = max(1, int(sr_efectivo * max_lag_ms / 1000))
     if n < max_lag * 2:
-        return 0, 0.0
-    a = mono_a[:n] - np.mean(mono_a[:n])
-    b = mono_b[:n] - np.mean(mono_b[:n])
+        return 0.0, 0.0
+    a, b = mono_a_dec[:n], mono_b_dec[:n]
     norm = np.sqrt(np.sum(a ** 2) * np.sum(b ** 2))
     if norm < 1e-9:
-        return 0, 0.0
+        return 0.0, 0.0
     completa = _sp_signal.correlate(a, b, mode="full") / norm
     centro = len(completa) // 2
     ventana = completa[centro - max_lag: centro + max_lag + 1]
     idx = int(np.argmax(np.abs(ventana)))
-    lag = idx - max_lag
-    return lag, float(ventana[idx])
+    lag_ms = (idx - max_lag) / sr_efectivo * 1000
+    return lag_ms, float(ventana[idx])
 
 
 def avisos_fase_multitrack(carpeta: Path, umbral_correlacion: float = 0.6,
@@ -253,7 +281,9 @@ def avisos_fase_multitrack(carpeta: Path, umbral_correlacion: float = 0.6,
     for p in paths:
         try:
             audio, sr = cargar_audio(p)
-            stems.append({"nombre": p.stem, "mono": audio.mean(axis=1), "sr": sr})
+            mono = audio.mean(axis=1)
+            dec, sr_dec = _decimar_para_correlacion(mono, sr)
+            stems.append({"nombre": p.stem, "sr": sr, "mono_dec": dec, "sr_dec": sr_dec})
         except Exception:
             log.exception("No se pudo cargar %s para el chequeo de fase multitrack", p.name)
     if len(stems) < 2:
@@ -265,10 +295,10 @@ def avisos_fase_multitrack(carpeta: Path, umbral_correlacion: float = 0.6,
             a, b = stems[i], stems[j]
             if a["sr"] != b["sr"]:
                 continue  # ya se avisa el SR inconsistente en checklist_pre_mezcla
-            lag, corr = _cross_correlacion_maxima(a["mono"], b["mono"], a["sr"], max_lag_ms)
+            lag_ms, corr = _cross_correlacion_maxima(
+                a["mono_dec"], b["mono_dec"], a["sr_dec"], max_lag_ms)
             if abs(corr) < umbral_correlacion:
                 continue
-            lag_ms = lag / a["sr"] * 1000
             if corr < 0:
                 avisos.append(
                     f"«{a['nombre']}» y «{b['nombre']}» probablemente captan la MISMA "
@@ -350,12 +380,25 @@ def checklist_pre_mezcla(carpeta: Path) -> list[str]:
     for p in paths:
         try:
             audio, sr = cargar_audio(p)
+            mono = audio.mean(axis=1)
+            # Envolvente por banda y energía Bark: UNA VEZ por stem, no una
+            # vez por PAR — con muchas pistas (33 en un caso real), volver a
+            # filtrar el audio completo por cada par que comparte banda
+            # dominante era el cuello de botella real (medido con profiling:
+            # con 33 stems de un tema completo, esto solo tardaba varios
+            # minutos antes de precomputar).
+            envolventes = {
+                banda: _envolvente_banda(mono, sr, f_lo, f_hi)
+                for banda, (f_lo, f_hi) in BANDAS_HZ.items()
+            }
             stems.append({
                 "nombre": p.stem,
                 "tipo": _tipo(p.stem),
-                "mono": audio.mean(axis=1),
+                "mono": mono,
                 "sr": sr,
                 "bandas": balance_bandas_db(audio, sr),
+                "envolventes": envolventes,
+                "bark": _energia_bark(mono, sr),
             })
         except Exception:
             log.exception("No se pudo cargar %s para el checklist pre-mezcla", p.name)
@@ -385,14 +428,13 @@ def checklist_pre_mezcla(carpeta: Path) -> list[str]:
                 f_lo, f_hi = BANDAS_HZ[banda]
                 ritmo = ""
                 if a["sr"] == b["sr"]:
-                    env_a = _envolvente_banda(a["mono"], a["sr"], f_lo, f_hi)
-                    env_b = _envolvente_banda(b["mono"], b["sr"], f_lo, f_hi)
+                    env_a = a["envolventes"][banda]
+                    env_b = b["envolventes"][banda]
                     n = min(len(env_a), len(env_b))
                     if n > 10 and np.std(env_a[:n]) > 1e-9 and np.std(env_b[:n]) > 1e-9:
                         corr = float(np.corrcoef(env_a[:n], env_b[:n])[0, 1])
                         if corr > 0.5:
-                            n_bark, total_bark = _severidad_masking_bark(
-                                a["mono"], b["mono"], a["sr"])
+                            n_bark, total_bark = _severidad_desde_bark(a["bark"], b["bark"])
                             severidad = ("severo" if total_bark and n_bark / total_bark >= 0.15
                                          else "moderado")
                             ritmo = (f" y pegan AL MISMO TIEMPO (correlación rítmica {corr:.2f}) "
