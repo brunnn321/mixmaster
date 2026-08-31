@@ -73,8 +73,12 @@ def main() -> int:
         check("masking rítmico detectado (mismo pulso)",
               any("MISMO TIEMPO" in a for a in avisos_mr), str(avisos_mr))
 
-        # --- caso 4: mismo choque de banda pero pulsos DESFASADOS -> avisa
-        # el choque pero marca que se turnan, no masking real ---
+        # --- caso 4: mismo choque de banda pero pulsos DESFASADOS (se
+        # turnan, riesgo bajo) -> NO se reporta. Medido con 29 stems reales
+        # de una grabación en vivo: sin este filtro, checklist_pre_mezcla
+        # devolvía 609 avisos, 533 (87%) "se turnan" tapando los 74 casos
+        # de masking real — el checklist tiene que ser accionable, no
+        # exhaustivo. ---
         turnos = tmp / "turnos"
         turnos.mkdir()
         pulso_a = _pulsos(periodo_s=0.5, ancho_s=0.05)
@@ -83,9 +87,8 @@ def main() -> int:
         sf.write(str(turnos / "bajo.wav"), _tono(150, pulso_a), SR)
         sf.write(str(turnos / "guitarra.wav"), _tono(180, pulso_b), SR)
         avisos_t = checklist_pre_mezcla(turnos)
-        check("choque de banda con pulsos desfasados: avisa igual", len(avisos_t) >= 1, str(avisos_t))
-        check("pero marca que se turnan (no masking real)",
-              any("se turnan" in a for a in avisos_t), str(avisos_t))
+        check("choque de banda con pulsos desfasados (riesgo bajo): NO se reporta",
+              avisos_t == [], str(avisos_t))
 
         # --- caso 5: sample rate inconsistente entre stems -> avisa ---
         distinto_sr = tmp / "distinto_sr"

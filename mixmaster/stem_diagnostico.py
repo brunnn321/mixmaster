@@ -427,6 +427,14 @@ def checklist_pre_mezcla(carpeta: Path) -> list[str]:
             for banda in sorted(compartidas, key=lambda x: BANDAS_HZ[x][0]):
                 f_lo, f_hi = BANDAS_HZ[banda]
                 ritmo = ""
+                # None = "se turnan, riesgo bajo, no reportar" (default);
+                # "" = riesgo desconocido (SR distinto, sin datos suficientes,
+                # sigue reportándose); string = masking real confirmado.
+                # Medido con 29 stems reales de una grabación en vivo: sin
+                # este filtro, checklist_pre_mezcla devolvía 609 avisos, de
+                # los cuales 533 (87%) eran "se turnan" — tapaban los 74
+                # casos de masking real. El objetivo del checklist es ser
+                # accionable, no exhaustivo.
                 if a["sr"] == b["sr"]:
                     env_a = a["envolventes"][banda]
                     env_b = b["envolventes"][banda]
@@ -442,7 +450,7 @@ def checklist_pre_mezcla(carpeta: Path) -> list[str]:
                                      f"Psicoacústicamente se solapan en {n_bark}/{total_bark} "
                                      f"bandas críticas (Bark) — masking {severidad}")
                         else:
-                            ritmo = f" pero en momentos distintos (correlación rítmica {corr:.2f}) — se turnan, menor riesgo"
+                            continue  # se turnan, riesgo bajo: no reportar (ver nota arriba)
                 sugerencia = _sugerencia_eq_complementario(
                     banda, f_lo, f_hi, a["nombre"], a["tipo"], b["nombre"], b["tipo"])
                 avisos.append(
