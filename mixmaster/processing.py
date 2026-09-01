@@ -18,6 +18,7 @@ import soundfile as sf
 from scipy import signal
 
 from .app_paths import CONFIG_DIR
+from .automezcla import aplicar_pan
 from .audio_analysis import (
     BANDAS_HZ, CRUCES_HZ, analisis_estereo, balance_bandas_db, cargar_audio,
     crest_factor_db, crest_por_banda, db, declip_ligero, detectar_resonancias,
@@ -168,7 +169,8 @@ def _es_percusion(nombre: str) -> bool:
 
 
 def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
-                transient_cant: float = 0.3, progreso=None) -> tuple[np.ndarray, int]:
+                transient_cant: float = 0.3, progreso=None,
+                plan_mezcla: dict | None = None) -> tuple[np.ndarray, int]:
     """Suma todos los stems de una carpeta en una mezcla virtual estéreo.
 
     Alinea longitudes al stem más largo y deja headroom (pico a -6 dBFS)
@@ -176,6 +178,12 @@ def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
 
     v0.8.3: si `mejorar_percusion`, aplica transient shaping suave a los stems
     de batería/percusión ANTES de sumar → más pegada en el master por stems.
+
+    `plan_mezcla` (opcional, de `automezcla.calcular_plan`): aplica ganancia
+    +panning de PUNTO DE PARTIDA por rol antes de sumar, en vez de la suma
+    plana centrada de siempre. Sin esto, comportamiento igual que antes
+    (compatibilidad hacia atrás). Con esto, el resultado sigue siendo un
+    punto de partida — no una mezcla terminada, ver `automezcla.py`.
     """
     archivos = sorted(p for p in Path(carpeta).iterdir()
                       if p.is_file() and p.suffix.lower() in FORMATOS_STEM)
@@ -210,6 +218,14 @@ def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
         if mejorar_percusion and transient_cant > 0 and _es_percusion(p.name):
             audio = _transient_shape(audio, sr, transient_cant)
             log.info("Stem percusivo realzado (pegada): %s", p.name)
+        if plan_mezcla:
+            info = plan_mezcla.get("stems", {}).get(p.stem)
+            if info:
+                ganancia = 10 ** (info["ganancia_db"] / 20)
+                # L==R tras el dup de arriba (o si venía estéreo real de
+                # fábrica, se colapsa a mono para repanear — caso raro en
+                # stems de grabación en vivo, casi siempre mono por mic).
+                audio = aplicar_pan(audio[:, 0] * ganancia, info["pan"])
         pistas.append(audio)
         srs.append(sr)
     if len(set(srs)) > 1:

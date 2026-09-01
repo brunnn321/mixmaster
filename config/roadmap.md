@@ -193,6 +193,40 @@ Ordenado por lo que más le molestó escuchando de verdad:
   sin haber límite de pistas en el código — el límite real pasa a ser
   tiempo de espera (con barra de progreso visible), no memoria ni cuelgue.
 
+- [x] **10. Auto-mezcla: balance de nivel + panning de punto de partida**
+  (2026-08-31) — pedido explícito de Bruno tras el incidente de "sumar
+  stems ≠ mezclar" (ver memoria `feedback_no_presentar_sin_escuchar`):
+  "¿para eso no se llama MixMaster?". Diseñado con brainstorming
+  (arquitectónico) antes de codear. `automezcla.py` nuevo:
+  - Clasificador de rol más granular que `_tipo` (kick/snare/toms/hats/
+    overhead/room/percusión mayor-menor/guitarra/teclas/vientos/coros/voz
+    principal/bajo/genérico), por palabras clave en el nombre.
+  - Detección de pares estéreo (L/R, 1/2) robusta a nombres reales de
+    grabación en vivo — bug real encontrado y arreglado: con
+    "16-GTR L-260815_2214"/"18-GTR R-260815_2214", el número de pista
+    (16 vs 18) rompía el agrupamiento porque quedaba en la clave
+    comparada; se soluciona ignorando tokens puramente numéricos al
+    agrupar (pero no al mostrar).
+  - Nivel relativo por rol (jerarquía de mezcla estándar: batería/bajo/voz
+    = base, resto = capas o textura/color) y panning por convención
+    (overheads/hats anchos ±75%, pares opuestos ±70%, percusión sin par
+    alternada para no apilarse en el centro).
+  - `roles_manual` para casos ambiguos que el nombre no puede resolver
+    (ej. "KHROZ" = segundo vocal, "SAYMON" = voz principal en el tema real
+    de Bruno) — se pregunta, no se adivina ni se asume genérico en
+    silencio.
+  - `sumar_stems()` acepta `plan_mezcla` opcional (compatibilidad hacia
+    atrás intacta sin él). Probado con los 29 stems reales de Bruno:
+    score de imagen estéreo subió de 74% (suma plana centrada) a 92%
+    (con el plan aplicado).
+  **Límite honesto, documentado en el propio módulo y para comunicar
+  siempre**: esto es un PUNTO DE PARTIDA de nivel+pan por convención, NO
+  una mezcla artística terminada — ninguna decisión de EQ, de arreglo, ni
+  de intención musical está acá. Se ajusta de oído después. Nunca
+  reportar el resultado de esto como una mezcla validada (regla del
+  Consejo, ver memoria).
+  Test: `tests/test_automezcla.py`, 24 checks.
+
 **Nota de método que funcionó y conviene repetir:** la página local
 `revisar.html` (A/B original vs master + votar + copiar veredicto) hizo que
 votar 22 temas fuera rápido. El generador quedó en el scratchpad de la sesión;
