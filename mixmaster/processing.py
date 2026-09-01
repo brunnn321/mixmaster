@@ -84,9 +84,11 @@ CONFIG_MASTER_DEFAULT = {
         "slow_ms": 80.0,
     },
     "dinamica_secciones": {
-        # OPT-IN (default off): recupera el contorno dinámico macro (verso vs
-        # estribillo) que el limitado aplana. cantidad 0..1, acotado a max_db
-        "activo": False,
+        # Activado por defecto (2026-08-31, pedido de Bruno — "no quiero
+        # que la app se vuelva un limitador andante como Ozone/LANDR"):
+        # recupera el contorno dinámico macro (verso vs estribillo) que el
+        # limitado aplana. cantidad 0..1, acotado a max_db
+        "activo": True,
         "cantidad": 0.5,
         "ventana_s": 1.0,
         "max_db": 2.0,

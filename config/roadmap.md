@@ -226,6 +226,37 @@ Ordenado por lo que más le molestó escuchando de verdad:
   reportar el resultado de esto como una mezcla validada (regla del
   Consejo, ver memoria).
   Test: `tests/test_automezcla.py`, 24 checks.
+- [x] **11. Normalización de nivel relativa a la SESIÓN, no absoluta**
+  (2026-08-31) — bug real encontrado al escuchar: Bruno reportó "la voz
+  está muy alejada, no hay coros, el bajo ni se nota, la guitarra muy
+  fuerte sobre el teclado". Medido: RMS real de los stems variaba de
+  -26.7dB (kick) a -42.5dB (voz, SAYMON) — la voz venía grabada 15dB más
+  floja que el resto, y el offset de rol (+2dB) no alcanzaba para
+  compensar eso. Primer intento (normalizar a -20dB fijo) reveló OTRO bug:
+  con un valor absoluto, casi TODOS los stems pedían el tope de ganancia
+  (+18dB) porque la sesión ENTERA se grabó floja a propósito (headroom
+  conservador de grabación en vivo, decisión válida del ingeniero) — el
+  fix intentaba "corregir" la sesión completa en vez de solo los outliers
+  reales dentro de ella. Solución final: la referencia de normalización es
+  la MEDIANA de RMS de los stems con señal real DE ESA SESIÓN (no un
+  número fijo) — así solo se corrigen los stems que están fuera de lo
+  típico de esa tanda específica, no toda la sesión contra un ideal
+  externo. Con esto: solo 4/29 stems reales de Bruno piden ganancia
+  grande (antes eran casi todos). Reportado también qué stems están
+  "casi sin señal" (posible silencio real de ese tramo, no un problema de
+  nivel — ej. KHROZ y OVER en los primeros 5 min de este tema).
+  Test: `tests/test_automezcla.py`, 3 checks nuevos de normalización.
+- [x] **12. `dinamica_secciones` activado por defecto** (2026-08-31) —
+  pedido explícito: "cuidá que la app no se vuelva un limitador andante
+  como iZotope/MasteringBOX/LANDR". La función ya existía desde v0.8
+  (`_preservar_dinamica_macro`, recupera hasta ±2dB del contraste
+  verso/estribillo que el limitador aplana) pero estaba `activo: false`
+  por defecto y nunca se había probado. Activada en `config/master.json`
+  y en `CONFIG_MASTER_DEFAULT`. Medido en audio real: diferencia de crest
+  final con/sin esto es chica (~0.2dB, el tope de ±2dB es acotado a
+  propósito) — lo que preserva es la FORMA del contraste entre secciones,
+  no el crest promedio global, así que esa parte solo se puede confirmar
+  escuchando.
 
 **Nota de método que funcionó y conviene repetir:** la página local
 `revisar.html` (A/B original vs master + votar + copiar veredicto) hizo que

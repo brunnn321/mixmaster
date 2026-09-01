@@ -34,7 +34,7 @@
     "slow_ms": 80.0
   },
   "dinamica_secciones": {
-    "activo": false,
+    "activo": true,
     "cantidad": 0.5,
     "ventana_s": 1.0,
     "max_db": 2.0

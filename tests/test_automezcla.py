@@ -97,7 +97,10 @@ def main() -> int:
             señal = 0.3 * np.sin(2 * np.pi * (150 + idx * 37) * t)
             sf.write(str(carpeta / f"{nombre}.wav"), señal.reshape(-1, 1), SR)
 
-        plan = calcular_plan(carpeta, roles_manual={"29-SAYMON-260815_2214": "voz_principal"})
+        # normalizar_nivel=False para aislar la tabla de roles pura, sin el
+        # componente de normalización de RMS (que se testea aparte abajo)
+        plan = calcular_plan(carpeta, roles_manual={"29-SAYMON-260815_2214": "voz_principal"},
+                              normalizar_nivel=False)
         check("plan: KICK a nivel 0dB centro",
               plan["stems"]["01-KICK-260815_2214"]["ganancia_db"] == 0.0
               and plan["stems"]["01-KICK-260815_2214"]["pan"] == 0.0)
@@ -112,6 +115,33 @@ def main() -> int:
               and plan["stems"]["29-SAYMON-260815_2214"]["ganancia_db"] == 2.0)
         check("plan: sin_clasificar vacío (todo tuvo rol o override)",
               plan["sin_clasificar"] == [], str(plan["sin_clasificar"]))
+
+        # --- normalización de nivel: caso real encontrado (voz grabada
+        # mucho más floja que el resto, y un stem casi en silencio como
+        # KHROZ en la tanda real de Bruno) ---
+        carpeta_niveles = tmp / "niveles"
+        carpeta_niveles.mkdir()
+        t2 = np.arange(int(SR * 1.0)) / SR
+        fuerte = 0.5 * np.sin(2 * np.pi * 200 * t2)             # caliente
+        floja = 0.5 * np.sin(2 * np.pi * 200 * t2) * 0.05        # ~26dB más floja
+        silencio = np.zeros_like(t2)                             # sin señal
+        sf.write(str(carpeta_niveles / "GTR.wav"), fuerte.reshape(-1, 1), SR)
+        sf.write(str(carpeta_niveles / "SAYMON.wav"), floja.reshape(-1, 1), SR)
+        sf.write(str(carpeta_niveles / "KHROZ.wav"), silencio.reshape(-1, 1), SR)
+
+        plan_niveles = calcular_plan(
+            carpeta_niveles,
+            roles_manual={"SAYMON": "voz_principal", "KHROZ": "coros"},
+        )
+        check("normalización: la voz floja recibe MÁS ganancia que la guitarra fuerte",
+              plan_niveles["stems"]["SAYMON"]["ganancia_db"]
+              > plan_niveles["stems"]["GTR"]["ganancia_db"],
+              str(plan_niveles["stems"]))
+        check("normalización: el stem en silencio NO se normaliza (evita amplificar ruido)",
+              plan_niveles["stems"]["KHROZ"]["normalizacion_db"] == 0.0,
+              str(plan_niveles["stems"]["KHROZ"]))
+        check("normalización: el stem en silencio se reporta en 'silenciosos'",
+              "KHROZ" in plan_niveles["silenciosos"], str(plan_niveles["silenciosos"]))
 
         # --- integración: sumar_stems con plan_mezcla no rompe y produce
         # audio estéreo con diferencia L/R real (evidencia de que sí paneó) ---

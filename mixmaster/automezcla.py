@@ -16,8 +16,30 @@ import re
 from pathlib import Path
 
 import numpy as np
+import soundfile as sf
 
 FORMATOS_STEM = (".wav", ".flac", ".aiff", ".aif")
+
+# Normalización de nivel de ENTRADA (antes del offset por rol) — corrige
+# que dos stems del mismo rol suenen distinto en la mezcla final solo
+# porque uno se grabó más caliente que el otro (encontrado con audio real:
+# guitarra a -27dB RMS vs teclas a -32dB RMS, mismo rol/offset, la
+# guitarra dominaba igual; voz principal a -42.5dB RMS, 15dB más floja que
+# el resto, quedaba "lejos" pese al +2dB de rol). Sin esto, la jerarquía
+# de rol solo es correcta si todos los stems entraron grabados parejo,
+# lo cual no pasa en grabaciones en vivo reales.
+#
+# La referencia es la MEDIANA de RMS de la propia sesión, no un número
+# absoluto fijo — bug real encontrado al probar con audio real: con un
+# valor fijo (-20dB), CASI TODOS los stems de una tanda grabada floja a
+# propósito (headroom conservador para un show en vivo, decisión válida
+# del ingeniero) pedían el tope de ganancia — intentaba "corregir" una
+# sesión entera en vez de solo los outliers reales dentro de ella.
+REF_RMS_DB_FALLBACK = -20.0  # solo si no hay suficientes stems con señal real
+MAX_NORM_DB = 18.0          # tope de ganancia de normalización
+UMBRAL_SILENCIO_DB = -60.0  # por debajo de esto no se normaliza (probable
+                             # silencio real en este tramo, no un problema
+                             # de nivel — amplificarlo solo sube ruido)
 
 # --- Clasificación de rol por nombre (más granular que _tipo de
 # stem_diagnostico.py, que solo distingue bajo/batería/guitarra/voz/genérico) ---
@@ -117,17 +139,39 @@ def clasificar_rol(nombre: str, roles_manual: dict[str, str] | None = None) -> s
     return "generico"
 
 
-def calcular_plan(carpeta: Path, roles_manual: dict[str, str] | None = None) -> dict:
+def _rms_db_archivo(path: Path) -> float:
+    """RMS en dB de un archivo de audio (downmix a mono)."""
+    audio, _ = sf.read(str(path), always_2d=True)
+    mono = audio.mean(axis=1).astype(np.float64)
+    rms = float(np.sqrt(np.mean(mono ** 2)))
+    return 20 * np.log10(max(rms, 1e-12))
+
+
+def calcular_plan(carpeta: Path, roles_manual: dict[str, str] | None = None,
+                   normalizar_nivel: bool = True) -> dict:
     """Calcula ganancia (dB) y pan (-1..1) por stem — PUNTO DE PARTIDA de
     balance/panning por convención de mezcla, no una mezcla terminada.
 
+    `normalizar_nivel` (default True): mide el RMS real de cada stem y lo
+    lleva a la MEDIANA de RMS de la propia sesión (no un número absoluto
+    fijo — ver nota en las constantes de arriba) ANTES de aplicar el
+    offset de rol. Sin esto, dos stems del mismo rol pueden sonar muy
+    distinto en la mezcla final solo porque uno se grabó más caliente.
+    Los stems casi silenciosos (< `UMBRAL_SILENCIO_DB`) no se
+    normalizan — se reportan aparte en "silenciosos", puede ser silencio
+    real de ese
+    tramo del tema, no un problema de nivel.
+
     Devuelve:
-      {"stems": {nombre_stem: {"rol":, "ganancia_db":, "pan":}},
-       "sin_clasificar": [nombres que cayeron a "generico" sin roles_manual]}
+      {"stems": {nombre_stem: {"rol":, "ganancia_db":, "pan":, "rms_db":,
+                                "normalizacion_db":}},
+       "sin_clasificar": [...], "silenciosos": [...]}
     """
     carpeta = Path(carpeta)
-    archivos = sorted(p.stem for p in carpeta.iterdir()
-                       if p.is_file() and p.suffix.lower() in FORMATOS_STEM)
+    paths = sorted(p for p in carpeta.iterdir()
+                   if p.is_file() and p.suffix.lower() in FORMATOS_STEM)
+    archivos = [p.stem for p in paths]
+    ruta_por_nombre = {p.stem: p for p in paths}
 
     grupos: dict = {}
     for nombre in archivos:
@@ -135,8 +179,21 @@ def calcular_plan(carpeta: Path, roles_manual: dict[str, str] | None = None) -> 
         clave = clave.lower() if isinstance(clave, str) else clave
         grupos.setdefault(clave, []).append((nombre, lado))
 
+    rms_por_nombre: dict[str, float | None] = {}
+    ref_rms_db = REF_RMS_DB_FALLBACK
+    if normalizar_nivel:
+        for nombre in archivos:
+            try:
+                rms_por_nombre[nombre] = _rms_db_archivo(ruta_por_nombre[nombre])
+            except Exception:
+                rms_por_nombre[nombre] = None
+        con_senal = [v for v in rms_por_nombre.values()
+                     if v is not None and v > UMBRAL_SILENCIO_DB]
+        if con_senal:
+            ref_rms_db = float(np.median(con_senal))
+
     plan: dict[str, dict] = {}
-    sin_clasificar = []
+    sin_clasificar, silenciosos = [], []
     alterno_idx = 0
     for miembros in grupos.values():
         es_par = len(miembros) == 2 and all(lado is not None for _, lado in miembros)
@@ -146,7 +203,16 @@ def calcular_plan(carpeta: Path, roles_manual: dict[str, str] | None = None) -> 
             if rol == "generico" and not manual:
                 sin_clasificar.append(nombre)
 
-            ganancia_db = NIVEL_DB.get(rol, NIVEL_DB["generico"])
+            rol_db = NIVEL_DB.get(rol, NIVEL_DB["generico"])
+            rms_db = rms_por_nombre.get(nombre)
+            norm_db = 0.0
+            if normalizar_nivel and rms_db is not None:
+                if rms_db <= UMBRAL_SILENCIO_DB:
+                    silenciosos.append(nombre)
+                else:
+                    norm_db = float(np.clip(ref_rms_db - rms_db, -MAX_NORM_DB, MAX_NORM_DB))
+            ganancia_db = round(rol_db + norm_db, 1)
+
             if es_par:
                 pan = -0.7 if lado == "A" else 0.7
             elif rol in ("percusion_mayor", "percusion_menor"):
@@ -154,9 +220,15 @@ def calcular_plan(carpeta: Path, roles_manual: dict[str, str] | None = None) -> 
                 alterno_idx += 1
             else:
                 pan = PAN_DEFAULT.get(rol, 0.0)
-            plan[nombre] = {"rol": rol, "ganancia_db": ganancia_db, "pan": round(pan, 2)}
 
-    return {"stems": plan, "sin_clasificar": sorted(sin_clasificar)}
+            plan[nombre] = {
+                "rol": rol, "ganancia_db": ganancia_db, "pan": round(pan, 2),
+                "rms_db": round(rms_db, 1) if rms_db is not None else None,
+                "normalizacion_db": round(norm_db, 1),
+            }
+
+    return {"stems": plan, "sin_clasificar": sorted(sin_clasificar),
+            "silenciosos": sorted(silenciosos), "ref_rms_db": round(ref_rms_db, 1)}
 
 
 def aplicar_pan(mono: np.ndarray, pan: float) -> np.ndarray:
@@ -175,9 +247,16 @@ def plan_legible(plan: dict) -> str:
     for nombre, info in sorted(plan["stems"].items()):
         pan_txt = ("centro" if abs(info["pan"]) < 0.01
                     else f"{'izq' if info['pan'] < 0 else 'der'} {abs(info['pan']) * 100:.0f}%")
+        rms_txt = f" (RMS {info['rms_db']:.1f}dB, norm {info['normalizacion_db']:+.1f}dB)" \
+            if info.get("rms_db") is not None else ""
+        aviso_gan = "  ⚠ ganancia grande, revisá ruido de fondo" \
+            if abs(info.get("normalizacion_db", 0)) >= 10 else ""
         lineas.append(f"  {nombre:<24} [{info['rol']:<16}] "
-                      f"{info['ganancia_db']:+.1f} dB   pan {pan_txt}")
+                      f"{info['ganancia_db']:+.1f} dB   pan {pan_txt}{rms_txt}{aviso_gan}")
     if plan["sin_clasificar"]:
         lineas += ["", "— SIN CLASIFICAR (nivel/pan neutro, ajustá de oído o decime el rol) —"]
         lineas += [f"  {n}" for n in plan["sin_clasificar"]]
+    if plan.get("silenciosos"):
+        lineas += ["", "— CASI SIN SEÑAL en este tramo (no normalizado; puede ser silencio real, no un problema de nivel) —"]
+        lineas += [f"  {n}" for n in plan["silenciosos"]]
     return "\n".join(lineas)
