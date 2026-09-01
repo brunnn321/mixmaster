@@ -222,6 +222,42 @@
         "mono_bass_hz": null,
         "score": null,
         "referencias": []
+      },
+      {
+        "fecha": "2026-08-20 16:36:34",
+        "target_lufs": -7.0,
+        "lufs_final": -6.9,
+        "crest_final": 7.9,
+        "true_peak_final": -1.6,
+        "eq_aplicado_db": {
+          "air": -2.0,
+          "high": -3.9,
+          "high_mid": -0.6,
+          "low": -1.2,
+          "low_mid": -0.9,
+          "mid": 2.9,
+          "sub": 2.2
+        },
+        "ajuste_ancho_db": {
+          "air": 1.0,
+          "high": 1.0,
+          "high_mid": 1.0,
+          "low_mid": 1.0,
+          "mid": 1.0
+        },
+        "multibanda_db": {
+          "low": 1.8
+        },
+        "mono_bass_hz": 100.0,
+        "score": {
+          "dinamica": 76,
+          "global": 73,
+          "imagen": 58,
+          "tonal": 80
+        },
+        "referencias": [
+          "10 - Perfect Pillow.mp3"
+        ]
       }
     ],
     "mezclas_propias": [
@@ -233,6 +269,24 @@
         "centroide_hz": 529.6,
         "rolloff_hz": 737.5,
         "plr_db": 16.2
+      },
+      {
+        "fecha": "2026-08-20 14:09:48",
+        "inclinacion_db_oct": -2.95,
+        "definicion_graves_db": 6.8,
+        "punch": 1.63,
+        "centroide_hz": 658.6,
+        "rolloff_hz": 322.3,
+        "plr_db": 12.3
+      },
+      {
+        "fecha": "2026-08-20 16:32:31",
+        "inclinacion_db_oct": -3.88,
+        "definicion_graves_db": 4.6,
+        "punch": 1.67,
+        "centroide_hz": 807.9,
+        "rolloff_hz": 1576.2,
+        "plr_db": 13.9
       }
     ],
     "rechazados": [
@@ -386,6 +440,76 @@
         "mono_bass_hz": null,
         "score": null,
         "referencias": []
+      },
+      {
+        "fecha": "2026-08-20 14:11:40",
+        "target_lufs": -9.0,
+        "lufs_final": -9.0,
+        "crest_final": 9.7,
+        "true_peak_final": -1.6,
+        "eq_aplicado_db": {
+          "air": -3.7,
+          "high": -4.0,
+          "high_mid": -3.0,
+          "low": -1.5,
+          "low_mid": 3.6,
+          "mid": 3.7,
+          "sub": 3.5
+        },
+        "ajuste_ancho_db": {
+          "high_mid": 1.0,
+          "low_mid": 1.0,
+          "mid": 1.0
+        },
+        "multibanda_db": {
+          "low_mid": 0.3,
+          "mid": 2.4
+        },
+        "mono_bass_hz": 100.0,
+        "score": {
+          "dinamica": 76,
+          "global": 59,
+          "imagen": 78,
+          "tonal": 41
+        },
+        "referencias": [
+          "03. Theme from a Perfect World.mp3"
+        ]
+      },
+      {
+        "fecha": "2026-08-20 14:15:35",
+        "target_lufs": -7.0,
+        "lufs_final": -7.0,
+        "crest_final": 7.7,
+        "true_peak_final": -1.6,
+        "eq_aplicado_db": {
+          "air": -3.7,
+          "high": -4.0,
+          "high_mid": -3.0,
+          "low": -1.5,
+          "low_mid": 3.6,
+          "mid": 3.7,
+          "sub": 3.5
+        },
+        "ajuste_ancho_db": {
+          "high_mid": 1.0,
+          "low_mid": 1.0,
+          "mid": 1.0
+        },
+        "multibanda_db": {
+          "low_mid": 0.3,
+          "mid": 2.4
+        },
+        "mono_bass_hz": 100.0,
+        "score": {
+          "dinamica": 60,
+          "global": 56,
+          "imagen": 78,
+          "tonal": 43
+        },
+        "referencias": [
+          "03. Theme from a Perfect World.mp3"
+        ]
       }
     ]
   }
