@@ -53,7 +53,7 @@ _ROLES_CLAVES = {
     "hats": ("hh", "hihat", "hi-hat", "hat"),
     "overhead": ("over", "oh", "overhead"),
     "room": ("room", "ambiente", "sala"),
-    "percusion_mayor": ("conga", "tumba"),
+    "percusion_mayor": ("conga", "tumba", "timbal", "tb h", "tb l"),
     "percusion_menor": ("bongo", "campana", "cencerro", "guiro", "shaker", "pandereta"),
     "guitarra": ("gtr", "guitar", "guitarra"),
     "teclas": ("keys", "teclado", "piano", "synth"),
@@ -209,6 +209,15 @@ def calcular_plan(carpeta: Path, roles_manual: dict[str, str] | None = None,
             if normalizar_nivel and rms_db is not None:
                 if rms_db <= UMBRAL_SILENCIO_DB:
                     silenciosos.append(nombre)
+                elif rol == "generico" and not manual:
+                    # Sin identificar de qué instrumento se trata (mic de
+                    # repuesto, ambiente, bleed) — normalizar a la mediana de
+                    # la sesión asume que es un instrumento esperado a ese
+                    # nivel, lo cual no sabemos. Bug real (2026-09-04): un
+                    # stem sin nombre quedó con +12dB solo por medir bajo de
+                    # RMS, tapando todo lo demás. Sin normalización hasta que
+                    # se identifique (roles_manual).
+                    pass
                 else:
                     norm_db = float(np.clip(ref_rms_db - rms_db, -MAX_NORM_DB, MAX_NORM_DB))
             ganancia_db = round(rol_db + norm_db, 1)
