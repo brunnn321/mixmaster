@@ -52,3 +52,68 @@ def color_glow(hex_color: str, alpha: int = 180) -> QColor:
     c = QColor(hex_color)
     c.setAlpha(alpha)
     return c
+
+
+# ---- QSS de app completa (rediseño "rack analógico", 2026-09-04) ----------
+# Se aplica a nivel QApplication (no solo MainWindow) para que TODOS los
+# diálogos existentes (Historial, Notas, Null test, A/B ciego, Convertidor,
+# Settings, asistente de primera ejecución, etc.) hereden el mismo lenguaje
+# visual automáticamente, sin tocar el código de cada diálogo uno por uno.
+# Reemplaza el chasis oscuro genérico (negro + un solo verde) por el look de
+# unidad de rack analógica (chasis cálido + acento ámbar/tungsteno) acordado
+# con Bruno tras rechazar las direcciones anteriores por "genéricas".
+QSS_APP = f"""
+QMainWindow, QDialog {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 #2c4a52, stop:0.45 #1c333a, stop:1 #142027);
+}}
+QWidget {{ color: {INK}; }}
+QMenuBar {{
+    background: #0f1c1e; color: {INK};
+    border-bottom: 1px solid #2c4048;
+}}
+QMenuBar::item {{ background: transparent; padding: 6px 10px; }}
+QMenuBar::item:selected {{ background: {AMBAR}; color: #1c2a2c; }}
+QMenu {{ background: #101c1f; color: {INK}; border: 1px solid #2c4048; }}
+QMenu::item {{ padding: 6px 20px; }}
+QMenu::item:selected {{ background: {AMBAR}; color: #1c2a2c; }}
+QPushButton {{
+    background: #1a262b; color: {INK}; border: 1px solid #2c4048;
+    border-radius: 5px; padding: 7px 14px;
+}}
+QPushButton:hover {{ border-color: {AMBAR}; }}
+QPushButton:pressed {{ background: #12191d; }}
+QPushButton:disabled {{ color: {INK_DIM}; border-color: #223229; }}
+QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QTextEdit, QPlainTextEdit,
+QListWidget, QTreeWidget, QTableWidget {{
+    background: #0f1c1e; color: {INK}; border: 1px solid #2c4048;
+    border-radius: 4px; padding: 4px; selection-background-color: {AMBAR};
+    selection-color: #1c2a2c;
+}}
+QTabWidget::pane {{ border: 1px solid #2c4048; background: #101c1f; }}
+QTabBar::tab {{
+    background: #1a262b; color: {INK_DIM}; padding: 8px 16px;
+    border: 1px solid #2c4048; border-bottom: none;
+}}
+QTabBar::tab:selected {{ background: {AMBAR}; color: #1c2a2c; }}
+QProgressBar {{
+    background: #0f1c1e; border: 1px solid #2c4048; border-radius: 4px;
+    text-align: center; color: {INK};
+}}
+QProgressBar::chunk {{ background: {AMBAR}; }}
+QScrollBar:vertical {{ background: #101c1f; width: 12px; margin: 0; }}
+QScrollBar::handle:vertical {{ background: #2c4048; border-radius: 5px; min-height: 24px; }}
+QScrollBar:horizontal {{ background: #101c1f; height: 12px; margin: 0; }}
+QScrollBar::handle:horizontal {{ background: #2c4048; border-radius: 5px; min-width: 24px; }}
+QGroupBox {{
+    border: 1px solid #2c4048; border-radius: 6px; margin-top: 12px;
+    color: {AMBAR}; padding-top: 10px;
+}}
+QGroupBox::title {{ subcontrol-origin: margin; left: 8px; padding: 0 4px; }}
+QCheckBox, QRadioButton {{ color: {INK}; }}
+QLabel {{ color: {INK}; }}
+QToolTip {{
+    background: #101c1f; color: {INK}; border: 1px solid {AMBAR};
+    padding: 4px;
+}}
+"""

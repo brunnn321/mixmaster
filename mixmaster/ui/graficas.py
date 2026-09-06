@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 from ..audio_analysis import cargar_audio, espectro_suavizado
 from ..logger import get_logger
 from . import tema
+from .vu_meter import VUMeter
 
 log = get_logger("mixmaster.ui.graficas")
 
@@ -466,6 +467,18 @@ def _medidor_led(titulo, valor, vmin, vmax, amb_frac=0.82, red_frac=0.92, n=18):
     return _MedidorLED(titulo, valor, vmin, vmax, amb_frac, red_frac, n)
 
 
+def _vu_meter(titulo, valor, vmin, vmax, sano_min=None, sano_max=None):
+    """Aguja VU física (`vu_meter.VUMeter`) — reemplaza la escalera de LEDs
+    en el panel de resultados. `sano_min`/`sano_max` definen la zona sana
+    real (ej. crest 6-12dB, medida de los votos de Bruno en `config/roadmap.md`)."""
+    ticks = [(i / 4, f"{vmin + (vmax - vmin) * i / 4:g}") for i in range(5)]
+    frac = 0.5 if valor is None else max(0.0, min(1.0, (valor - vmin) / (vmax - vmin)))
+    sano = None
+    if valor is not None and sano_min is not None and sano_max is not None:
+        sano = sano_min <= valor <= sano_max
+    return VUMeter(titulo, ticks, frac, sano)
+
+
 # ------------------------------------------------------------- readouts
 
 def _tarjeta_metrica(titulo: str, antes, despues, unidad: str = "",
@@ -608,13 +621,18 @@ def construir_panel_mastering(resumen: dict, diagnostico: dict | None,
         fila.addWidget(_pantalla("IMAGEN ESTÉREO",
                                  f"CORR {corr:.2f}" if corr is not None else "", gonio), stretch=3)
 
-    # medidores LED
     g = (diagnostico or {}).get("global", {})
+
+    # medidores — aguja VU física (rediseño 2026-09-04, mixmaster/ui/vu_meter.py)
     med = QHBoxLayout()
     med.setSpacing(8)
-    med.addWidget(_medidor_led("LUFS", resumen.get("lufs_final"), -30, 0))
-    med.addWidget(_medidor_led("PEAK", resumen.get("true_peak_final"), -30, 0))
-    med.addWidget(_medidor_led("CREST", resumen.get("crest_final"), 0, 20, amb_frac=2, red_frac=2))
+    med.addWidget(_vu_meter("LUFS", resumen.get("lufs_final"), -20, -6,
+                            sano_min=(resumen.get("target_lufs") or -9) - 1,
+                            sano_max=(resumen.get("target_lufs") or -9) + 1))
+    med.addWidget(_vu_meter("TRUE PEAK", resumen.get("true_peak_final"), -6, 0,
+                            sano_min=-6, sano_max=-0.5))
+    med.addWidget(_vu_meter("CREST", resumen.get("crest_final"), 4, 18,
+                            sano_min=6, sano_max=12))
     med_cont = QWidget()
     med_cont.setLayout(med)
     fila.addWidget(med_cont, stretch=2)

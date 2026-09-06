@@ -42,6 +42,13 @@ def main() -> int:
     app.setApplicationName("MixMaster")
     app.setApplicationDisplayName("MixMaster")
 
+    # Rediseño visual (2026-09-04): un solo QSS a nivel app para que TODOS
+    # los diálogos (Historial, Notas, Null test, A/B ciego, Convertidor,
+    # Settings, primer inicio) hereden el mismo lenguaje visual sin tocarlos
+    # uno por uno — ver mixmaster/ui/tema.py::QSS_APP.
+    from mixmaster.ui import tema
+    app.setStyleSheet(tema.QSS_APP)
+
     # Instancia única: si ya hay una abierta, avisar y salir (no abrir otra).
     from PySide6.QtCore import QSharedMemory
     global _instancia_lock
