@@ -13,6 +13,7 @@ Panel:
 """
 
 import numpy as np
+from pathlib import Path
 from PySide6.QtCharts import QChart, QChartView, QLineSeries, QLogValueAxis, QValueAxis
 from PySide6.QtCore import QMargins, QPointF, Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
@@ -26,6 +27,7 @@ from ..logger import get_logger
 from . import tema
 from .vu_meter import VUMeter
 from .espectrograma import Espectrograma
+from .waveform import Waveform
 
 log = get_logger("mixmaster.ui.graficas")
 
@@ -615,6 +617,17 @@ def construir_panel_mastering(resumen: dict, diagnostico: dict | None,
         esp = Espectrograma()
         esp.actualizar_espectro(np.array(freqs_master), np.array(db_master))
         fila.addWidget(_pantalla("ESPECTRO REAL", "20Hz-20kHz", esp), stretch=3)
+
+    # Waveform del master
+    wav_master = Path_wav(resumen)
+    if wav_master is not None and wav_master.exists():
+        try:
+            audio, sr = cargar_audio(str(wav_master))
+            wf = Waveform()
+            wf.actualizar_audio(audio, sr)
+            fila.addWidget(_pantalla("FORMA DE ONDA", "L/R estéreo", wf), stretch=3)
+        except Exception:
+            log.exception("No se pudo cargar waveform del master")
 
     gonio = _panel_gonio(Path_wav(resumen))
     est = (diagnostico or {}).get("estereo", {})
