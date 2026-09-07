@@ -25,6 +25,7 @@ from ..audio_analysis import cargar_audio, espectro_suavizado
 from ..logger import get_logger
 from . import tema
 from .vu_meter import VUMeter
+from .espectrograma import Espectrograma
 
 log = get_logger("mixmaster.ui.graficas")
 
@@ -611,8 +612,9 @@ def construir_panel_mastering(resumen: dict, diagnostico: dict | None,
             log.exception("No se pudo calcular el espectro de la mezcla original")
 
     if freqs_master:
-        esp = _grafica_espectro(freqs_pre, db_pre, freqs_master, db_master)
-        fila.addWidget(_pantalla("ESPECTRO", "1/3 OCT", esp), stretch=3)
+        esp = Espectrograma()
+        esp.actualizar_espectro(np.array(freqs_master), np.array(db_master))
+        fila.addWidget(_pantalla("ESPECTRO REAL", "20Hz-20kHz", esp), stretch=3)
 
     gonio = _panel_gonio(Path_wav(resumen))
     est = (diagnostico or {}).get("estereo", {})
