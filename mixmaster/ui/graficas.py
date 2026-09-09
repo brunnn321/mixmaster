@@ -28,6 +28,7 @@ from . import tema
 from .vu_meter import VUMeter
 from .espectrograma import Espectrograma
 from .waveform import Waveform
+from .curves_ab import CurvasAB
 
 log = get_logger("mixmaster.ui.graficas")
 
@@ -688,12 +689,21 @@ def construir_panel_mastering(resumen: dict, diagnostico: dict | None,
         tit.setTextFormat(Qt.RichText)
         tit.setStyleSheet(f"border:none; color:{_INK_DIM}; font-family:{_MONO}; font-size:10px; letter-spacing:2px;")
         cl.addWidget(tit)
-        ley = QLabel(f"<span style='color:{_AMBAR}'>▼ te falta</span>   "
-                     f"<span style='color:{_AZUL}'>▲ te sobra</span>   ·   respecto de la referencia, por banda")
+        ley = QLabel(f"<span style='color:{_VERDE}'>━ tu master</span>   "
+                     f"<span style='color:#8fa4bb'>┄ referencia</span>   ·   "
+                     f"<span style='color:{_AMBAR}'>zona ámbar = te falta</span>   "
+                     f"<span style='color:{_AZUL}'>zona azul = te sobra</span>")
         ley.setTextFormat(Qt.RichText)
         ley.setStyleSheet(f"border:none; color:#54687c; font-family:{_MONO}; font-size:10px;")
         cl.addWidget(ley)
-        cl.addWidget(_BarrasDelta(delta))
+
+        bandas_m = (diagnostico or {}).get("bandas_db") or {}
+        if bandas_m:
+            curvas = CurvasAB()
+            curvas.actualizar(bandas_m, delta, vs.get("referencia", ""))
+            cl.addWidget(curvas)
+        else:
+            cl.addWidget(_BarrasDelta(delta))
         lay.addWidget(caja)
 
     # loudness war score: ¿zona sana o sobre-comprimido?
