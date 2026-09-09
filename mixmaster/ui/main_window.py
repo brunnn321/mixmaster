@@ -10,7 +10,8 @@ from pathlib import Path
 from PySide6.QtCore import (
     QEasingCurve, QEvent, QObject, QPropertyAnimation, QUrl, Qt, QThread, QTimer, Signal,
 )
-from PySide6.QtGui import QAction, QColor
+from PySide6.QtCore import QRectF
+from PySide6.QtGui import QAction, QColor, QFont, QPainter, QPen
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import (
     QCheckBox, QComboBox, QDialog, QFileDialog, QFrame,
@@ -36,6 +37,8 @@ from ..report import comparar_progreso, guardar_diagnostico, reporte_legible
 from ..settings import Settings
 from ..stems import procesar_stems, reporte_stems_legible
 from ..voice_processing import cargar_config_voz, procesar_voz
+from . import hardware as hw
+from . import tema
 from .historial_dialog import HistorialDialog
 from .settings_dialog import SettingsDialog
 
@@ -176,7 +179,12 @@ class _BotonMaster(QPushButton):
 
 
 class _ZonaDrop(QLabel):
-    """Etiqueta-zona clicable (para cargar audio/referencias con un clic)."""
+    """Bahía de rack clicable donde se carga el audio.
+
+    Se pinta entera con QPainter (chapa fresada, tornillos, LED de estado y
+    serigrafía) en vez de con hoja de estilo: un borde punteado de CSS no puede
+    tener volumen, y el volumen es lo que hace que se lea como un equipo.
+    """
 
     clicked = Signal()
 
@@ -184,14 +192,70 @@ class _ZonaDrop(QLabel):
         super().__init__(texto)
         self.setAlignment(Qt.AlignCenter)
         self.setWordWrap(True)
-        self.setStyleSheet(_DROPZONE_VACIA)
         self.setCursor(Qt.PointingHandCursor)
         self.setMinimumHeight(90)
+        self._estado = "vacia"
+        self.setAttribute(Qt.WA_StyledBackground, False)
+
+    def setStyleSheet(self, qss: str):
+        """Traduce las hojas heredadas a estado, sin dejar que pisen la pintura.
+
+        El resto de la ventana sigue llamando `setStyleSheet(_DROPZONE_*)` desde
+        seis sitios; en lugar de tocarlos todos, esos avisos se convierten acá en
+        el estado que dibuja `paintEvent`.
+        """
+        if qss == _DROPZONE_LLENA:
+            self._estado = "llena"
+        elif qss == _DROPZONE_HOVER:
+            self._estado = "hover"
+        else:
+            self._estado = "vacia"
+        self.update()
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
             self.clicked.emit()
         super().mousePressEvent(event)
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        marco = QRectF(self.rect()).adjusted(1, 1, -1, -1)
+
+        # chasis alrededor de la bahía
+        hw.dibujar_placa(p, marco, radio=10)
+
+        # la bahía propiamente dicha: un hueco fresado en la chapa
+        hueco = marco.adjusted(13, 13, -13, -13)
+        hw.dibujar_ranura(p, hueco, radio=7)
+
+        if self._estado == "llena":
+            acento, led, prendido = QColor(tema.AMBAR), QColor(tema.VERDE), True
+        elif self._estado == "hover":
+            acento, led, prendido = QColor(tema.AMBAR_CLARO), QColor(tema.AMBAR), True
+        else:
+            acento, led, prendido = QColor(tema.METAL_DIM), QColor(tema.VERDE), False
+
+        p.setBrush(Qt.NoBrush)
+        p.setPen(QPen(acento, 1.6))
+        p.drawRoundedRect(hueco.adjusted(0.8, 0.8, -0.8, -0.8), 7, 7)
+
+        # tornillos en las cuatro esquinas de la chapa
+        for i, (dx, dy) in enumerate(((7, 7), (-7, 7), (7, -7), (-7, -7))):
+            cx = marco.left() + dx if dx > 0 else marco.right() + dx
+            cy = marco.top() + dy if dy > 0 else marco.bottom() + dy
+            hw.dibujar_tornillo(p, cx, cy, r=4.2, angulo=28 + i * 24)
+
+        hw.dibujar_led(p, hueco.right() - 13, hueco.top() + 12, 3.4, led, prendido)
+
+        # serigrafía sobre el hueco
+        fuente = QFont(tema.MONO, 10)
+        fuente.setLetterSpacing(QFont.AbsoluteSpacing, 1.4)
+        p.setFont(fuente)
+        p.setPen(QColor(tema.CREMA) if self._estado != "vacia" else QColor(tema.INK_DIM))
+        p.drawText(hueco.adjusted(16, 10, -16, -10).toRect(),
+                   int(Qt.AlignCenter | Qt.TextWordWrap), self.text())
+        p.end()
 
 
 class AnalisisWorker(QThread):
@@ -517,7 +581,11 @@ class MainWindow(QMainWindow):
         self.lbl_guia = QLabel("")
         self.lbl_guia.setWordWrap(True)
         self.lbl_guia.setStyleSheet(
-            "background: #2b3a55; color: white; padding: 8px; border-radius: 4px;")
+            f"background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
+            f" stop:0 {tema.CHASIS_ALTO}, stop:1 {tema.CHASIS_BAJO});"
+            f" color: {tema.AMBAR}; padding: 8px; border-radius: 4px;"
+            f" border: 1px solid {tema.METAL_DIM};"
+            f" font-family: {tema.MONO}; letter-spacing: 2px;")
         raiz.addWidget(self.lbl_guia)
 
         # --- pila de pasos ---
