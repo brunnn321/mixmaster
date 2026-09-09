@@ -7,9 +7,11 @@ de frecuencia, actualizado con datos reales del audio procesado.
 from __future__ import annotations
 
 import numpy as np
-from PySide6.QtCore import Qt, QPropertyAnimation, QEasingCurve
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import QWidget
+
+from . import tema
 
 _FONDO = QColor("#0f1c1e")
 _GRID = QColor("#1f3b34")
@@ -59,7 +61,7 @@ class Espectrograma(QWidget):
         freqs_marcas = [20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000]
         p.setPen(QPen(_GRID, 0.5))
         p.setFont(QFont(self.font()))
-        p.setFont(QFont("IBM Plex Mono", 8))
+        p.setFont(QFont(tema.MONO, 8))
 
         for f_marca in freqs_marcas:
             if f_marca < self._freqs.min() or f_marca > self._freqs.max():

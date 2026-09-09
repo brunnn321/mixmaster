@@ -1,7 +1,8 @@
 """Waveform display: forma de onda estéreo (L/R) con peaks resaltados.
 
-Dibuja las muestras del audio en tiempo real, color azul (izquierda) y
-verde (derecha) sobre fondo oscuro con grid temporal.
+Dibuja las muestras reales del master en dos carriles (L arriba, R abajo),
+con envolvente min/max por columna de píxel — el mismo método que usan los
+editores de audio, que conserva la forma real en vez de aplanarla.
 """
 
 from __future__ import annotations
@@ -11,123 +12,134 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import QWidget
 
-_FONDO = QColor("#0f1c1e")
-_GRID = QColor("#1f3b34")
-_TEXTO = QColor("#7f9a9c")
-_CH_L = QColor("#78b0ff")  # Azul para canal izquierdo
-_CH_R = QColor("#43e08a")  # Verde para canal derecho
-_PEAK = QColor("#e8a33d")  # Ámbar para peaks
+from . import tema
+
+_FONDO = QColor("#0c141b")
+_GRID = QColor("#233648")
+_EJE = QColor("#2c4053")
+_TEXTO = QColor("#54687c")
+_CH_L = QColor("#5fa8ff")   # azul — canal izquierdo
+_CH_R = QColor("#39d98a")   # verde — canal derecho
+_PEAK = QColor("#e8a33d")   # ámbar — muestras cerca de 0 dBFS
+
+_UMBRAL_PEAK = 0.97  # |muestra| por encima de esto se marca como peak
 
 
 class Waveform(QWidget):
-    """Visualizador de forma de onda estéreo."""
+    """Visualizador de forma de onda estéreo con envolvente real."""
 
     def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
-        self.setMinimumSize(600, 200)
+        self.setMinimumSize(320, 180)
         self.setAttribute(Qt.WA_StyledBackground, False)
 
-        # Audio: shape (n_samples, 2) para L/R
-        self._audio = np.array([])
+        self._audio = np.zeros((0, 2), dtype=np.float32)
         self._sr = 44100
 
     def actualizar_audio(self, audio: np.ndarray, sr: int = 44100) -> None:
-        """Actualiza con datos de audio real (shape: (n_samples,) o (n_samples, 2))."""
-        if audio.ndim == 1:
-            audio = np.column_stack([audio, audio])  # Mono → estéreo
-        self._audio = np.asarray(audio, dtype=np.float32)
-        self._sr = sr
+        """Carga audio real. Acepta (n,) mono o (n, 2) estéreo."""
+        a = np.asarray(audio, dtype=np.float32)
+        if a.ndim == 1:
+            a = np.column_stack([a, a])
+        elif a.ndim == 2 and a.shape[0] < a.shape[1]:
+            a = a.T                      # venía como (2, n)
+        if a.shape[1] == 1:
+            a = np.column_stack([a[:, 0], a[:, 0]])
+        self._audio = a[:, :2]
+        self._sr = sr or 44100
         self.update()
+
+    # ------------------------------------------------------------ pintura
 
     def paintEvent(self, event):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
 
         w, h = self.width(), self.height()
-        pad_l, pad_r = 60, 20
-        pad_t, pad_b = 20, 40
-        gw = w - pad_l - pad_r
-        gh = h - pad_t - pad_b
+        pad_l, pad_r, pad_t, pad_b = 34, 12, 10, 22
+        gw, gh = w - pad_l - pad_r, h - pad_t - pad_b
 
-        # Fondo
         p.fillRect(0, 0, w, h, _FONDO)
-
-        if len(self._audio) == 0:
-            p.setPen(_TEXTO)
-            p.setFont(QFont("IBM Plex Mono", 10))
-            p.drawText(w // 2 - 100, h // 2, 200, 20, Qt.AlignCenter, "Sin audio")
+        if gw <= 4 or gh <= 8:
             p.end()
             return
 
-        # Grid temporal: cada segundo
-        duracion_s = len(self._audio) / self._sr
-        n_marcas = max(2, int(duracion_s))
-        p.setPen(QPen(_GRID, 0.5))
-        p.setFont(QFont("IBM Plex Mono", 8))
-        p.setPen(_TEXTO)
-
-        for i in range(n_marcas + 1):
-            tiempo = (duracion_s * i) / n_marcas if n_marcas > 0 else 0
-            frac = i / (n_marcas + 1) if n_marcas > 0 else 0
-            x = pad_l + frac * gw
-            p.setPen(QPen(_GRID, 0.5))
-            p.drawLine(int(x), pad_t, int(x), pad_t + gh))
+        if len(self._audio) == 0:
             p.setPen(_TEXTO)
-            p.drawText(int(x) - 20, pad_t + gh + 15, 40, 15, Qt.AlignCenter, f"{tiempo:.1f}s")
+            p.setFont(QFont(tema.MONO, 9))
+            p.drawText(0, h // 2 - 8, w, 16, Qt.AlignCenter, "SIN AUDIO")
+            p.end()
+            return
 
-        # Línea central
-        cy = pad_t + gh // 2
-        p.setPen(QPen(_GRID, 0.5))
-        p.drawLine(pad_l, int(cy), pad_l + gw, int(cy))
+        # dos carriles: L arriba, R abajo, con un respiro entre ellos
+        gap = 6
+        lane_h = (gh - gap) / 2
+        cy_l = pad_t + lane_h / 2
+        cy_r = pad_t + lane_h + gap + lane_h / 2
 
-        # Dibujar waveform: submuestreo para que no sea tan denso
-        n_pixels = gw
-        step = max(1, len(self._audio) // n_pixels)
+        self._grid_tiempo(p, pad_l, pad_t, gw, gh, pad_b)
+        self._dibujar_canal(p, 0, _CH_L, pad_l, gw, cy_l, lane_h / 2)
+        self._dibujar_canal(p, 1, _CH_R, pad_l, gw, cy_r, lane_h / 2)
 
-        # Canal L (azul)
-        if self._audio.shape[1] >= 1:
-            p.setPen(QPen(_CH_L, 1.2))
-            for i in range(0, len(self._audio) - step, step):
-                chunk = self._audio[i:i+step, 0]
-                if len(chunk) == 0:
-                    continue
-                sample_normalized = np.mean(np.abs(chunk))
+        # etiquetas de canal
+        p.setFont(QFont(tema.MONO, 8))
+        p.setPen(_CH_L)
+        p.drawText(4, int(cy_l) - 7, pad_l - 8, 14, Qt.AlignVCenter | Qt.AlignRight, "L")
+        p.setPen(_CH_R)
+        p.drawText(4, int(cy_r) - 7, pad_l - 8, 14, Qt.AlignVCenter | Qt.AlignRight, "R")
 
-                x = pad_l + (i / len(self._audio)) * gw
-                y_offset = sample_normalized * (gh // 2)
-
-                y_top = cy - y_offset
-                y_bottom = cy + y_offset
-
-                p.drawLine(int(x), int(y_top), int(x), int(y_bottom))
-
-        # Canal R (verde)
-        if self._audio.shape[1] >= 2:
-            p.setPen(QPen(_CH_R, 1.2))
-            for i in range(0, len(self._audio) - step, step):
-                chunk = self._audio[i:i+step, 1]
-                if len(chunk) == 0:
-                    continue
-                sample_normalized = np.mean(np.abs(chunk))
-
-                x = pad_l + (i / len(self._audio)) * gw
-                y_offset = sample_normalized * (gh // 2)
-
-                y_top = cy - y_offset
-                y_bottom = cy + y_offset
-
-                p.drawLine(int(x) + 1, int(y_top), int(x) + 1, int(y_bottom))
-
-        # Peaks: buscar puntos donde |sample| > 0.95
-        peaks_l = np.where(np.abs(self._audio[:, 0]) > 0.95)[0]
-        if len(peaks_l) > 0:
-            p.setPen(QPen(_PEAK, 2))
-            for peak_idx in peaks_l[::max(1, len(peaks_l) // 20)]:  # Mostrar solo 20 peaks
-                x = pad_l + (peak_idx / len(self._audio)) * gw
-                p.drawPoint(int(x), int(cy) - 3)
-
-        # Marco
-        p.setPen(QPen(_GRID, 1))
+        p.setPen(QPen(_EJE, 1))
         p.drawRect(pad_l, pad_t, gw, gh)
-
         p.end()
+
+    def _grid_tiempo(self, p, pad_l, pad_t, gw, gh, pad_b):
+        """Marcas verticales de tiempo, en pasos redondos (1/5/10/30 s...)."""
+        dur = len(self._audio) / self._sr
+        if dur <= 0:
+            return
+        for paso in (1, 2, 5, 10, 15, 30, 60, 120, 300):
+            if dur / paso <= 8:
+                break
+        p.setFont(QFont(tema.MONO, 7))
+        t = 0.0
+        while t <= dur:
+            x = pad_l + (t / dur) * gw
+            p.setPen(QPen(_GRID, 1, Qt.DotLine))
+            p.drawLine(int(x), pad_t, int(x), pad_t + gh)
+            p.setPen(_TEXTO)
+            p.drawText(int(x) - 22, pad_t + gh + 4, 44, 14,
+                       Qt.AlignCenter, f"{int(t // 60)}:{int(t % 60):02d}")
+            t += paso
+
+    def _dibujar_canal(self, p, ch: int, color: QColor,
+                       pad_l: int, gw: int, cy: float, semi: float):
+        """Envolvente min/max por columna + marcas de peak."""
+        datos = self._audio[:, ch]
+        n = len(datos)
+        cols = int(gw)
+        # bordes de cada columna de píxel sobre la señal
+        bordes = np.linspace(0, n, cols + 1, dtype=np.int64)
+
+        # eje del carril
+        p.setPen(QPen(_EJE, 1))
+        p.drawLine(pad_l, int(cy), pad_l + int(gw), int(cy))
+
+        p.setPen(QPen(color, 1))
+        for i in range(cols):
+            a, b = bordes[i], bordes[i + 1]
+            if b <= a:
+                continue
+            bloque = datos[a:b]
+            lo, hi = float(bloque.min()), float(bloque.max())
+            y1 = cy - np.clip(hi, -1.0, 1.0) * semi
+            y2 = cy - np.clip(lo, -1.0, 1.0) * semi
+            x = pad_l + i
+            if abs(y2 - y1) < 1:          # silencio: al menos un píxel visible
+                y1, y2 = cy - 0.5, cy + 0.5
+            p.drawLine(x, int(y1), x, int(y2))
+
+            # peak en esta columna: se pinta encima, en ámbar
+            if max(abs(lo), abs(hi)) >= _UMBRAL_PEAK:
+                p.setPen(QPen(_PEAK, 1))
+                p.drawLine(x, int(y1), x, int(y2))
+                p.setPen(QPen(color, 1))
