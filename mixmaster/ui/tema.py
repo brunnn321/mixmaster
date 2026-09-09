@@ -1,44 +1,63 @@
-"""Lenguaje visual único de MixMaster (Paso 1 del rediseño, veredicto de El
-Consejo 2026-08-05): un solo lugar con los colores y el efecto de glow, para
-que cualquier widget nuevo — o reescrito — use exactamente lo mismo.
+"""Lenguaje visual único de MixMaster — rack analógico ámbar (outboard gear).
 
-Sin esto, cada widget queda como isla suelta (fue el problema original:
-2 verdes distintos para lo que debería ser el mismo acento). Con esto, el
-"lenguaje" es: fondo tipo chasis oscuro con gradiente sutil, acento fósforo
-verde con glow, ámbar/rojo para advertencia, tipografía monoespaciada para
-valores numéricos (efecto "display digital").
+Un solo lugar con los colores, para que cualquier widget use exactamente lo
+mismo. Sin esto cada widget queda como isla suelta.
 
-Estos valores YA estaban en `graficas.py` (comentario "mockup aprobado" —
-el panel de resultados post-master ya seguía este lenguaje). Se promueven
-acá para que el resto de la UI (botones, medidores, controles) los reuse en
-vez de tener su propia paleta hardcodeada.
+Dirección visual (elegida sobre los mockups, opción A "rack analógico"):
+chasis metálico negro cálido, paneles con serigrafía crema, acento ámbar de
+lámpara de tungsteno, rojo sólo para el límite. Nada de azul frío: el azul
+genérico era justo lo que hacía que la app se viera como cualquier otra.
+
+Las pantallas (espectro, waveform, curvas) van sobre vidrio ahumado cálido y
+pintan en escala de temperatura — ámbar/crema — no en arcoíris azul-rojo.
 """
 
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QGraphicsDropShadowEffect
 
-# ---- paleta ---------------------------------------------------------------
-VERDE = "#43e08a"          # acento principal — éxito, LED encendido, "en objetivo"
-VERDE_GLOW = QColor(67, 224, 138, 180)
-AZUL = "#78b0ff"           # referencia/comparación ("antes", "original")
-AMBAR = "#f0b447"          # advertencia leve
-ROJO = "#f2593a"           # advertencia fuerte / al límite
-INK = "#cddbe8"            # texto principal sobre fondo oscuro
-INK_DIM = "#8598ab"        # texto secundario/atenuado
-MONO = "Consolas"          # tipografía de valores numéricos ("display digital")
+# ---- paleta: chasis --------------------------------------------------------
+CHASIS = "#1b1815"         # negro cálido — cuerpo de la unidad
+CHASIS_ALTO = "#2a251e"    # ceja superior del chasis (luz cenital)
+CHASIS_BAJO = "#141110"    # base del chasis (sombra)
+PANEL = "#232019"          # panel frontal, un punto más claro que el chasis
+VIDRIO = "#12100c"         # fondo de pantalla: vidrio ahumado cálido
+SURCO = "#0d0b09"          # hendiduras / separaciones fresadas
+
+# ---- paleta: metal y serigrafía -------------------------------------------
+METAL = "#8a8478"          # aluminio cepillado — bordes, tornillos
+METAL_DIM = "#4a4438"      # metal en sombra — líneas de grid, marcos
+CREMA = "#dcd3ad"          # serigrafía de panel (etiquetas impresas)
+INK = "#ede6d9"            # texto principal
+INK_DIM = "#9a9184"        # texto secundario
+
+# ---- paleta: acentos (lámparas) -------------------------------------------
+AMBAR = "#e8a33d"          # acento principal — tungsteno encendido
+AMBAR_CLARO = "#f5c46b"    # ámbar al máximo (pico de energía)
+AMBAR_GLOW = QColor(232, 163, 61, 180)
+VERDE = "#8fb865"          # LED verde vintage — "en objetivo", oliva, no neón
+VERDE_GLOW = QColor(143, 184, 101, 170)
+ROJO = "#d64933"           # al límite / clipping
+AZUL = "#8a8478"           # compat: "antes/original" ahora es metal, no azul
+
+MONO = "Consolas"          # valores numéricos ("display digital")
 
 # ---- panel (chasis) --------------------------------------------------------
 PANEL_QSS = (
-    "background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
-    " stop:0 #0c141b, stop:1 #16222d); border:1px solid #33495b;"
-    " border-radius:10px;"
+    f"background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
+    f" stop:0 {PANEL}, stop:1 {CHASIS_BAJO}); border:1px solid {METAL_DIM};"
+    f" border-radius:10px;"
+)
+
+# ---- pantallas -------------------------------------------------------------
+PANTALLA_QSS = (
+    f"background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
+    f" stop:0 {VIDRIO}, stop:1 #1a1611); border:1px solid {METAL_DIM};"
+    f" border-radius:8px;"
 )
 
 
-def glow(widget, color: QColor = VERDE_GLOW, radio: int = 14):
-    """Aplica un halo (drop-shadow sin desplazamiento) — el "control" del
-    lenguaje visual: todo lo que está activo/encendido brilla así, siempre
-    con la misma función, nunca un efecto distinto por widget."""
+def glow(widget, color: QColor = AMBAR_GLOW, radio: int = 14):
+    """Halo (drop-shadow sin desplazamiento): todo lo encendido brilla igual."""
     ef = QGraphicsDropShadowEffect(widget)
     ef.setBlurRadius(radio)
     ef.setColor(color)
@@ -48,72 +67,129 @@ def glow(widget, color: QColor = VERDE_GLOW, radio: int = 14):
 
 
 def color_glow(hex_color: str, alpha: int = 180) -> QColor:
-    """QColor con alpha para glow, a partir de un hex de la paleta (ej. AMBAR)."""
+    """QColor con alpha para glow, a partir de un hex de la paleta."""
     c = QColor(hex_color)
     c.setAlpha(alpha)
     return c
 
 
-# ---- QSS de app completa (rediseño "rack analógico", 2026-09-04) ----------
-# Se aplica a nivel QApplication (no solo MainWindow) para que TODOS los
+def temperatura(norm: float) -> QColor:
+    """Energía 0..1 → color de temperatura, como un filamento al calentarse.
+
+    Reemplaza el degradado azul→verde→rojo (arcoíris genérico de librería) por
+    la rampa real de un cuerpo incandescente: marrón apagado, rojo, ámbar,
+    amarillo, blanco crema. Es lo que da el aspecto de instrumento con lámpara.
+    """
+    n = 0.0 if norm < 0 else (1.0 if norm > 1 else float(norm))
+    paradas = (
+        (0.00, (36, 28, 22)),      # apagado, apenas visible sobre el vidrio
+        (0.25, (122, 48, 26)),     # rojo profundo
+        (0.50, (208, 106, 38)),    # naranja
+        (0.72, (232, 163, 61)),    # ámbar (el acento)
+        (0.88, (245, 196, 107)),   # amarillo cálido
+        (1.00, (247, 232, 200)),   # crema incandescente
+    )
+    for i in range(len(paradas) - 1):
+        t0, c0 = paradas[i]
+        t1, c1 = paradas[i + 1]
+        if n <= t1:
+            f = 0.0 if t1 == t0 else (n - t0) / (t1 - t0)
+            return QColor(*[int(a + (b - a) * f) for a, b in zip(c0, c1)])
+    return QColor(*paradas[-1][1])
+
+
+# ---- QSS de app completa ---------------------------------------------------
+# Se aplica a nivel QApplication (no sólo MainWindow) para que TODOS los
 # diálogos existentes (Historial, Notas, Null test, A/B ciego, Convertidor,
-# Settings, asistente de primera ejecución, etc.) hereden el mismo lenguaje
-# visual automáticamente, sin tocar el código de cada diálogo uno por uno.
-# Reemplaza el chasis oscuro genérico (negro + un solo verde) por el look de
-# unidad de rack analógica (chasis cálido + acento ámbar/tungsteno) acordado
-# con Bruno tras rechazar las direcciones anteriores por "genéricas".
+# Settings, asistente de primera ejecución…) hereden el mismo lenguaje visual
+# sin tocar el código de cada uno.
 QSS_APP = f"""
 QMainWindow, QDialog {{
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-        stop:0 #2c4a52, stop:0.45 #1c333a, stop:1 #142027);
+        stop:0 {CHASIS_ALTO}, stop:0.45 {CHASIS}, stop:1 {CHASIS_BAJO});
 }}
 QWidget {{ color: {INK}; }}
 QMenuBar {{
-    background: #0f1c1e; color: {INK};
-    border-bottom: 1px solid #2c4048;
+    background: {CHASIS_BAJO}; color: {CREMA};
+    border-bottom: 1px solid {METAL_DIM};
 }}
 QMenuBar::item {{ background: transparent; padding: 6px 10px; }}
-QMenuBar::item:selected {{ background: {AMBAR}; color: #1c2a2c; }}
-QMenu {{ background: #101c1f; color: {INK}; border: 1px solid #2c4048; }}
+QMenuBar::item:selected {{ background: {AMBAR}; color: {CHASIS}; }}
+QMenu {{ background: {PANEL}; color: {INK}; border: 1px solid {METAL_DIM}; }}
 QMenu::item {{ padding: 6px 20px; }}
-QMenu::item:selected {{ background: {AMBAR}; color: #1c2a2c; }}
+QMenu::item:selected {{ background: {AMBAR}; color: {CHASIS}; }}
 QPushButton {{
-    background: #1a262b; color: {INK}; border: 1px solid #2c4048;
-    border-radius: 5px; padding: 7px 14px;
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 #322c23, stop:1 #201c16);
+    color: {CREMA}; border: 1px solid {METAL_DIM};
+    border-radius: 4px; padding: 7px 14px;
+    font-family: {MONO}; letter-spacing: 1px;
 }}
-QPushButton:hover {{ border-color: {AMBAR}; }}
-QPushButton:pressed {{ background: #12191d; }}
-QPushButton:disabled {{ color: {INK_DIM}; border-color: #223229; }}
+QPushButton:hover {{ border-color: {AMBAR}; color: {AMBAR_CLARO}; }}
+QPushButton:pressed {{
+    background: {SURCO}; border-color: {AMBAR};
+}}
+QPushButton:disabled {{ color: #5c564b; border-color: #2e2921; }}
 QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QTextEdit, QPlainTextEdit,
 QListWidget, QTreeWidget, QTableWidget {{
-    background: #0f1c1e; color: {INK}; border: 1px solid #2c4048;
-    border-radius: 4px; padding: 4px; selection-background-color: {AMBAR};
-    selection-color: #1c2a2c;
+    background: {VIDRIO}; color: {INK}; border: 1px solid {METAL_DIM};
+    border-radius: 3px; padding: 4px; selection-background-color: {AMBAR};
+    selection-color: {CHASIS};
 }}
-QTabWidget::pane {{ border: 1px solid #2c4048; background: #101c1f; }}
+QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus,
+QTextEdit:focus, QPlainTextEdit:focus {{ border-color: {AMBAR}; }}
+QTabWidget::pane {{ border: 1px solid {METAL_DIM}; background: {PANEL}; }}
 QTabBar::tab {{
-    background: #1a262b; color: {INK_DIM}; padding: 8px 16px;
-    border: 1px solid #2c4048; border-bottom: none;
+    background: #2a251e; color: {INK_DIM}; padding: 8px 16px;
+    border: 1px solid {METAL_DIM}; border-bottom: none;
+    font-family: {MONO}; letter-spacing: 1px;
 }}
-QTabBar::tab:selected {{ background: {AMBAR}; color: #1c2a2c; }}
+QTabBar::tab:selected {{ background: {AMBAR}; color: {CHASIS}; }}
+QTabBar::tab:hover:!selected {{ color: {CREMA}; }}
 QProgressBar {{
-    background: #0f1c1e; border: 1px solid #2c4048; border-radius: 4px;
-    text-align: center; color: {INK};
+    background: {SURCO}; border: 1px solid {METAL_DIM}; border-radius: 3px;
+    text-align: center; color: {CREMA}; font-family: {MONO};
 }}
-QProgressBar::chunk {{ background: {AMBAR}; }}
-QScrollBar:vertical {{ background: #101c1f; width: 12px; margin: 0; }}
-QScrollBar::handle:vertical {{ background: #2c4048; border-radius: 5px; min-height: 24px; }}
-QScrollBar:horizontal {{ background: #101c1f; height: 12px; margin: 0; }}
-QScrollBar::handle:horizontal {{ background: #2c4048; border-radius: 5px; min-width: 24px; }}
+QProgressBar::chunk {{
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+        stop:0 #c07a2a, stop:1 {AMBAR_CLARO});
+}}
+QScrollBar:vertical {{ background: {SURCO}; width: 12px; margin: 0; }}
+QScrollBar::handle:vertical {{ background: {METAL_DIM}; border-radius: 5px; min-height: 24px; }}
+QScrollBar::handle:vertical:hover {{ background: {METAL}; }}
+QScrollBar:horizontal {{ background: {SURCO}; height: 12px; margin: 0; }}
+QScrollBar::handle:horizontal {{ background: {METAL_DIM}; border-radius: 5px; min-width: 24px; }}
+QScrollBar::handle:horizontal:hover {{ background: {METAL}; }}
+QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; width: 0; }}
 QGroupBox {{
-    border: 1px solid #2c4048; border-radius: 6px; margin-top: 12px;
-    color: {AMBAR}; padding-top: 10px;
+    border: 1px solid {METAL_DIM}; border-radius: 5px; margin-top: 12px;
+    color: {CREMA}; padding-top: 10px;
+    font-family: {MONO}; letter-spacing: 2px;
 }}
 QGroupBox::title {{ subcontrol-origin: margin; left: 8px; padding: 0 4px; }}
 QCheckBox, QRadioButton {{ color: {INK}; }}
+QCheckBox::indicator, QRadioButton::indicator {{
+    width: 13px; height: 13px;
+    background: {SURCO}; border: 1px solid {METAL_DIM};
+}}
+QCheckBox::indicator:checked, QRadioButton::indicator:checked {{
+    background: {AMBAR}; border-color: {AMBAR_CLARO};
+}}
+QRadioButton::indicator {{ border-radius: 7px; }}
 QLabel {{ color: {INK}; }}
 QToolTip {{
-    background: #101c1f; color: {INK}; border: 1px solid {AMBAR};
-    padding: 4px;
+    background: {PANEL}; color: {CREMA}; border: 1px solid {AMBAR};
+    padding: 4px; font-family: {MONO};
 }}
+QSlider::groove:horizontal {{
+    background: {SURCO}; height: 4px; border-radius: 2px;
+}}
+QSlider::handle:horizontal {{
+    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+        stop:0 {METAL}, stop:1 #5c5648);
+    border: 1px solid {CHASIS_BAJO}; width: 12px;
+    margin: -6px 0; border-radius: 3px;
+}}
+QSlider::handle:horizontal:hover {{ background: {AMBAR}; }}
+QSlider::sub-page:horizontal {{ background: {AMBAR}; border-radius: 2px; }}
 """

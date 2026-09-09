@@ -738,7 +738,7 @@ class MainWindow(QMainWindow):
                 self._modal.setFixedSize(460, 130)
                 self._modal.setStyleSheet(
                     "QWidget { background: #16202b; border: 1px solid #3a4a5c; border-radius: 8px; }"
-                    " QLabel { color: #cddbe8; font-family: Consolas; font-size: 14px; background: transparent; border: none; }")
+                    " QLabel { color: #ede6d9; font-family: Consolas; font-size: 14px; background: transparent; border: none; }")
                 lay = QVBoxLayout(self._modal)
                 lay.setContentsMargins(20, 20, 20, 20)
                 lay.setSpacing(12)

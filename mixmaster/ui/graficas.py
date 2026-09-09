@@ -35,7 +35,7 @@ log = get_logger("mixmaster.ui.graficas")
 # Paleta: vive en ui/tema.py (lenguaje visual único de la app, Paso 1 del
 # rediseño). Alias locales para no tocar el resto de este archivo.
 _VERDE = tema.VERDE
-_VERDE_GLOW = tema.VERDE_GLOW
+_AMBAR_GLOW = tema.AMBAR_GLOW
 _AZUL = tema.AZUL
 _AMBAR = tema.AMBAR
 _ROJO = tema.ROJO
@@ -45,8 +45,8 @@ _MONO = tema.MONO
 _glow = tema.glow
 
 _COL_PRE = QColor(_AZUL)
-_COL_MASTER = QColor(_VERDE)
-_COL_GLASS = QColor("#070b0d")
+_COL_MASTER = QColor(_AMBAR)
+_COL_GLASS = QColor("#12100c")
 
 _MAX_PUNTOS_GONIO = 5000
 
@@ -72,23 +72,23 @@ class _BarraComparativa(QWidget):
         p.setRenderHint(QPainter.Antialiasing)
         w, h = self.width(), self.height()
         cy, pad = h / 2, 6
-        p.setPen(QPen(QColor("#22303c"), 4))
+        p.setPen(QPen(QColor("#3a332a"), 4))
         p.drawLine(int(pad), int(cy), int(w - pad), int(cy))
         if self.despues is None:
             return
         xd = self._x(self.despues, w, pad)
         if self.antes is not None:
             xa = self._x(self.antes, w, pad)
-            p.setPen(QPen(QColor(_VERDE), 4))
+            p.setPen(QPen(QColor(_AMBAR), 4))
             p.drawLine(int(xa), int(cy), int(xd), int(cy))
             p.setPen(Qt.NoPen)
             p.setBrush(QColor(_AZUL))
             p.drawEllipse(QPointF(xa, cy), 4, 4)
         else:
-            p.setPen(QPen(QColor(_VERDE), 4))
+            p.setPen(QPen(QColor(_AMBAR), 4))
             p.drawLine(int(pad), int(cy), int(xd), int(cy))
             p.setPen(Qt.NoPen)
-        p.setBrush(QColor(_VERDE))
+        p.setBrush(QColor(_AMBAR))
         p.drawEllipse(QPointF(xd, cy), 4, 4)
 
 
@@ -107,7 +107,7 @@ class _BarrasEQ(QWidget):
         p.setRenderHint(QPainter.Antialiasing)
         w, h = self.width(), self.height()
         cy = h * 0.46
-        p.setPen(QPen(QColor("#2b3d4d"), 1))
+        p.setPen(QPen(QColor("#2e2820"), 1))
         p.drawLine(0, int(cy), w, int(cy))
         bandas = [b for b in self.ORDEN if b in self.eq] or list(self.eq.keys())
         if not bandas:
@@ -120,7 +120,7 @@ class _BarrasEQ(QWidget):
             v = self.eq[b]
             cx = i * bw + bw / 2
             alto = (v / maxabs) * (h * 0.34)
-            col = QColor(_VERDE) if v >= 0 else QColor(_AZUL)
+            col = QColor(_AMBAR) if v >= 0 else QColor(_AZUL)
             p.setPen(Qt.NoPen)
             p.setBrush(col)
             x0 = cx - bw * 0.28
@@ -132,7 +132,7 @@ class _BarrasEQ(QWidget):
             p.setPen(QColor(_INK_DIM))
             p.drawText(int(cx - bw / 2), int(h - 10), int(bw), 10,
                        Qt.AlignHCenter, b.replace("_", "\n") if False else b[:4])
-            p.setPen(QColor(_VERDE) if v >= 0 else QColor(_AZUL))
+            p.setPen(QColor(_AMBAR) if v >= 0 else QColor(_AZUL))
             p.drawText(int(cx - bw / 2), int(h - 1), int(bw), 10,
                        Qt.AlignHCenter, f"{v:+.1f}")
 
@@ -167,10 +167,10 @@ class _BarrasDelta(QWidget):
         alto_max = h * 0.32
 
         # línea de referencia (0 = igual a la referencia)
-        p.setPen(QPen(QColor("#5a6b8c"), 1, Qt.DashLine))
+        p.setPen(QPen(QColor("#6b6355"), 1, Qt.DashLine))
         p.drawLine(0, int(cy), w, int(cy))
         p.setFont(QFont(_MONO, 7))
-        p.setPen(QColor("#54687c"))
+        p.setPen(QColor("#9a9184"))
         p.drawText(4, int(cy - 3), "= referencia")
 
         for i, b in enumerate(bandas):
@@ -224,7 +224,7 @@ class _LoudnessWarScore(QWidget):
         p.setRenderHint(QPainter.Antialiasing)
         w, h = self.width(), self.height()
         pad = 36
-        p.fillRect(self.rect(), QColor("#070b0d"))
+        p.fillRect(self.rect(), QColor("#12100c"))
 
         # zona sana: banda diagonal (crest razonable incluso siendo loud)
         zona = [(-20, 8), (-9, 8), (-9, 20), (-20, 20)]
@@ -233,7 +233,7 @@ class _LoudnessWarScore(QWidget):
             pts = [self._pos(x, y, w, h, pad) for x, y in poly]
             path_pts = [self._pos(x, y, w, h, pad) for x, y in
                        [(poly[0][0], 0)] + poly + [(poly[-1][0], 0)]]
-            p.setBrush(QColor(67, 224, 138, alpha))
+            p.setBrush(QColor(143, 184, 101, alpha))
             p.setPen(Qt.NoPen)
             from PySide6.QtGui import QPolygonF
             p.drawPolygon(QPolygonF([QPointF(*pt) for pt in pts]))
@@ -241,13 +241,13 @@ class _LoudnessWarScore(QWidget):
         # zona de peligro (crest muy bajo = sobre-comprimido)
         peligro = [(-20, 0), (-4, 0), (-4, 6), (-20, 8)]
         pts = [self._pos(x, y, w, h, pad) for x, y in peligro]
-        p.setBrush(QColor(242, 89, 58, 35))
+        p.setBrush(QColor(214, 73, 51, 38))
         p.setPen(Qt.NoPen)
         from PySide6.QtGui import QPolygonF
         p.drawPolygon(QPolygonF([QPointF(*pt) for pt in pts]))
 
         # ejes
-        p.setPen(QPen(QColor(40, 55, 68), 1))
+        p.setPen(QPen(QColor(74, 68, 56), 1))
         p.drawLine(pad, h - pad, w - pad, h - pad)
         p.drawLine(pad, pad, pad, h - pad)
         p.setFont(QFont(_MONO, 8))
@@ -268,11 +268,11 @@ class _LoudnessWarScore(QWidget):
         # tu master
         if self.lufs is not None and self.crest is not None:
             x, y = self._pos(self.lufs, self.crest, w, h, pad)
-            p.setPen(QPen(QColor(_VERDE), 2))
-            p.setBrush(QColor(_VERDE))
+            p.setPen(QPen(QColor(_AMBAR), 2))
+            p.setBrush(QColor(_AMBAR))
             p.drawEllipse(QPointF(x, y), 6, 6)
             p.setFont(QFont(_MONO, 9, QFont.Bold))
-            p.setPen(QColor(_VERDE))
+            p.setPen(QColor(_AMBAR))
             p.drawText(int(x + 10), int(y - 6), f"{self.lufs:g} LUFS · {self.crest:g} dB")
 
 
@@ -281,7 +281,7 @@ def _leyenda_lws() -> QLabel:
         f"<span style='color:{_VERDE}'>■ zona sana</span>  "
         f"<span style='color:{_ROJO}'>■ zona de riesgo (sobre-comprimido)</span>")
     l.setTextFormat(Qt.RichText)
-    l.setStyleSheet(f"border:none; color:#54687c; font-family:{_MONO}; font-size:10px;")
+    l.setStyleSheet(f"border:none; color:#9a9184; font-family:{_MONO}; font-size:10px;")
     return l
 
 
@@ -321,16 +321,16 @@ def _grafica_espectro(freqs_pre, db_pre, freqs_master, db_master) -> QChartView:
     ex.setTitleText("Hz")
     ex.setTitleBrush(QColor(_INK_DIM))
     ex.setLabelsColor(QColor(_INK_DIM))
-    ex.setGridLineColor(QColor(30, 42, 52))
-    ex.setLinePenColor(QColor(40, 55, 68))
+    ex.setGridLineColor(QColor(46, 40, 32))
+    ex.setLinePenColor(QColor(74, 68, 56))
 
     ey = QValueAxis()
     ey.setRange(y_min, y_max)
     ey.setTitleText("dB")
     ey.setTitleBrush(QColor(_INK_DIM))
     ey.setLabelsColor(QColor(_INK_DIM))
-    ey.setGridLineColor(QColor(30, 42, 52))
-    ey.setLinePenColor(QColor(40, 55, 68))
+    ey.setGridLineColor(QColor(46, 40, 32))
+    ey.setLinePenColor(QColor(74, 68, 56))
 
     chart.addAxis(ex, Qt.AlignBottom)
     chart.addAxis(ey, Qt.AlignLeft)
@@ -370,12 +370,12 @@ class _LienzoGonio(QWidget):
         cx, cy = w / 2, h / 2
         r = min(w, h) / 2 - 14
         p.fillRect(self.rect(), _COL_GLASS)
-        p.setPen(QPen(QColor(40, 55, 68), 1))
+        p.setPen(QPen(QColor(74, 68, 56), 1))
         p.drawLine(int(cx), 12, int(cx), int(h - 12))
         p.drawLine(12, int(cy), int(w - 12), int(cy))
-        p.setPen(QPen(QColor(45, 62, 78), 1, Qt.DashLine))
+        p.setPen(QPen(QColor(90, 82, 68), 1, Qt.DashLine))
         p.drawEllipse(int(cx - r), int(cy - r), int(r * 2), int(r * 2))
-        p.setPen(QPen(QColor(67, 224, 138, 120), 1))
+        p.setPen(QPen(QColor(232, 163, 61, 130), 1))
         for s, m in zip(self.side, self.mid):
             p.drawPoint(int(cx + s * r), int(cy - m * r))
         p.setPen(QColor(_INK_DIM))
@@ -428,7 +428,7 @@ class _MedidorLED(QFrame):
         for i in range(n - 1, -1, -1):
             seg = QFrame()
             seg.setFixedSize(18, 6)
-            seg.setStyleSheet("background:#101a20; border-radius:2px;")
+            seg.setStyleSheet("background:#0d0b09; border-radius:2px;")
             escalera.addWidget(seg, alignment=Qt.AlignHCenter)
             self._segs.append((i, seg))
         self._segs.sort(key=lambda x: x[0])  # ordenar por índice ascendente
@@ -490,13 +490,13 @@ def _tarjeta_metrica(titulo: str, antes, despues, unidad: str = "",
     f = QFrame()
     f.setStyleSheet(
         "QFrame { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
-        " stop:0 #1f2e3a, stop:1 #141f28); border:1px solid #314658;"
+        " stop:0 #322c23, stop:1 #201c16); border:1px solid #4a4438;"
         " border-radius:10px; }")
     lay = QVBoxLayout(f)
     lay.setContentsMargins(10, 8, 10, 8)
     lay.setSpacing(4)
     t = QLabel(titulo.upper())
-    t.setStyleSheet(f"border:none; color:#54687c; font-family:{_MONO}; font-size:9px;")
+    t.setStyleSheet(f"border:none; color:#9a9184; font-family:{_MONO}; font-size:9px;")
     lay.addWidget(t)
     txt = (f"{antes:g} → {despues:g} {unidad}" if antes is not None
            else f"{despues:g} {unidad}")
@@ -512,7 +512,7 @@ def _bloque_proceso(resumen: dict) -> QFrame:
     f = QFrame()
     f.setStyleSheet(
         "QFrame { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
-        " stop:0 #111c25, stop:1 #0c151c); border:1px solid #2c4053;"
+        " stop:0 #232019, stop:1 #141110); border:1px solid #4a4438;"
         " border-radius:12px; }")
     lay = QVBoxLayout(f)
     lay.setContentsMargins(14, 12, 14, 12)
@@ -523,7 +523,7 @@ def _bloque_proceso(resumen: dict) -> QFrame:
     eq = resumen.get("eq_aplicado_db") or {}
     if eq:
         eq_lbl = QLabel("EQ aplicado (dB por banda)")
-        eq_lbl.setStyleSheet(f"border:none; color:#54687c; font-family:{_MONO}; font-size:9px;")
+        eq_lbl.setStyleSheet(f"border:none; color:#9a9184; font-family:{_MONO}; font-size:9px;")
         lay.addWidget(eq_lbl)
         lay.addWidget(_BarrasEQ(eq))
 
@@ -555,7 +555,7 @@ def _bloque_proceso(resumen: dict) -> QFrame:
         chip.setTextFormat(Qt.RichText)
         chip.setStyleSheet(
             "QLabel { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
-            " stop:0 #20313f, stop:1 #131f28); border:1px solid #3a556b;"
+            " stop:0 #322c23, stop:1 #201c16); border:1px solid #4a4438;"
             f" border-radius:8px; padding:6px 11px; color:{_INK}; font-family:{_MONO}; font-size:11px; }}")
         grid.addWidget(chip, i // 3, i % 3)
     lay.addLayout(grid)
@@ -567,7 +567,7 @@ def _pantalla(titulo: str, extra: str, contenido: QWidget) -> QFrame:
     bisel = QFrame()
     bisel.setStyleSheet(
         "QFrame { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
-        " stop:0 #0c141b, stop:1 #182430); border:1px solid #33495b;"
+        " stop:0 #12100c, stop:1 #1a1611); border:1px solid #4a4438;"
         " border-radius:12px; }")
     lay = QVBoxLayout(bisel)
     lay.setContentsMargins(10, 8, 10, 8)
@@ -587,8 +587,8 @@ def construir_panel_mastering(resumen: dict, diagnostico: dict | None,
     panel = QFrame()
     panel.setStyleSheet(
         "QFrame#chasis { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
-        " stop:0 #243441, stop:0.5 #16222c, stop:1 #0e1820);"
-        " border:1px solid #34495b; border-radius:16px; }")
+        " stop:0 #2a251e, stop:0.5 #1b1815, stop:1 #141110);"
+        " border:1px solid #4a4438; border-radius:16px; }")
     panel.setObjectName("chasis")
     lay = QVBoxLayout(panel)
     lay.setContentsMargins(16, 16, 16, 16)
@@ -596,7 +596,7 @@ def construir_panel_mastering(resumen: dict, diagnostico: dict | None,
 
     # cabecera
     cab = QLabel("🎛  MIXMASTER · MONITOR")
-    cab.setStyleSheet(f"border:none; color:#e6eef6; font-family:{_MONO}; font-size:13px; letter-spacing:3px;")
+    cab.setStyleSheet(f"border:none; color:#ede6d9; font-family:{_MONO}; font-size:13px; letter-spacing:3px;")
     lay.addWidget(cab)
 
     # fila de pantallas: espectro | goniómetro | medidores
@@ -680,7 +680,7 @@ def construir_panel_mastering(resumen: dict, diagnostico: dict | None,
         caja = QFrame()
         caja.setStyleSheet(
             "QFrame { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
-            " stop:0 #111c25, stop:1 #0c151c); border:1px solid #2c4053;"
+            " stop:0 #232019, stop:1 #141110); border:1px solid #4a4438;"
             " border-radius:12px; }")
         cl = QVBoxLayout(caja)
         cl.setContentsMargins(14, 12, 14, 12)
@@ -690,11 +690,11 @@ def construir_panel_mastering(resumen: dict, diagnostico: dict | None,
         tit.setStyleSheet(f"border:none; color:{_INK_DIM}; font-family:{_MONO}; font-size:10px; letter-spacing:2px;")
         cl.addWidget(tit)
         ley = QLabel(f"<span style='color:{_VERDE}'>━ tu master</span>   "
-                     f"<span style='color:#8fa4bb'>┄ referencia</span>   ·   "
+                     f"<span style='color:#dcd3ad'>┄ referencia</span>   ·   "
                      f"<span style='color:{_AMBAR}'>zona ámbar = te falta</span>   "
                      f"<span style='color:{_AZUL}'>zona azul = te sobra</span>")
         ley.setTextFormat(Qt.RichText)
-        ley.setStyleSheet(f"border:none; color:#54687c; font-family:{_MONO}; font-size:10px;")
+        ley.setStyleSheet(f"border:none; color:#9a9184; font-family:{_MONO}; font-size:10px;")
         cl.addWidget(ley)
 
         bandas_m = (diagnostico or {}).get("bandas_db") or {}
@@ -711,7 +711,7 @@ def construir_panel_mastering(resumen: dict, diagnostico: dict | None,
         caja_lws = QFrame()
         caja_lws.setStyleSheet(
             "QFrame { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
-            " stop:0 #111c25, stop:1 #0c151c); border:1px solid #2c4053;"
+            " stop:0 #232019, stop:1 #141110); border:1px solid #4a4438;"
             " border-radius:12px; }")
         cl2 = QVBoxLayout(caja_lws)
         cl2.setContentsMargins(14, 12, 14, 12)
@@ -724,9 +724,9 @@ def construir_panel_mastering(resumen: dict, diagnostico: dict | None,
 
     lay.addWidget(_bloque_proceso(resumen))
 
-    nota = QLabel("Azul = mezcla original · Verde = master · Las tarjetas comparan antes → después.")
+    nota = QLabel("Ámbar = master · Crema = referencia · Las tarjetas comparan antes → después.")
     nota.setWordWrap(True)
-    nota.setStyleSheet(f"border:none; color:#54687c; font-family:{_MONO}; font-size:10px;")
+    nota.setStyleSheet(f"border:none; color:#9a9184; font-family:{_MONO}; font-size:10px;")
     lay.addWidget(nota)
 
     envoltura = QWidget()

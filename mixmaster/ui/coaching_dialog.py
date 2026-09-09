@@ -38,7 +38,7 @@ class CoachingDialog(QDialog):
             "Esto mira cada stem por separado y te dice qué mejorar en tu MEZCLA "
             "(no en el master). Es el «sin maquillaje»: honesto y accionable.")
         intro.setWordWrap(True)
-        intro.setStyleSheet("color: #8598ab; font-family: Consolas; padding: 4px;")
+        intro.setStyleSheet("color: #9a9184; font-family: Consolas; padding: 4px;")
         raiz.addWidget(intro)
 
         scroll = QScrollArea()
@@ -54,7 +54,7 @@ class CoachingDialog(QDialog):
             n_alertas = sum(1 for d in diags for ic, _ in d["observaciones"] if ic == "⚠")
             resumen = QLabel(f"📋 {len(diags)} stems analizados · "
                              f"{n_alertas} cosa(s) para mejorar")
-            resumen.setStyleSheet("color: #43e08a; font-family: Consolas; font-weight: bold; padding: 4px;")
+            resumen.setStyleSheet("color: #e8a33d; font-family: Consolas; font-weight: bold; padding: 4px;")
             lay.addWidget(resumen)
 
             if choques:
@@ -78,12 +78,12 @@ class CoachingDialog(QDialog):
             " border-radius:10px; }")
         lay = QVBoxLayout(f)
         cab = QLabel("⚔️  CHECKLIST PRE-MEZCLA — choques entre stems")
-        cab.setStyleSheet("border:none; color:#f0b447; font-family: Consolas; font-size: 13px; font-weight: bold;")
+        cab.setStyleSheet("border:none; color:#e8a33d; font-family: Consolas; font-size: 13px; font-weight: bold;")
         lay.addWidget(cab)
         for texto in choques:
             o = QLabel(f"⚠  {texto}")
             o.setWordWrap(True)
-            o.setStyleSheet("border:none; color:#f0b447; font-family: Consolas; font-size: 12px; padding-left: 6px;")
+            o.setStyleSheet("border:none; color:#e8a33d; font-family: Consolas; font-size: 12px; padding-left: 6px;")
             lay.addWidget(o)
         return f
 
@@ -105,7 +105,7 @@ class CoachingDialog(QDialog):
         lay.addWidget(cab)
 
         for ic, txt in d["observaciones"]:
-            color = "#f0b447" if ic == "⚠" else "#8598ab"
+            color = "#e8a33d" if ic == "⚠" else "#9a9184"
             o = QLabel(f"{ic}  {txt}")
             o.setWordWrap(True)
             o.setStyleSheet(f"border:none; color:{color}; font-family: Consolas; font-size: 12px; padding-left: 6px;")

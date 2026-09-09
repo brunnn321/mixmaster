@@ -13,10 +13,10 @@ from PySide6.QtWidgets import QWidget
 
 from . import tema
 
-_FONDO = QColor("#0f1c1e")
-_GRID = QColor("#1f3b34")
-_TEXTO = QColor("#7f9a9c")
-_TICK = QColor("#4a4227")
+_FONDO = QColor(tema.VIDRIO)
+_GRID = QColor("#2e2820")
+_TEXTO = QColor(tema.INK_DIM)
+_MARCO = QColor(tema.METAL_DIM)
 
 
 class Espectrograma(QWidget):
@@ -107,32 +107,11 @@ class Espectrograma(QWidget):
             p.fillRect(int(x1), pad_t + gh - int(bar_h), int(x2 - x1), int(bar_h), color)
 
         # Marco
-        p.setPen(QPen(_GRID, 1))
+        p.setPen(QPen(_MARCO, 1))
         p.drawRect(pad_l, pad_t, gw, gh)
 
         p.end()
 
     def _color_for_magnitude(self, norm: float) -> QColor:
-        """Color gradiente: azul (bajo) → verde → amarillo → rojo (alto)."""
-        if norm < 0.25:
-            # Azul → verde
-            r = 0
-            g = int(norm * 4 * 255)
-            b = 255
-        elif norm < 0.5:
-            # Verde → amarillo
-            r = int((norm - 0.25) * 4 * 255)
-            g = 255
-            b = 0
-        elif norm < 0.75:
-            # Amarillo → naranja/rojo
-            r = 255
-            g = int(255 * (1 - (norm - 0.5) * 4))
-            b = 0
-        else:
-            # Rojo brillante
-            r = 255
-            g = 0
-            b = 0
-
-        return QColor(int(r), int(g), int(b))
+        """Energía → temperatura de filamento (ver tema.temperatura)."""
+        return tema.temperatura(norm)

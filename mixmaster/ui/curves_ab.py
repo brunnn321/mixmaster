@@ -14,14 +14,14 @@ from PySide6.QtWidgets import QWidget
 
 from . import tema
 
-_FONDO = QColor("#0c141b")
-_GRID = QColor("#1d2d3c")
-_EJE = QColor("#2c4053")
-_TEXTO = QColor("#54687c")
-_MASTER = QColor("#39d98a")   # verde — tu master
-_REF = QColor("#8fa4bb")      # gris azulado — la referencia
-_FALTA = QColor(232, 163, 61, 70)    # ámbar translúcido — te falta
-_SOBRA = QColor(95, 168, 255, 70)    # azul translúcido — te sobra
+_FONDO = QColor(tema.VIDRIO)
+_GRID = QColor("#2a241d")
+_EJE = QColor(tema.METAL_DIM)
+_TEXTO = QColor(tema.INK_DIM)
+_MASTER = QColor(tema.AMBAR)     # ámbar — tu master
+_REF = QColor(tema.CREMA)        # crema — la referencia (serigrafía)
+_FALTA = QColor(232, 163, 61, 64)    # ámbar translúcido — te falta
+_SOBRA = QColor(214, 73, 51, 64)     # rojo translúcido — te sobra
 
 # centro de cada banda en Hz, en orden ascendente
 _BANDAS: tuple[tuple[str, str, float], ...] = (

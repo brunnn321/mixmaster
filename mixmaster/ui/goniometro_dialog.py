@@ -44,7 +44,7 @@ class _LienzoGoniometro(QWidget):
         p.drawEllipse(int(cx - radio), int(cy - radio), int(radio * 2), int(radio * 2))
 
         # nube de puntos (side = eje X, mid = eje Y invertido — mid arriba)
-        p.setPen(QPen(QColor(110, 200, 140, 90), 1))
+        p.setPen(QPen(QColor(232, 163, 61, 110), 1))
         for s, m in zip(self.side, self.mid):
             x = cx + s * radio
             y = cy - m * radio

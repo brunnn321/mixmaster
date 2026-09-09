@@ -14,13 +14,13 @@ from PySide6.QtWidgets import QWidget
 
 from . import tema
 
-_FONDO = QColor("#0c141b")
-_GRID = QColor("#233648")
-_EJE = QColor("#2c4053")
-_TEXTO = QColor("#54687c")
-_CH_L = QColor("#5fa8ff")   # azul — canal izquierdo
-_CH_R = QColor("#39d98a")   # verde — canal derecho
-_PEAK = QColor("#e8a33d")   # ámbar — muestras cerca de 0 dBFS
+_FONDO = QColor(tema.VIDRIO)
+_GRID = QColor("#2a241d")
+_EJE = QColor(tema.METAL_DIM)
+_TEXTO = QColor(tema.INK_DIM)
+_CH_L = QColor(tema.AMBAR)    # ámbar — canal izquierdo
+_CH_R = QColor(tema.VERDE)    # verde oliva vintage — canal derecho
+_PEAK = QColor(tema.ROJO)     # rojo — muestras al límite
 
 _UMBRAL_PEAK = 0.97  # |muestra| por encima de esto se marca como peak
 
