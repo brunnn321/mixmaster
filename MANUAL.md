@@ -63,10 +63,28 @@ contexto** → pegar en claude.ai. Ahí también se guardan decisiones.
 ```
 config/
   perfiles/bruno.md               ← tu equipo, sala, plugins, nivel
-  generos/math_rock.md/.json      ← estética + umbrales de alertas
+  generos/math_rock.md/.json      ← estética + umbrales + preset de master
+  generos/grunge.md/.json         ← idem, para grunge/rock alternativo 90s
   generos/referencias/math_rock/  ← biblioteca de temas de referencia
   generos/versiones/              ← snapshots (revertibles en Settings)
 ```
+
+**Cada género masteriza distinto**: el `.json` del género lleva un bloque
+`"master"` que pisa `config/master.json` cuando ese género está activo. Ahí
+va lo que define al género en el pipeline, no solo en las alertas:
+
+```json
+"master": {
+  "target_lufs_default": -10.5,
+  "eq_correctivo": { "max_correccion_db": 10.0 },
+  "resonancias": { "umbral_db": 8.0, "max_cut_db": 2.0, "max_n": 2 },
+  "mono_bass": { "freq_hz": 80.0 },
+  "transient_shaping": { "cantidad": 0.30 }
+}
+```
+
+Lo que el género no define se hereda de `config/master.json`. Un género con
+el bloque vacío se comporta exactamente como antes.
 
 - **Settings → 🎓 Añadir canción al perfil…**: registra un tema tuyo
   terminado (medidas + tu nota) como referencia propia del género.

@@ -26,6 +26,7 @@ from .audio_analysis import (
     true_peak_db,
 )
 from .logger import get_logger
+from .profiles import leer_genero
 
 log = get_logger("mixmaster.processing")
 
@@ -132,8 +133,24 @@ DESTINOS = {
 }
 
 
-def cargar_config_master() -> dict:
-    """Lee config/master.json; lo crea con defaults si no existe."""
+def _merge_cfg(base: dict, extra: dict) -> dict:
+    """Mezcla `extra` sobre `base` un nivel de profundidad (dicts anidados)."""
+    for k, v in extra.items():
+        if isinstance(v, dict) and isinstance(base.get(k), dict):
+            base[k].update(v)
+        else:
+            base[k] = v
+    return base
+
+
+def cargar_config_master(genero: str | None = None) -> dict:
+    """Config del pipeline: defaults -> config/master.json -> preset de género.
+
+    El bloque `"master"` de `config/generos/<genero>.json` pisa los valores
+    globales: cada género masteriza con sus propios parámetros (tope de
+    matching, resonancias, mono-bass, transientes…), que es lo que distingue
+    a un grunge de un math rock más allá de los umbrales de alerta.
+    """
     if not MASTER_CONFIG_FILE.exists():
         try:
             MASTER_CONFIG_FILE.write_text(
@@ -142,19 +159,33 @@ def cargar_config_master() -> dict:
             log.info("Config de master creada: %s", MASTER_CONFIG_FILE)
         except Exception:
             log.exception("No se pudo crear master.json; se usan defaults")
-        return json.loads(json.dumps(CONFIG_MASTER_DEFAULT))
+        return _aplicar_preset_genero(
+            json.loads(json.dumps(CONFIG_MASTER_DEFAULT)), genero)
     try:
         cfg = json.loads(MASTER_CONFIG_FILE.read_text(encoding="utf-8"))
-        base = json.loads(json.dumps(CONFIG_MASTER_DEFAULT))
-        for k, v in cfg.items():
-            if isinstance(v, dict) and isinstance(base.get(k), dict):
-                base[k].update(v)
-            else:
-                base[k] = v
-        return base
+        base = _merge_cfg(json.loads(json.dumps(CONFIG_MASTER_DEFAULT)), cfg)
+        return _aplicar_preset_genero(base, genero)
     except Exception:
         log.exception("master.json ilegible; se usan defaults")
-        return json.loads(json.dumps(CONFIG_MASTER_DEFAULT))
+        return _aplicar_preset_genero(
+            json.loads(json.dumps(CONFIG_MASTER_DEFAULT)), genero)
+
+
+def _aplicar_preset_genero(base: dict, genero: str | None) -> dict:
+    """Aplica el bloque `master` del preset de género sobre la config base."""
+    if not genero:
+        return base
+    try:
+        _, preset = leer_genero(genero)
+    except Exception:
+        log.exception("No se pudo leer el género '%s'; se usa la config global", genero)
+        return base
+    overrides = preset.get("master") or {}
+    if not isinstance(overrides, dict) or not overrides:
+        log.info("Género '%s' sin bloque 'master': se usa la config global", genero)
+        return base
+    log.info("Config de master del género '%s': %s", genero, list(overrides))
+    return _merge_cfg(base, overrides)
 
 
 # ------------------------------------------------------------ stems → mezcla
@@ -648,7 +679,8 @@ def _limitador(audio: np.ndarray, sr: int, cfg_lim: dict) -> np.ndarray:
 def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
                target_lufs: float, dir_masters: Path, dir_entregables: Path,
                version: str = "V01", carpeta_stems: Path | None = None,
-               progreso=None, cfg: dict | None = None) -> dict:
+               progreso=None, cfg: dict | None = None,
+               genero: str | None = None) -> dict:
     """Pipeline de masterizado. Entrada: mezcla estéreo O carpeta de stems.
 
     `cfg` opcional permite pasar una configuración a medida (A/B, tests);
@@ -662,7 +694,9 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
             progreso(msg)
 
     if cfg is None:
-        cfg = cargar_config_master()
+        cfg = cargar_config_master(genero)
+        if genero:
+            avisar(f"Preset de género: {genero}")
     cfg_eq = cfg["eq_correctivo"]
     cfg_den = cfg["densidad"]
     cfg_lim = cfg["limitador"]
@@ -1017,6 +1051,7 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         "aviso_referencia_no_calza": aviso_referencia,
         "mono_bass_hz": mono_bass_hz,
         "fuente": "stems" if carpeta_stems else "mezcla",
+        "genero": genero,
         "referencias": nombres_ref,
         "score": score,
     }

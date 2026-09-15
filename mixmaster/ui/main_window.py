@@ -292,11 +292,11 @@ class MasterWorker(QThread):
     fallo = Signal(str)
 
     def __init__(self, mezcla, referencia, target, dir_masters, dir_entregables,
-                 version, carpeta_stems=None):
+                 version, carpeta_stems=None, genero=None):
         super().__init__()
         self.mezcla, self.referencia, self.target = mezcla, referencia, target
         self.dir_masters, self.dir_entregables, self.version = dir_masters, dir_entregables, version
-        self.carpeta_stems = carpeta_stems
+        self.carpeta_stems, self.genero = carpeta_stems, genero
 
     def run(self):
         """Corre el pipeline de master y emite el resumen o el error."""
@@ -305,7 +305,7 @@ class MasterWorker(QThread):
                 self.mezcla, self.referencia, self.target,
                 self.dir_masters, self.dir_entregables,
                 version=self.version, carpeta_stems=self.carpeta_stems,
-                progreso=self.progreso.emit,
+                progreso=self.progreso.emit, genero=self.genero,
             )
             self.terminado.emit(resumen)
         except Exception as e:
@@ -1882,7 +1882,7 @@ class MainWindow(QMainWindow):
         elif self.diagnostico and not self._advertir_si_sobreprocesada():
             return  # el usuario decidió volver atrás
 
-        cfg = cargar_config_master()
+        cfg = cargar_config_master(self.settings.genero_activo())
         # loudness por defecto: el aprendido del género si existe, si no el de config
         pref = preferencias(self.settings.genero_activo())
         default_lufs = pref.get("target_lufs", float(cfg.get("target_lufs_default", -9.0)))
@@ -1920,7 +1920,7 @@ class MainWindow(QMainWindow):
         self._master_worker = MasterWorker(
             self.wav_activo, self.referencia, target,
             self.proyecto.dir_masters, self.proyecto.dir_entregables,
-            version, carpeta_stems)
+            version, carpeta_stems, self.settings.genero_activo())
         self._master_worker.setParent(self)
         self._master_worker.progreso.connect(self._progreso)
         self._master_worker.terminado.connect(self._master_ok)

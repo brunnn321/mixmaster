@@ -710,7 +710,14 @@ def main() -> int:
         ctx = construir_contexto(settings, proyecto, diag, "¿Qué priorizo primero?")
         check("contexto incluye perfil de usuario", "PERFIL DE USUARIO" in ctx
               and "ADAM Audio D3V" in ctx)
-        check("contexto incluye género", "PERFIL DE GÉNERO" in ctx and "CHON" in ctx)
+        # el género activo es configurable: se valida que el contexto traiga el
+        # preset ACTIVO, sea cual sea (antes se asumía math rock y su "CHON")
+        genero_md, _ = settings.leer_genero_activo()
+        primera_linea = genero_md.splitlines()[0] if genero_md else ""
+        check("contexto incluye género",
+              "PERFIL DE GÉNERO" in ctx and settings.genero_activo() in ctx
+              and primera_linea in ctx,
+              settings.genero_activo())
         check("contexto incluye diagnóstico", "DIAGNÓSTICO" in ctx and diag["archivo"] in ctx)
         check("contexto incluye decisiones", "Bajar 2 dB el low-mid" in ctx)
         check("contexto incluye mensaje", "¿Qué priorizo primero?" in ctx)

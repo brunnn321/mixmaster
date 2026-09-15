@@ -287,6 +287,24 @@
         "centroide_hz": 807.9,
         "rolloff_hz": 1576.2,
         "plr_db": 13.9
+      },
+      {
+        "fecha": "2026-09-05 21:27:32",
+        "inclinacion_db_oct": -5.07,
+        "definicion_graves_db": -2.5,
+        "punch": 1.88,
+        "centroide_hz": 375.8,
+        "rolloff_hz": 506.0,
+        "plr_db": 11.2
+      },
+      {
+        "fecha": "2026-09-15 17:57:00",
+        "inclinacion_db_oct": -4.58,
+        "definicion_graves_db": 7.6,
+        "punch": 1.44,
+        "centroide_hz": 761.9,
+        "rolloff_hz": 1539.6,
+        "plr_db": 10.8
       }
     ],
     "rechazados": [
@@ -509,6 +527,70 @@
         },
         "referencias": [
           "03. Theme from a Perfect World.mp3"
+        ]
+      },
+      {
+        "fecha": "2026-09-15 18:04:16",
+        "target_lufs": -7.0,
+        "lufs_final": -7.3,
+        "crest_final": 8.5,
+        "true_peak_final": -1.7,
+        "eq_aplicado_db": {
+          "air": 1.7,
+          "high": 2.6,
+          "high_mid": 0.8,
+          "low": -1.2,
+          "low_mid": 1.6,
+          "mid": 2.3,
+          "sub": 0.0
+        },
+        "ajuste_ancho_db": {
+          "high_mid": 1.0,
+          "low_mid": 1.0,
+          "mid": 1.0
+        },
+        "multibanda_db": {},
+        "mono_bass_hz": 100.0,
+        "score": {
+          "dinamica": 63,
+          "global": 66,
+          "imagen": 68,
+          "tonal": 67
+        },
+        "referencias": [
+          "Alice In Chains - Them Bones (Official HD Video).mp3"
+        ]
+      },
+      {
+        "fecha": "2026-09-15 18:07:50",
+        "target_lufs": -9.0,
+        "lufs_final": -9.4,
+        "crest_final": 10.6,
+        "true_peak_final": -1.7,
+        "eq_aplicado_db": {
+          "air": 1.7,
+          "high": 2.6,
+          "high_mid": 0.8,
+          "low": -1.2,
+          "low_mid": 1.6,
+          "mid": 2.3,
+          "sub": 0.0
+        },
+        "ajuste_ancho_db": {
+          "high_mid": 1.0,
+          "low_mid": 1.0,
+          "mid": 1.0
+        },
+        "multibanda_db": {},
+        "mono_bass_hz": 100.0,
+        "score": {
+          "dinamica": 80,
+          "global": 74,
+          "imagen": 69,
+          "tonal": 73
+        },
+        "referencias": [
+          "Alice In Chains - Them Bones (Official HD Video).mp3"
         ]
       }
     ]

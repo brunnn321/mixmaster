@@ -4,7 +4,13 @@
 Ambos son archivos de texto en config/: portables, editables y "entrenables"
 con el feedback de cada canción. Un género se define por un par:
   generos/<nombre>.md    → texto que se envía a Claude
-  generos/<nombre>.json  → umbrales numéricos para las alertas automáticas
+  generos/<nombre>.json  → umbrales de alertas + bloque "master" con los
+                           parámetros del pipeline propios del género
+                           (tope de matching, resonancias, mono-bass,
+                           transientes, loudness por defecto). Ese bloque
+                           pisa config/master.json cuando el género está
+                           activo — ver processing.cargar_config_master().
+  generos/referencias/<nombre>/ → biblioteca de audios del género (3-6)
 """
 
 import json
@@ -204,6 +210,9 @@ def crear_genero(nombre: str) -> str:
     if not js.exists():
         datos = dict(UMBRALES_DEFAULT)
         datos["nombre"] = nombre.strip()
+        # vacío = hereda config/master.json; se llena con lo que funcione
+        # para este género (ver processing.cargar_config_master)
+        datos["master"] = {}
         js.write_text(json.dumps(datos, indent=2, ensure_ascii=False), encoding="utf-8")
 
     (REFERENCIAS_DIR / slug).mkdir(parents=True, exist_ok=True)

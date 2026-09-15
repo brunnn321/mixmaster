@@ -1,0 +1,30 @@
+{
+  "nombre": "Grunge",
+  "low_mid_delta_max_db": 3.0,
+  "crest_min_db": 9.0,
+  "sub_min_db": -38.0,
+  "correlacion_min": 0.6,
+  "lufs_max": -7.5,
+  "nota_low_mid": "cuerpo de guitarra en 200-500 Hz: el grunge lo quiere, vigilar solo el exceso",
+  "nota_crest": "compresion excesiva — el grunge respira, no es pared de ladrillos",
+  "nota_sub": "bajo sin peso — el low-end sostiene el riff",
+  "nota_correlacion": "imagen estereo inestable",
+  "nota_lufs": "demasiado fuerte — el grunge pierde pegada al aplastarse",
+  "master": {
+    "target_lufs_default": -10.5,
+    "eq_correctivo": {
+      "max_correccion_db": 10.0
+    },
+    "resonancias": {
+      "umbral_db": 8.0,
+      "max_cut_db": 2.0,
+      "max_n": 2
+    },
+    "mono_bass": {
+      "freq_hz": 80.0
+    },
+    "transient_shaping": {
+      "cantidad": 0.3
+    }
+  }
+}
