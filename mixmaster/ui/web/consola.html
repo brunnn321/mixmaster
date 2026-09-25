@@ -1,0 +1,593 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>MixMaster — MM-01</title>
+<!-- Interfaz MM-01: el mockup aprobado por Bruno (mockup_hardware_v5, 4/9/2026),
+     ahora conectado al motor real vía QWebChannel (ver ui/consola_web.py).
+     Sin conexión a internet las fuentes caen a Consolas/Arial Narrow. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:#060606;padding:18px 22px;font-family:'IBM Plex Mono',Consolas,monospace;color:#ddd;overflow-y:auto}
+  .osw{font-family:'Oswald','Arial Narrow',sans-serif}
+  .rack{display:flex;align-items:stretch;max-width:1240px;min-height:calc(100vh - 36px);margin:0 auto}
+  .wood{width:30px;flex:none;background:repeating-linear-gradient(180deg,#5a3a22 0 3px,#4a2e1a 3px 4px),linear-gradient(90deg,#6b4527,#3d2515)}
+  .wood.l{border-radius:10px 0 0 10px}.wood.r{border-radius:0 10px 10px 0}
+
+  .unit{flex:1;padding:24px 34px 18px;position:relative;display:flex;flex-direction:column;
+    background:linear-gradient(155deg,#2c4a52 0%,#1c333a 45%,#142027 100%)}
+
+  .screw{position:absolute;width:15px;height:15px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#efe9d0,#9a916f 45%,#4a4433 80%)}
+  .screw::after{content:"";position:absolute;left:3px;right:3px;top:7px;height:1.5px;background:#3a3526;transform:rotate(-35deg)}
+  .screw.tl{top:12px;left:12px}.screw.tr{top:12px;right:12px}.screw.bl{bottom:12px;left:12px}.screw.br{bottom:12px;right:12px}
+
+  header{display:flex;justify-content:space-between;align-items:center;padding:0 4px 14px}
+  .brand{font-family:'Oswald','Arial Narrow',sans-serif;font-weight:700;font-size:26px;color:#eef3ee}
+  .brand span{color:#e8a33d}
+  .modelo{font-family:'Oswald','Arial Narrow',sans-serif;font-size:10px;letter-spacing:3px;color:#9fb8ba;text-align:right}
+  .modelo b{display:block;color:#e8a33d;letter-spacing:1.5px;font-size:11px;margin-top:3px;font-weight:500}
+
+  .steps{display:flex;gap:7px;margin-bottom:16px}
+  .step-btn{flex:1;border:none;border-radius:5px;padding:10px 6px;font-family:'Oswald','Arial Narrow',sans-serif;font-size:11px;letter-spacing:1.2px;cursor:pointer;
+    background:#1a262b;color:#7f9a9c;text-align:center;transition:background .2s,color .2s}
+  .step-btn:hover{color:#cfe4e2}
+  .step-btn.active{background:#e8a33d;color:#1c2a2c}
+  .step-btn .ok{display:inline-block;width:6px;height:6px;border-radius:50%;background:#43e08a;margin-left:6px;vertical-align:middle;opacity:0;transition:opacity .3s}
+  .step-btn.hecho .ok{opacity:1}
+
+  .views{flex:1}
+  .view{display:none;padding:10px 0 20px;animation:entra .35s ease}
+  .view.visible{display:block}
+  @keyframes entra{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .view-h{font-family:'Oswald','Arial Narrow',sans-serif;font-size:12px;letter-spacing:2px;color:#e8a33d;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+  .view-h .ln{flex:1;height:1px;background:rgba(232,163,61,.35)}
+
+  .meters{display:flex;gap:14px;margin-bottom:14px;flex-wrap:wrap}
+  .meter{flex:1;min-width:240px;border-radius:8px;padding:10px 12px 8px;background:#d6cba0;box-shadow:inset 0 0 18px rgba(80,60,20,.35)}
+  .meter .lbl{font-family:'Oswald','Arial Narrow',sans-serif;font-size:10px;letter-spacing:1.3px;color:#4a4227;display:flex;justify-content:space-between;align-items:center}
+  .led{width:7px;height:7px;border-radius:50%;display:inline-block;background:#4a4a40;transition:background .4s,box-shadow .4s}
+  .led.verde{background:#43e08a;box-shadow:0 0 6px #43e08a}
+  .led.rojo{background:#e04b2e;box-shadow:0 0 6px #e04b2e}
+  .led.ambar{background:#e8a33d;box-shadow:0 0 6px #e8a33d}
+  .aguja{transform-box:view-box;transform-origin:130px 95px;transition:transform 1.1s cubic-bezier(.2,1.35,.45,1)}
+
+  .lcdrow{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+  .lcd{flex:1;min-width:104px;background:#0c1a17;border:1px solid #1f3b34;border-radius:6px;padding:8px 10px}
+  .lcd .k{font-family:'Oswald','Arial Narrow',sans-serif;font-size:9px;letter-spacing:1.2px;color:#5c8a7c}
+  .lcd .v{font-size:17px;color:#7fe8c4;text-shadow:0 0 8px rgba(127,232,196,.35)}
+
+  .statusrow{display:flex;gap:18px;margin-bottom:16px;flex-wrap:wrap}
+  .status{display:flex;align-items:center;gap:7px;font-size:10px;color:#c9d6d2;font-family:'Oswald','Arial Narrow',sans-serif;letter-spacing:.8px}
+
+  .chart-card{background:#101c1f;border:1px solid #2c4048;border-radius:7px;padding:14px 16px;margin-bottom:14px}
+  .chart-card .t{font-family:'Oswald','Arial Narrow',sans-serif;font-size:11px;letter-spacing:1.5px;color:#e8a33d;margin-bottom:2px}
+  .chart-card .d{font-size:10px;color:#7f9a9c;margin-bottom:10px}
+  .vacio{font-size:10.5px;color:#5c8a7c;padding:14px 0;text-align:center;letter-spacing:.5px}
+
+  .drop{border:2px dashed rgba(255,255,255,.18);border-radius:8px;padding:22px;text-align:center;color:#9fb8ba;font-size:12px;cursor:pointer;transition:border-color .2s,background .2s,color .2s}
+  .drop:hover{border-color:#e8a33d;color:#e8a33d;background:rgba(232,163,61,.05)}
+  .drop-row{display:flex;gap:12px}
+  .drop-row .drop{flex:1}
+
+  .reel-row{display:flex;gap:34px;align-items:center;justify-content:center;padding:10px 0 22px}
+  .reel-box{text-align:center}
+  .reel-lbl{font-family:'Oswald','Arial Narrow',sans-serif;font-size:10px;letter-spacing:1.5px;color:#7f9a9c;margin-top:8px}
+  .reel{width:118px;height:118px;border-radius:50%;position:relative;background:repeating-radial-gradient(circle,#3a2a1a 0 3px,#4a3620 3px 6px);box-shadow:0 4px 14px rgba(0,0,0,.5)}
+  .reel .inner{position:absolute;inset:18px;border-radius:50%;background:#161616}
+  .reel .rueda{position:absolute;inset:0}
+  .reel .spoke{position:absolute;top:50%;left:50%;width:74px;height:8px;margin:-4px 0 0 -37px;background:#444;border-radius:3px}
+  .reel .spoke.b{transform:rotate(60deg)}.reel .spoke.c{transform:rotate(120deg)}
+  .reel .hub{position:absolute;top:50%;left:50%;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;background:#a89d80}
+  .reel.gira .rueda{animation:gira 1.6s linear infinite}
+  .reel.gira-lento .rueda{animation:gira 7s linear infinite}
+  @keyframes gira{to{transform:rotate(360deg)}}
+  .fuente-info{font-size:12px;color:#cfe4e2;text-align:center;min-width:260px}
+  .fuente-info .titulo{font-family:'Oswald','Arial Narrow',sans-serif;font-size:15px;margin-bottom:5px;letter-spacing:.5px}
+  .fuente-info .detalle{color:#7f9a9c}
+
+  .cardref{display:flex;align-items:center;gap:12px;background:#101c1f;border:1px solid #2c4048;border-radius:7px;padding:10px 14px;color:#cfe4e2;font-size:12px;margin-bottom:12px}
+  .cardref .dot{width:8px;height:8px;border-radius:50%;background:#43e08a;box-shadow:0 0 6px #43e08a;display:inline-block}
+  .cardref .x{margin-left:auto;color:#7f9a9c;cursor:pointer}
+  .cardref .x:hover{color:#e04b2e}
+
+  .parecidas{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+  .parecidas .t{font-family:'Oswald','Arial Narrow',sans-serif;font-size:10px;letter-spacing:1.3px;color:#7f9a9c;margin-right:4px}
+  .chip{background:#1a262b;border:1px solid #2c4048;border-radius:14px;padding:6px 12px;font-size:11px;color:#cfe4e2;cursor:pointer;transition:border-color .2s,color .2s}
+  .chip:hover{border-color:#e8a33d;color:#e8a33d}
+  .chip b{color:#7fe8c4;font-weight:500;margin-left:6px}
+  .chip.lejos b{color:#e8935a}
+
+  .knobs{display:flex;gap:30px;flex-wrap:wrap;justify-content:center}
+  .knob-wrap{text-align:center}
+  .knob{width:62px;height:62px;border-radius:50%;position:relative;margin:0 auto 6px;box-shadow:0 3px 8px rgba(0,0,0,.5)}
+  .knob .ptr{position:absolute;width:3px;height:22px;background:#fff;left:50%;top:6px;margin-left:-1.5px;border-radius:2px;transform-origin:1.5px 25px;transition:transform 1s cubic-bezier(.2,1.2,.4,1)}
+  .k-eq{background:radial-gradient(circle at 40% 32%,#4fa0c9,#1c4f6b 70%)}
+  .k-punch{background:radial-gradient(circle at 40% 32%,#5db06a,#245c30 70%)}
+  .k-mono{background:radial-gradient(circle at 40% 32%,#e0654a,#a3311c 70%)}
+  .k-target{background:radial-gradient(circle at 40% 32%,#c9a24f,#6b501c 70%)}
+  .k-label{font-family:'Oswald','Arial Narrow',sans-serif;font-size:10px;letter-spacing:1.2px;color:#c9d6d2}
+  .k-val{font-size:10px;color:#e8a33d;margin-top:2px}
+
+  .btn{border:none;border-radius:5px;padding:10px 18px;font-family:'Oswald','Arial Narrow',sans-serif;font-size:12px;letter-spacing:1px;cursor:pointer;display:inline-block;transition:filter .15s,transform .1s}
+  .btn:hover{filter:brightness(1.15)}
+  .btn:active{transform:scale(.97)}
+  .btn:disabled{opacity:.4;cursor:default;filter:none;transform:none}
+  .btn.ghost{background:rgba(255,255,255,.08);color:#dfe9e6;border:1px solid rgba(255,255,255,.15)}
+  .btn.primary{background:#e8a33d;color:#1c2a2c;font-weight:700}
+  .btn.big{padding:14px 30px;font-size:15px;letter-spacing:2px}
+  .btn.verde{background:#245c30;color:#dff5e3}
+  .btn.rojo{background:#6b2419;color:#f5dfdb}
+
+  .rotary-target{display:flex;align-items:center;gap:22px;background:#101c1f;border:1px solid #2c4048;border-radius:7px;padding:14px 18px;margin-bottom:14px;flex-wrap:wrap}
+  .detents{font-size:11px;color:#7f9a9c;display:flex;gap:8px;flex-wrap:wrap;flex:1}
+  .detent{padding:6px 10px;border-radius:5px;background:#1a262b;cursor:pointer;border:1px solid transparent;transition:border-color .2s}
+  .detent:hover{border-color:#2c4048;color:#cfe4e2}
+  .detent b{color:#e8a33d}
+  .detent.activo{border-color:#e8a33d;color:#e8a33d}
+  .detent input{width:52px;background:#0c1a17;border:1px solid #1f3b34;color:#7fe8c4;font:inherit;padding:1px 4px;border-radius:3px}
+
+  .progreso{background:#0c1a17;border:1px solid #1f3b34;border-radius:6px;padding:10px 12px;font-size:12px;color:#7fe8c4;margin-bottom:14px;display:none;align-items:center;gap:12px}
+  .progreso.visible{display:flex}
+  .progreso .barra{flex:none;width:140px;height:5px;border-radius:3px;background:#1f3b34;overflow:hidden;position:relative}
+  .progreso .barra::after{content:"";position:absolute;top:0;bottom:0;width:40%;background:#7fe8c4;animation:barre 1.2s ease-in-out infinite}
+  @keyframes barre{from{left:-40%}to{left:100%}}
+
+  .accion{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+  .resultado{display:none}
+  .resultado.visible{display:block;animation:entra .45s ease}
+
+  .toolgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px}
+  .toolcard{background:#101c1f;border:1px solid #2c4048;border-radius:7px;padding:14px 16px;cursor:pointer;transition:border-color .2s,transform .15s}
+  .toolcard:hover{border-color:#e8a33d;transform:translateY(-2px)}
+  .toolcard .t{font-family:'Oswald','Arial Narrow',sans-serif;font-size:12px;color:#cfe4e2;letter-spacing:.8px}
+  .toolcard .d{font-size:10px;color:#7f9a9c;line-height:1.45;margin:6px 0 8px}
+  .toolcard .ir{font-family:'Oswald','Arial Narrow',sans-serif;font-size:10px;color:#e8a33d;letter-spacing:1px}
+
+  table{width:100%;border-collapse:collapse;font-size:11px}
+  th{color:#7f9a9c;font-family:'Oswald','Arial Narrow',sans-serif;letter-spacing:1px;text-align:left;padding:4px 8px 8px;font-weight:500}
+  td{padding:7px 8px;border-top:1px solid #1f3b34}
+
+  .pie{display:flex;align-items:center;gap:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,.08)}
+  .estado{flex:1;font-size:11px;color:#9fb8ba;text-align:center;min-height:14px}
+  .estado.error{color:#e8935a}
+</style>
+</head>
+<body>
+
+<div class="rack">
+<div class="wood l"></div>
+<div class="unit">
+  <div class="screw tl"></div><div class="screw tr"></div><div class="screw bl"></div><div class="screw br"></div>
+
+  <header>
+    <div class="brand">MIX<span>MASTER</span></div>
+    <div class="modelo">MM-01 · MASTERING ENGINE<b id="proyecto">SIN PROYECTO</b></div>
+  </header>
+
+  <div class="steps">
+    <button class="step-btn active" data-v="0">01 FUENTE<span class="ok"></span></button>
+    <button class="step-btn" data-v="1">02 REFERENCIAS<span class="ok"></span></button>
+    <button class="step-btn" data-v="2">03 MASTER<span class="ok"></span></button>
+    <button class="step-btn" data-v="3">04 HERRAMIENTAS<span class="ok"></span></button>
+  </div>
+
+  <div class="views">
+
+  <!-- 01 · FUENTE -->
+  <div class="view visible" id="v0">
+    <div class="view-h">01 · FUENTE<span class="ln"></span></div>
+    <div class="reel-row">
+      <div class="reel-box">
+        <div class="reel carrete"><div class="rueda"><div class="inner"></div><div class="spoke"></div><div class="spoke b"></div><div class="spoke c"></div><div class="hub"></div></div></div>
+        <div class="reel-lbl">CARRETE FUENTE</div>
+      </div>
+      <div class="fuente-info">
+        <div class="titulo" id="fuente-titulo">SIN FUENTE CARGADA</div>
+        <div class="detalle" id="fuente-detalle">Carga una mezcla estéreo o una carpeta de stems</div>
+      </div>
+      <div class="reel-box">
+        <div class="reel carrete"><div class="rueda"><div class="inner"></div><div class="spoke"></div><div class="spoke b"></div><div class="spoke c"></div><div class="hub"></div></div></div>
+        <div class="reel-lbl">CARRETE TOMA</div>
+      </div>
+    </div>
+    <div class="drop-row">
+      <div class="drop" onclick="llamar('cargarMezcla')">CLIC PARA CARGAR UNA MEZCLA<br><span style="font-size:10px;color:#5c8a7c">WAV · MP3 · FLAC · AIFF · OGG</span></div>
+      <div class="drop" onclick="llamar('cargarStems')">CLIC PARA CARGAR UNA CARPETA DE STEMS<br><span style="font-size:10px;color:#5c8a7c">las guitarras (gtr/guit) reciben el EQ; voz y batería no</span></div>
+    </div>
+  </div>
+
+  <!-- 02 · REFERENCIAS -->
+  <div class="view" id="v1">
+    <div class="view-h">02 · REFERENCIAS<span class="ln"></span></div>
+    <div class="cardref" id="ref-card" style="display:none"><span class="dot"></span> <span id="ref-nombre"></span> <span style="color:#7f9a9c" id="ref-nota"></span><span class="x" onclick="llamar('quitarReferencia')" title="Quitar referencia">✕</span></div>
+
+    <div class="parecidas" id="parecidas"><span class="t">PARECIDAS EN TU BIBLIOTECA:</span><span class="vacio" style="padding:0">se buscan al cargar una mezcla</span></div>
+
+    <div class="meters">
+      <div class="meter">
+        <div class="lbl">MATCHING REFERENCIA <span class="led" id="led-dist"></span></div>
+        <svg viewBox="0 0 260 112" width="100%" style="display:block" id="vu-dist"></svg>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="t">RESONANCIAS DETECTADAS</div>
+      <div class="d">Picos estrechos anómalos en la mezcla. Se les aplica un notch suave antes del matching.</div>
+      <div id="resonancias"><div class="vacio">Se detectan al masterizar.</div></div>
+    </div>
+    <div class="drop" onclick="llamar('elegirReferencia')">CLIC PARA ELEGIR UNA REFERENCIA DE CUALQUIER CARPETA</div>
+  </div>
+
+  <!-- 03 · MASTER -->
+  <div class="view" id="v2">
+    <div class="view-h">03 · MASTER<span class="ln"></span></div>
+
+    <div class="rotary-target">
+      <div class="knob-wrap"><div class="knob k-target"><div class="ptr" id="ptr-target"></div></div><div class="k-label">TARGET</div><div class="k-val" id="val-target">-9.0 LUFS</div></div>
+      <div class="detents" id="detents"></div>
+    </div>
+
+    <div class="accion">
+      <button class="btn primary big" id="btn-master" onclick="masterizar()">▶ MASTERIZAR</button>
+      <span style="font-size:11px;color:#7f9a9c" id="aviso-master"></span>
+    </div>
+
+    <div class="progreso" id="progreso"><div class="reel carrete" style="width:34px;height:34px"><div class="rueda"><div class="inner" style="inset:6px"></div><div class="spoke" style="width:22px;height:3px;margin:-1.5px 0 0 -11px"></div><div class="spoke b" style="width:22px;height:3px;margin:-1.5px 0 0 -11px"></div><div class="hub" style="width:8px;height:8px;margin:-4px 0 0 -4px"></div></div></div><div class="barra"></div><span id="progreso-txt">Preparando…</span></div>
+
+    <div class="resultado" id="resultado">
+      <div class="meters">
+        <div class="meter">
+          <div class="lbl">CREST FACTOR <span class="led" id="led-crest"></span></div>
+          <svg viewBox="0 0 260 112" width="100%" style="display:block" id="vu-crest"></svg>
+        </div>
+        <div class="meter">
+          <div class="lbl">TRUE PEAK <span class="led" id="led-tp"></span></div>
+          <svg viewBox="0 0 260 112" width="100%" style="display:block" id="vu-tp"></svg>
+        </div>
+      </div>
+
+      <div class="lcdrow" id="lcds"></div>
+      <div class="statusrow" id="estados"></div>
+
+      <div class="chart-card">
+        <div class="t">ESPECTRO — MEZCLA MASTERIZADA</div>
+        <div class="d">Energía por frecuencia del master que acaba de salir (1/3 de octava).</div>
+        <svg viewBox="0 0 700 150" width="100%" style="display:block" id="espectro"></svg>
+      </div>
+
+      <div class="chart-card">
+        <div class="t">CORRECCIÓN EQ APLICADA — MEZCLA → REFERENCIA</div>
+        <div class="d" id="eq-desc">Cuánto movió el matching cada banda para acercar la mezcla a la referencia.</div>
+        <table>
+          <thead><tr><th>BANDA</th><th>RANGO</th><th>CORRECCIÓN</th><th>DISTANCIA A REF.</th><th>ESTADO</th></tr></thead>
+          <tbody id="eq-tabla"></tbody>
+        </table>
+      </div>
+
+      <div class="chart-card">
+        <div class="t">CADENA USADA EN ESTA CORRIDA</div>
+        <div class="knobs" style="padding-top:8px">
+          <div class="knob-wrap"><div class="knob k-eq"><div class="ptr" id="ptr-eq"></div></div><div class="k-label">EQ MATCH</div><div class="k-val" id="val-eq">—</div></div>
+          <div class="knob-wrap"><div class="knob k-punch"><div class="ptr" id="ptr-punch"></div></div><div class="k-label">PUNCH</div><div class="k-val" id="val-punch">—</div></div>
+          <div class="knob-wrap"><div class="knob k-mono"><div class="ptr" id="ptr-mono"></div></div><div class="k-label">MONO BASS</div><div class="k-val" id="val-mono">—</div></div>
+        </div>
+      </div>
+
+      <div class="accion">
+        <button class="btn ghost" onclick="llamar('abrirSalida')">📂 ABRIR CARPETA DEL MASTER</button>
+        <span style="flex:1"></span>
+        <span style="font-size:11px;color:#9fb8ba">¿Cómo sonó?</span>
+        <button class="btn verde" id="btn-si" onclick="votar(true)">ME GUSTA</button>
+        <button class="btn rojo" id="btn-no" onclick="votar(false)">NO ME GUSTA</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 04 · HERRAMIENTAS -->
+  <div class="view" id="v3">
+    <div class="view-h">04 · HERRAMIENTAS<span class="ln"></span></div>
+    <div class="toolgrid">
+      <div class="toolcard" onclick="llamar('abrirHerramienta','historial')"><div class="t">HISTORIAL</div><div class="d">Diagnósticos y masters anteriores del proyecto.</div><div class="ir">ABRIR ▸</div></div>
+      <div class="toolcard" onclick="llamar('abrirHerramienta','masters')"><div class="t">MASTERS</div><div class="d">Reabrir y escuchar las versiones ya exportadas.</div><div class="ir">ABRIR ▸</div></div>
+      <div class="toolcard" onclick="llamar('abrirHerramienta','coaching')"><div class="t">DIAGNÓSTICO DE STEMS</div><div class="d">Checklist pre-mezcla: choques de banda, masking, fase.</div><div class="ir">ABRIR ▸</div></div>
+      <div class="toolcard" onclick="llamar('abrirHerramienta','null')"><div class="t">NULL TEST</div><div class="d">Resta de fase entre dos versiones.</div><div class="ir">ABRIR ▸</div></div>
+      <div class="toolcard" onclick="llamar('abrirHerramienta','ab')"><div class="t">A/B CIEGO</div><div class="d">Compara los 2 masters más recientes sin revelar cuál es cuál.</div><div class="ir">ABRIR ▸</div></div>
+      <div class="toolcard" onclick="llamar('abrirHerramienta','notas')"><div class="t">NOTAS</div><div class="d">Apuntes del proyecto.</div><div class="ir">ABRIR ▸</div></div>
+      <div class="toolcard" onclick="llamar('abrirHerramienta','convertidor')"><div class="t">CONVERTIDOR</div><div class="d">m4a, wma, mp3, flac… a WAV o MP3.</div><div class="ir">ABRIR ▸</div></div>
+      <div class="toolcard" onclick="llamar('abrirHerramienta','settings')"><div class="t">CONFIGURACIÓN</div><div class="d">Perfil, género activo, carpeta de proyectos.</div><div class="ir">ABRIR ▸</div></div>
+      <div class="toolcard" onclick="llamar('abrirHerramienta','clasica')"><div class="t">INTERFAZ ANTERIOR</div><div class="d">Abre la ventana de siempre, con todo lo que no está acá.</div><div class="ir">ABRIR ▸</div></div>
+    </div>
+  </div>
+
+  </div>
+
+  <div class="pie">
+    <button class="btn ghost" id="btn-atras" onclick="irA(actual-1)">← ATRÁS</button>
+    <div class="estado" id="estado"></div>
+    <button class="btn primary" id="btn-sig" onclick="irA(actual+1)">SIGUIENTE ▸</button>
+  </div>
+
+</div>
+<div class="wood r"></div>
+</div>
+
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<script>
+// ---------------------------------------------------------------- puente
+let puente = null;
+function llamar(fn, ...args) {
+  if (puente && typeof puente[fn] === "function") puente[fn](...args);
+  else console.log("[sin puente]", fn, args);
+}
+if (window.qt && window.qt.webChannelTransport) {
+  new QWebChannel(qt.webChannelTransport, ch => { puente = ch.objects.puente; puente.listo(); });
+}
+
+// ---------------------------------------------------------------- navegación
+let actual = 0;
+const botones = [...document.querySelectorAll(".step-btn")];
+botones.forEach(b => b.onclick = () => irA(+b.dataset.v));
+function irA(i) {
+  i = Math.max(0, Math.min(3, i));
+  actual = i;
+  document.querySelectorAll(".view").forEach((v, k) => v.classList.toggle("visible", k === i));
+  botones.forEach((b, k) => b.classList.toggle("active", k === i));
+  document.getElementById("btn-atras").disabled = i === 0;
+  document.getElementById("btn-sig").disabled = i === 3;
+  document.querySelector(".unit").scrollIntoView({block: "start"});
+}
+irA(0);
+function marcarHecho(i, si = true) { botones[i].classList.toggle("hecho", si); }
+
+function estado(txt, error = false) {
+  const e = document.getElementById("estado");
+  e.textContent = txt || "";
+  e.classList.toggle("error", !!error);
+}
+
+// ---------------------------------------------------------------- VU
+// Arco del mockup: centro (130,95), radio 66, de 180° (izq.) a 0° (der.).
+function dibujarVU(id, marcas, titulo) {
+  const svg = document.getElementById(id);
+  const angs = [180, 135, 90, 45, 0];
+  let s = `<path d="M64,95 A66,66 0 0,1 196,95" fill="none" stroke="#8f8560" stroke-width="2"/>`;
+  angs.forEach((a, k) => {
+    const r = a * Math.PI / 180;
+    const x1 = 130 + 58 * Math.cos(r), y1 = 95 - 58 * Math.sin(r);
+    const x2 = 130 + 52 * Math.cos(r), y2 = 95 - 52 * Math.sin(r);
+    const xt = 130 + 42 * Math.cos(r), yt = 95 - 42 * Math.sin(r) + 3;
+    s += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#4a4227" stroke-width="1.4"/>`;
+    s += `<text x="${xt}" y="${yt}" text-anchor="middle" font-size="8" fill="#4a4227">${marcas[k]}</text>`;
+  });
+  s += `<g class="aguja" style="transform:rotate(-90deg)"><line x1="130" y1="95" x2="130" y2="40" stroke="#2a2416" stroke-width="2.4" stroke-linecap="round"/></g>`;
+  s += `<circle cx="130" cy="95" r="5.5" fill="#2a2416"/>`;
+  s += `<text x="130" y="110" text-anchor="middle" font-family="Oswald,Arial Narrow" font-size="10" fill="#4a4227" letter-spacing="1">${titulo}</text>`;
+  svg.innerHTML = s;
+}
+// valor -> posición 0..1 interpolando entre las marcas (escala no lineal)
+function posEnEscala(v, marcas) {
+  const n = marcas.length - 1;
+  const asc = marcas[n] > marcas[0];
+  for (let k = 0; k < n; k++) {
+    const a = marcas[k], b = marcas[k + 1];
+    const dentro = asc ? (v >= a && v <= b) : (v <= a && v >= b);
+    if (dentro) return (k + (v - a) / (b - a)) / n;
+  }
+  const antes = asc ? v < marcas[0] : v > marcas[0];
+  return antes ? 0 : 1;
+}
+function moverAguja(id, t) {
+  const g = document.querySelector(`#${id} .aguja`);
+  if (g) g.style.transform = `rotate(${t * 180 - 90}deg)`;
+}
+function led(id, color) {
+  const l = document.getElementById(id);
+  l.className = "led" + (color ? " " + color : "");
+}
+const ESC_DIST = [12, 9, 6, 3, 0], ESC_CREST = [4, 8, 11, 14, 18], ESC_TP = [-6, -3, -1.6, -1, 0];
+dibujarVU("vu-dist", ESC_DIST, "DISTANCIA A REF. (dB/banda)");
+dibujarVU("vu-crest", ESC_CREST, "CREST (dB) — zona sana 6-12");
+dibujarVU("vu-tp", ESC_TP, "TRUE PEAK (dBTP) — techo -1.0");
+
+function ponerDistancia(d) {
+  if (d == null) { moverAguja("vu-dist", 0); led("led-dist", null); return; }
+  moverAguja("vu-dist", posEnEscala(d, ESC_DIST));
+  led("led-dist", d < 4.6 ? "verde" : "rojo");
+}
+
+// ---------------------------------------------------------------- perillas
+function perilla(id, t) {  // t 0..1 -> -135..135°
+  const p = document.getElementById(id);
+  if (p) p.style.transform = `rotate(${-135 + Math.max(0, Math.min(1, t)) * 270}deg)`;
+}
+
+// ---------------------------------------------------------------- target
+let target = -9.0;
+function ponerTarget(v, recalc = true) {
+  target = Math.round(v * 10) / 10;
+  document.getElementById("val-target").textContent = `${target.toFixed(1)} LUFS`;
+  perilla("ptr-target", (target + 18) / 13);  // -18 .. -5
+  document.querySelectorAll(".detent").forEach(d =>
+    d.classList.toggle("activo", !d.dataset.custom && Math.abs(+d.dataset.lufs - target) < 0.05));
+}
+
+// ---------------------------------------------------------------- escala log
+const F_MIN = 20, F_MAX = 20000;
+function xLog(f, x0 = 34, x1 = 686) {
+  const t = (Math.log10(Math.max(F_MIN, Math.min(F_MAX, f))) - Math.log10(F_MIN)) /
+            (Math.log10(F_MAX) - Math.log10(F_MIN));
+  return x0 + t * (x1 - x0);
+}
+function etiquetaHz(f) { return f >= 1000 ? `${(f / 1000).toFixed(f >= 10000 ? 0 : 1)}k` : `${Math.round(f)}`; }
+
+// ---------------------------------------------------------------- API para Python
+const MM = {
+  init(d) {
+    document.getElementById("detents").innerHTML =
+      (d.destinos || []).map(x =>
+        `<span class="detent" data-lufs="${x.lufs}" onclick="ponerTarget(${x.lufs})">${x.nombre} <b>${x.lufs}</b></span>`).join("") +
+      `<span class="detent" data-custom="1">PERSONALIZADO <input id="in-target" type="number" step="0.5" min="-18" max="-5" value="${d.target}" onchange="ponerTarget(parseFloat(this.value))"></span>`;
+    ponerTarget(d.target);
+    if (d.proyecto) MM.proyecto(d.proyecto);
+    estado(d.mensaje || "Listo. Carga una mezcla o una carpeta de stems para empezar.");
+  },
+  proyecto(nombre) { document.getElementById("proyecto").textContent = (nombre || "SIN PROYECTO").toUpperCase(); },
+  fuente(f) {
+    document.getElementById("fuente-titulo").textContent = f.titulo;
+    document.getElementById("fuente-detalle").textContent = f.detalle || "";
+    document.querySelectorAll(".view#v0 .carrete").forEach(r => r.classList.add("gira-lento"));
+    marcarHecho(0);
+    if (f.proyecto) MM.proyecto(f.proyecto);
+    MM.parecidas(null);
+    document.getElementById("resultado").classList.remove("visible");
+    marcarHecho(2, false);
+    estado(`Fuente cargada: ${f.titulo}. Sigue con 02 · Referencias.`);
+  },
+  parecidas(lista) {
+    const cont = document.getElementById("parecidas");
+    let html = `<span class="t">PARECIDAS EN TU BIBLIOTECA:</span>`;
+    if (lista === null) html += `<span class="vacio" style="padding:0">buscando…</span>`;
+    else if (!lista.length) html += `<span class="vacio" style="padding:0">no hay referencias en la biblioteca</span>`;
+    else html += lista.map(c =>
+      `<span class="chip ${c.distancia_db >= 4.6 ? "lejos" : ""}" title="${c.carpeta} — distancia tímbrica media (forma del espectro, hasta 16 kHz)"
+             onclick='llamar("usarReferencia", ${JSON.stringify(c.ruta)})'>${c.nombre}<b>${c.distancia_db.toFixed(1)} dB</b></span>`).join("");
+    cont.innerHTML = html;
+  },
+  referencia(r) {
+    const card = document.getElementById("ref-card");
+    if (!r) { card.style.display = "none"; ponerDistancia(null); marcarHecho(1, false); return; }
+    document.getElementById("ref-nombre").textContent = r.nombre;
+    document.getElementById("ref-nota").textContent = r.distancia != null
+      ? `— distancia ${r.distancia.toFixed(1)} dB/banda${r.distancia >= 4.6 ? " (lejana: el matching casi no se va a notar)" : ""}`
+      : "";
+    card.style.display = "flex";
+    ponerDistancia(r.distancia);
+    marcarHecho(1);
+    estado(`Referencia: ${r.nombre}. Sigue con 03 · Master.`);
+  },
+  ocupado(si, txt) {
+    document.getElementById("btn-master").disabled = si;
+    document.getElementById("progreso").classList.toggle("visible", si);
+    document.querySelectorAll(".carrete").forEach(r => r.classList.toggle("gira", si));
+    if (txt) document.getElementById("progreso-txt").textContent = txt;
+  },
+  progreso(txt) { document.getElementById("progreso-txt").textContent = txt; },
+  error(txt) { MM.ocupado(false); estado(txt, true); },
+  aviso(txt) { estado(txt); },
+  resultado(r) {
+    MM.ocupado(false);
+    document.querySelectorAll(".view#v0 .carrete").forEach(c => c.classList.add("gira-lento"));
+    document.getElementById("resultado").classList.add("visible");
+    ["btn-si", "btn-no"].forEach(id => document.getElementById(id).disabled = false);
+    marcarHecho(2);
+
+    // VU
+    moverAguja("vu-crest", posEnEscala(r.crest_final, ESC_CREST));
+    led("led-crest", r.crest_final >= 6 && r.crest_final <= 12 ? "verde" : "rojo");
+    moverAguja("vu-tp", posEnEscala(r.true_peak_final, ESC_TP));
+    led("led-tp", r.true_peak_final <= -1.0 ? "verde" : "rojo");
+
+    const dists = Object.values(r.distancia_referencia_db || {});
+    const dmedia = dists.length ? dists.reduce((a, b) => a + b, 0) / dists.length : null;
+    if (dmedia != null) ponerDistancia(dmedia);
+
+    // LCD
+    const lcd = (k, v) => `<div class="lcd"><div class="k">${k}</div><div class="v">${v}</div></div>`;
+    document.getElementById("lcds").innerHTML =
+      lcd("LUFS FINAL", r.lufs_final.toFixed(1)) +
+      lcd("TARGET", r.target_lufs.toFixed(1)) +
+      lcd("TRUE PEAK", `${r.true_peak_final.toFixed(1)}`) +
+      lcd("DIST. REF.", dmedia != null ? dmedia.toFixed(1) : "—") +
+      lcd("PARECIDO A REF.", r.score ? `${r.score.global}%` : "—") +
+      lcd("RESONANCIAS", (r.resonancias_db || []).length) +
+      lcd("DECLIP", `${r.muestras_declipeadas || 0} m.`);
+
+    // estados
+    const st = (ok, txt, color) => `<div class="status"><span class="led ${color || (ok ? "verde" : "")}"></span> ${txt}</div>`;
+    const avisos = [r.aviso_crest_fuera_zona, r.aviso_referencia_no_calza].filter(Boolean);
+    document.getElementById("estados").innerHTML =
+      st(r.convergio_target, r.convergio_target ? "CONVERGIÓ A TARGET" : "NO LLEGÓ AL TARGET", r.convergio_target ? "verde" : "rojo") +
+      st(r.dinamica_macro, "DINÁMICA DE SECCIONES") +
+      st(r.densidad_aplicada, "DENSIDAD APLICADA") +
+      ((r.eq_solo_en || []).length ? st(true, `EQ SOLO EN ${r.eq_solo_en.length} STEM(S) DE GUITARRA`, "ambar") : "") +
+      (avisos.length ? st(false, "HAY AVISOS — VER ABAJO", "rojo") : st(true, "SIN AVISOS CRÍTICOS"));
+    if (avisos.length) estado(avisos.join("  ·  "), true);
+    else estado(`Master listo: ${r.lufs_final.toFixed(1)} LUFS, ${r.true_peak_final.toFixed(1)} dBTP. Escúchalo y vota.`);
+
+    // resonancias
+    const res = r.resonancias_db || [];
+    document.getElementById("resonancias").innerHTML = !res.length
+      ? `<div class="vacio">No se detectaron resonancias en esta mezcla.</div>`
+      : `<svg viewBox="0 0 700 60" width="100%" style="display:block">
+           <line x1="34" y1="32" x2="686" y2="32" stroke="#2c4048"/>
+           <g font-size="8" fill="#5c8a7c">${[20, 100, 1000, 10000, 20000].map(f =>
+             `<text x="${xLog(f)}" y="54" text-anchor="middle">${etiquetaHz(f)}</text>`).join("")}</g>
+           ${res.map(x => `<circle cx="${xLog(x.freq)}" cy="32" r="4.5" fill="#e8935a"/>
+             <text x="${xLog(x.freq)}" y="18" text-anchor="middle" font-size="9" fill="#e8935a">${etiquetaHz(x.freq)}Hz · ${x.corte_db} dB</text>`).join("")}
+         </svg>`;
+
+    // espectro
+    const esp = r.espectro_master || {freqs: [], db: []};
+    const svg = document.getElementById("espectro");
+    if (esp.freqs.length) {
+      const util = esp.freqs.map((f, k) => [f, esp.db[k]]).filter(([f, d]) => f >= 25 && f <= 18000 && isFinite(d));
+      const top = Math.max(...util.map(p => p[1])), piso = top - 42;
+      const y = d => 16 + (1 - (Math.max(piso, d) - piso) / (top - piso)) * 104;
+      const pts = util.map(([f, d]) => `${xLog(f).toFixed(1)},${y(d).toFixed(1)}`);
+      const grid = [20, 50, 100, 500, 1000, 5000, 10000, 20000];
+      svg.innerHTML =
+        `<defs><linearGradient id="gradSpec" x1="0" y1="0" x2="0" y2="1">
+           <stop offset="0%" stop-color="#7fe8c4" stop-opacity="0.45"/><stop offset="100%" stop-color="#7fe8c4" stop-opacity="0"/>
+         </linearGradient></defs>` +
+        `<g stroke="#1c2e2a">${grid.map(f => `<line x1="${xLog(f)}" y1="16" x2="${xLog(f)}" y2="120"/>`).join("")}</g>` +
+        `<g font-size="8" fill="#5c8a7c">${grid.map(f => `<text x="${xLog(f)}" y="134" text-anchor="middle">${etiquetaHz(f)}</text>`).join("")}</g>` +
+        `<path d="M${pts[0]} L${pts.join(" L")} L${xLog(util[util.length - 1][0])},120 L${xLog(util[0][0])},120 Z" fill="url(#gradSpec)"/>` +
+        `<path d="M${pts.join(" L")}" fill="none" stroke="#7fe8c4" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" class="trazo"/>` +
+        `<g font-family="Oswald,Arial Narrow" font-size="8" fill="#7f9a9c" text-anchor="middle">${
+          [["SUB", 40], ["LOW", 120], ["LOW MID", 350], ["MID", 1000], ["HIGH MID", 3500], ["HIGH", 8000], ["AIR", 14000]]
+            .map(([n, f]) => `<text x="${xLog(f)}" y="146">${n}</text>`).join("")}</g>`;
+      const trazo = svg.querySelector(".trazo");
+      const L = trazo.getTotalLength();
+      trazo.style.strokeDasharray = L; trazo.style.strokeDashoffset = L;
+      trazo.getBoundingClientRect();
+      trazo.style.transition = "stroke-dashoffset 1.4s ease-out"; trazo.style.strokeDashoffset = 0;
+    }
+
+    // tabla EQ
+    const RANGOS = {sub: "20-60Hz", low: "60-200Hz", low_mid: "200-500Hz", mid: "500-2kHz", high_mid: "2k-6kHz", high: "6k-10kHz", air: "10k-16kHz"};
+    const eq = r.eq_aplicado_db || {}, dist = r.distancia_referencia_db || {};
+    document.getElementById("eq-tabla").innerHTML = Object.keys(RANGOS).map(b => {
+      const v = eq[b], d = dist[b];
+      const est = v == null ? ["SIN REF.", "#7f9a9c"] : Math.abs(v) >= 2 ? ["ACTIVA", "#7fe8c4"] : Math.abs(v) >= 0.5 ? ["LEVE", "#e8935a"] : ["SIN CAMBIO", "#7f9a9c"];
+      return `<tr><td style="color:#cfe4e2">${b.replace("_", " ").toUpperCase()}</td><td style="color:#7f9a9c">${RANGOS[b]}</td>
+        <td style="color:#7fe8c4">${v == null ? "—" : (v > 0 ? "+" : "") + v.toFixed(1) + " dB"}</td>
+        <td style="color:${d != null && d >= 4.6 ? "#e8935a" : "#9fb8ba"}">${d == null ? "—" : d.toFixed(1) + " dB"}</td>
+        <td style="color:${est[1]}">${est[0]}</td></tr>`;
+    }).join("");
+    document.getElementById("eq-desc").textContent = (r.eq_solo_en || []).length
+      ? `Aplicada SOLO a: ${r.eq_solo_en.join(", ")}. Voz y batería pasaron intactas.`
+      : "Cuánto movió el matching cada banda para acercar la mezcla a la referencia.";
+
+    // perillas
+    document.getElementById("val-eq").textContent = r.eq_tope_db != null ? `±${r.eq_tope_db.toFixed(1)} dB` : "—";
+    perilla("ptr-eq", (r.eq_tope_db || 0) / 12);
+    document.getElementById("val-punch").textContent = (r.transient_shaping || 0).toFixed(2);
+    perilla("ptr-punch", (r.transient_shaping || 0) / 0.6);
+    document.getElementById("val-mono").textContent = r.mono_bass_hz ? `${Math.round(r.mono_bass_hz)} Hz` : "OFF";
+    perilla("ptr-mono", (r.mono_bass_hz || 0) / 160);
+  },
+  votado(txt) {
+    ["btn-si", "btn-no"].forEach(id => document.getElementById(id).disabled = true);
+    estado(txt);
+  },
+};
+
+function masterizar() { llamar("masterizar", target); }
+function votar(bueno) { llamar("votar", bueno); }
+</script>
+</body>
+</html>

@@ -11,6 +11,23 @@
 > con el ítem 3 sin portarlo). Todo el resto verificó OK. Ambos corregidos a
 > `[~]` abajo con su explicación.
 
+## 🔥 PRIORIDAD ABIERTA — Interfaz MM-01 (el mockup aprobado)
+
+Bruno: "no es como me mostraste el mockup". El mockup aprobado es
+`mockup_hardware_v5` (4/9/2026: panel petróleo, laterales de madera,
+carretes, VU crema). Recuperado de la sesión "Estructura y estado de la app".
+
+- [x] `mixmaster/ui/web/consola.html`: el mockup como interfaz real (4 pasos,
+  VU con aguja animada, carretes que giran al procesar, espectro real, tabla
+  de EQ, votos me gusta / no me gusta, herramientas).
+- [x] `mixmaster/ui/consola_web.py`: QWebEngineView + QWebChannel; la ventana
+  clásica queda oculta como motor. Se abre con `python main.py --consola`.
+- [ ] **SIN PROBAR TODAVÍA**: abrirla a 1920x1080, cargar una mezcla real,
+  masterizar y revisar cada paso. Recién después mostrársela a Bruno
+  maximizada, avisando antes.
+- [ ] Si la aprueba: que sea la interfaz por defecto (hoy la clásica sigue
+  siendo la de siempre).
+
 ## 🔥 PENDIENTES 2026-09-25 (pedido de Bruno: "anótate todo lo que falta y hazlo")
 
 - [x] **Matching mide 16–19 kHz sin contenido** — infla la distancia de aire

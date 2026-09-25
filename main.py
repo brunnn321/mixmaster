@@ -32,7 +32,12 @@ def main() -> int:
         except Exception:
             log.debug("No se pudo fijar el AppUserModelID de Windows")
 
+    from PySide6.QtCore import QCoreApplication, Qt
     from PySide6.QtWidgets import QApplication
+
+    # Qt WebEngine (interfaz MM-01) exige compartir contextos OpenGL y fijarlo
+    # ANTES de crear la QApplication. No afecta a la interfaz clásica.
+    QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
 
     from mixmaster.settings import Settings
     from mixmaster.ui.first_run import ejecutar_primera_configuracion
@@ -69,6 +74,17 @@ def main() -> int:
         app.setWindowIcon(QIcon(str(icono)))
 
     settings = Settings()
+
+    # Interfaz MM-01 (el mockup aprobado) a prueba: `python main.py --consola`.
+    # Sin la bandera, arranca la interfaz de siempre.
+    if "--consola" in sys.argv:
+        from mixmaster.ui.consola_web import ConsolaWeb
+        ventana = ConsolaWeb(settings)
+        if settings.get("primera_ejecucion", True):
+            ejecutar_primera_configuracion(ventana.clasica, settings)
+        ventana.showMaximized()
+        log.info("MixMaster iniciado (interfaz MM-01)")
+        return app.exec()
 
     ventana = MainWindow(settings)
 
