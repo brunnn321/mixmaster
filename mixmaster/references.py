@@ -236,3 +236,59 @@ def detectar_etiqueta_sugerida(audio_mezcla_path: Path) -> dict:
         "confianza": confianza,
         "similitudes": similitudes,
     }
+
+
+# ------------------------------------------------- referencias parecidas
+
+F_MAX_PARECIDO_HZ = 16000.0  # mismo techo que el matching: arriba no hay contenido fiable
+
+
+def referencias_parecidas(audio_mezcla, sr: int, n: int = 3,
+                          carpeta: Path | None = None) -> list[dict]:
+    """Las `n` referencias de la biblioteca cuyo timbre más se parece a la mezcla.
+
+    Compara la FORMA del espectro (sin nivel, hasta 16 kHz) contra TODAS las
+    referencias, de todas las carpetas de género: lo que importa para el
+    matching es la cercanía tímbrica, no la etiqueta. La distancia está en la
+    misma unidad que el aviso de "referencia lejana" del master (dB medios por
+    punto); por encima de ~4.6 dB el matching suele sonar "a nada".
+
+    Devuelve [{"ruta", "nombre", "carpeta", "distancia_db"}] de menor a mayor.
+    """
+    from .audio_analysis import analizar_referencia_cacheada
+
+    base = Path(carpeta) if carpeta else REFERENCIAS_DIR
+    if not base.is_dir():
+        return []
+    formatos = (".wav", ".mp3", ".flac", ".ogg", ".aiff", ".aif")
+    archivos = sorted(p for p in base.rglob("*")
+                      if p.is_file() and p.suffix.lower() in formatos)
+    if not archivos:
+        return []
+
+    freqs, esp_mix = espectro_suavizado(audio_mezcla, sr)
+    util = np.asarray(freqs) <= F_MAX_PARECIDO_HZ
+    forma_mix = np.asarray(esp_mix)[util]
+    forma_mix = forma_mix - forma_mix.mean()
+
+    candidatas = []
+    for ruta in archivos:
+        try:
+            e = analizar_referencia_cacheada(ruta)
+            esp_ref = np.asarray(e["espectro_db"])
+            if esp_ref.shape != np.asarray(esp_mix).shape:
+                continue
+            forma_ref = esp_ref[util] - esp_ref[util].mean()
+            distancia = float(np.mean(np.abs(forma_ref - forma_mix)))
+        except Exception:
+            log.debug("No se pudo comparar %s", ruta, exc_info=True)
+            continue
+        candidatas.append({
+            "ruta": str(ruta),
+            "nombre": ruta.stem,
+            "carpeta": ruta.parent.name,
+            "distancia_db": round(distancia, 1),
+        })
+
+    candidatas.sort(key=lambda c: c["distancia_db"])
+    return candidatas[:n]

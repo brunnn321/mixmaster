@@ -11,6 +11,25 @@
 > con el ítem 3 sin portarlo). Todo el resto verificó OK. Ambos corregidos a
 > `[~]` abajo con su explicación.
 
+## 🔥 PENDIENTES 2026-09-25 (pedido de Bruno: "anótate todo lo que falta y hazlo")
+
+- [x] **Matching mide 16–19 kHz sin contenido** — infla la distancia de aire
+  (them_bones2: 14.8 dB falsos) y el score tonal. Limitar matching, distancia
+  y score a ≤16 kHz.
+- [x] **Imagen estéreo topada** — `max_ajuste_ancho_db: 1.0` topó en las 3
+  bandas medias en them_bones2. Subir a 2.0 (el default del código).
+- [x] **Master por stems: EQ solo en guitarras** — pedido de Bruno: que el
+  matching y los notches no toquen voz ni batería. Con stems se aplica la
+  curva solo a los stems de guitarra antes de sumar.
+- [x] **Carpeta de salida se abre detrás de la ventana** — `os.startfile`
+  sin permiso de foreground en Windows.
+- [x] **Sugerir referencias parecidas de la biblioteca** — "de tu biblioteca,
+  estas 3 se parecen a tu mezcla" (ítem viejo del roadmap).
+- [x] **Interfaz: revisión completa** (2026-09-25: los 3 pasos renderizan bien con el estilo real; sin nada roto a la vista) — recorrer la ventana renderizada y
+  corregir lo que se vea roto o incompleto.
+- [ ] **Modo voz: probar de oído con voz real** — solo Bruno puede hacerlo;
+  los defaults siguen validados solo con señal sintética.
+
 ## ⏭️ PRÓXIMA SESIÓN (actualizado 2026-08-06, en este orden)
 
 1. ~~Commitear el trabajo del 2026-07-30~~ ✅ hecho (`73974d3`, `8ca33e5`,

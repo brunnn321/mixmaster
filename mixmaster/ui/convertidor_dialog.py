@@ -156,8 +156,8 @@ class ConvertidorDialog(QDialog):
             QMessageBox.information(self, "Convertidor", f"{len(ok)} archivo(s) convertido(s).")
         if ok:
             try:
-                import os
-                os.startfile(str(ok[0].parent))
+                from .abrir import mostrar_en_carpeta
+                mostrar_en_carpeta(ok[0])
             except Exception:
                 log.exception("No se pudo abrir la carpeta de salida")
         self.lista.clear()

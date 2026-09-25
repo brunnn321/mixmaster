@@ -284,6 +284,30 @@ class AnalisisWorker(QThread):
             self.fallo.emit(str(e))
 
 
+class ParecidasWorker(QThread):
+    """Busca en la biblioteca las referencias más parecidas a la mezcla.
+
+    En segundo plano: carga la mezcla completa y, la primera vez, analiza las
+    referencias que todavía no están en caché. Eso puede tardar.
+    """
+
+    terminado = Signal(str, list)
+
+    def __init__(self, wav):
+        super().__init__()
+        self.wav = str(wav)
+
+    def run(self):
+        try:
+            from ..audio_analysis import cargar_audio
+            from ..references import referencias_parecidas
+            audio, sr = cargar_audio(Path(self.wav))
+            self.terminado.emit(self.wav, referencias_parecidas(audio, sr, n=3))
+        except Exception:
+            log.exception("No se pudieron buscar referencias parecidas")
+            self.terminado.emit(self.wav, [])
+
+
 class MasterWorker(QThread):
     """Ejecuta el masterizado automático fuera del hilo de la UI."""
 
@@ -633,6 +657,12 @@ class MainWindow(QMainWindow):
         self.refs_layout = QVBoxLayout(self.refs_contenedor)
         self.refs_layout.setContentsMargins(0, 0, 0, 0)
         lay2.addWidget(self.refs_contenedor)
+        # Sugerencias: "de tu biblioteca, estas se parecen a tu mezcla"
+        self.panel_parecidas = QWidget()
+        self._lay_parecidas = QHBoxLayout(self.panel_parecidas)
+        self._lay_parecidas.setContentsMargins(0, 0, 0, 0)
+        self.panel_parecidas.setVisible(False)
+        lay2.addWidget(self.panel_parecidas)
         self.ed_marcadores = QLineEdit()
         self.ed_marcadores.setPlaceholderText(
             "Marcadores para el análisis (opcional): Intro: 0:00, Riff A: 0:23")
@@ -988,6 +1018,7 @@ class MainWindow(QMainWindow):
 
     def _set_proyecto(self, proyecto: Project):
         """Activa un proyecto y vuelve al paso 1."""
+        self._limpiar_parecidas()
         self.proyecto = proyecto
         self.diagnostico = None
         self.wav_activo = None
@@ -1094,8 +1125,8 @@ class MainWindow(QMainWindow):
     def _abrir_carpeta(self):
         """Abre la carpeta del proyecto en el explorador."""
         if self.proyecto:
-            import os
-            os.startfile(str(self.proyecto.root))  # noqa: S606 — abrir carpeta local
+            from .abrir import abrir
+            abrir(self.proyecto.root)
 
     def _borrar_proyecto(self):
         """Elige y borra un proyecto entero de la carpeta proyectos/ (irreversible)."""
@@ -1200,8 +1231,8 @@ class MainWindow(QMainWindow):
             return
         QApplication.restoreOverrideCursor()
         try:
-            import os
-            os.startfile(str(Path(r["ruta"]).parent))
+            from .abrir import mostrar_en_carpeta
+            mostrar_en_carpeta(r["ruta"])
         except Exception:
             log.exception("No se pudo abrir la carpeta del null test")
         QMessageBox.information(
@@ -1355,6 +1386,7 @@ class MainWindow(QMainWindow):
         # (opcional en ambos modos, pero si no se pasa por la pantalla no hay
         # forma de agregarla).
         self._ir(1)
+        self._buscar_parecidas()
 
     # ------------------------------------------------------- drag & drop
 
@@ -1537,6 +1569,53 @@ class MainWindow(QMainWindow):
             paths = dlg.selectedFiles()
             if paths:
                 self._set_referencias_desde_paths([Path(paths[0])])
+
+    # ------------------------------------------- referencias parecidas
+
+    def _buscar_parecidas(self):
+        """Busca en segundo plano las 3 referencias de la biblioteca más parecidas."""
+        self._limpiar_parecidas()
+        if not self.wav_activo or self._modo_voz():
+            return
+        self._parecidas_worker = ParecidasWorker(self.wav_activo)
+        self._parecidas_worker.setParent(self)
+        self._parecidas_worker.terminado.connect(self._mostrar_parecidas)
+        self._parecidas_worker.start()
+
+    def _limpiar_parecidas(self):
+        if not hasattr(self, "_lay_parecidas"):
+            return
+        while self._lay_parecidas.count():
+            item = self._lay_parecidas.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self.panel_parecidas.setVisible(False)
+
+    def _mostrar_parecidas(self, wav: str, lista: list):
+        # si mientras buscaba se cargó otra mezcla, este resultado ya no sirve
+        if not self.wav_activo or str(self.wav_activo) != wav:
+            return
+        self._limpiar_parecidas()
+        if not lista:
+            return
+        lbl = QLabel("Parecidas en tu biblioteca:")
+        lbl.setToolTip("Las referencias cuyo timbre más se parece a esta mezcla,\n"
+                       "de todas tus carpetas de género. Un clic la usa.")
+        self._lay_parecidas.addWidget(lbl)
+        for c in lista:
+            nombre = c["nombre"] if len(c["nombre"]) <= 34 else c["nombre"][:33] + "…"
+            lejana = c["distancia_db"] >= 4.6
+            btn = QPushButton(f"{'⚠ ' if lejana else ''}{nombre} · {c['distancia_db']:.1f} dB")
+            btn.setToolTip(
+                f"{c['carpeta']} / {Path(c['ruta']).name}\n"
+                "Distancia tímbrica media (forma del espectro, hasta 16 kHz)."
+                + ("\nLejana: con esta referencia el matching probablemente no se note."
+                   if lejana else ""))
+            btn.clicked.connect(
+                lambda _=False, r=c["ruta"]: self._set_referencias_desde_paths([r]))
+            self._lay_parecidas.addWidget(btn)
+        self._lay_parecidas.addStretch()
+        self.panel_parecidas.setVisible(True)
 
     def _set_referencias_desde_paths(self, refs):
         """Fija UNA sola referencia (cada tema es un preset único; no se promedia).
@@ -1868,8 +1947,8 @@ class MainWindow(QMainWindow):
             f"  WAV: {resumen['wav']}")
         self._status(f"Voz lista → {Path(resumen['wav']).name}")
         try:
-            import os
-            os.startfile(str(Path(resumen["wav"]).parent))
+            from .abrir import mostrar_en_carpeta
+            mostrar_en_carpeta(resumen["wav"])
         except Exception:
             log.exception("No se pudo abrir la carpeta de salida")
 
@@ -1996,8 +2075,8 @@ class MainWindow(QMainWindow):
         self._refrescar_estado()
         self._status(f"Master listo → {Path(resumen['mp3']).name}")
         try:
-            import os
-            os.startfile(str(Path(resumen["mp3"]).parent))  # abre salida/ con el archivo
+            from .abrir import mostrar_en_carpeta
+            mostrar_en_carpeta(resumen["mp3"])  # abre salida/ con el archivo marcado
         except Exception:
             log.exception("No se pudo abrir la carpeta de salida")
         self._mostrar_graficas(resumen)

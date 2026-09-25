@@ -99,6 +99,9 @@ CONFIG_MASTER_DEFAULT = {
         # percusión/batería (por nombre) antes de sumar
         "mejorar_percusion": True,
         "transient_cantidad": 0.3,
+        # claves de nombre de los stems que reciben el EQ de master (matching y
+        # notches). Vacío = toda la mezcla. Pedido de Bruno: solo guitarras.
+        "eq_solo_en": [],
     },
     "clipper": {
         # recorta solo los picos (transitorios de batería) antes del limitador:
@@ -121,6 +124,7 @@ CONFIG_MASTER_DEFAULT = {
     },
 }
 
+F_MAX_MATCH_HZ = 16000.0  # techo del matching tonal (ver masterizar)
 FIR_TAPS = 4097            # filtro de fase lineal para el EQ de matching
 FORMATOS_STEM = (".wav", ".flac", ".aiff", ".aif")
 
@@ -214,7 +218,8 @@ def _es_percusion(nombre: str) -> bool:
 
 def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
                 transient_cant: float = 0.3, progreso=None,
-                plan_mezcla: dict | None = None) -> tuple[np.ndarray, int]:
+                plan_mezcla: dict | None = None,
+                separar: tuple[str, ...] | None = None):
     """Suma todos los stems de una carpeta en una mezcla virtual estéreo.
 
     Alinea longitudes al stem más largo y deja headroom (pico a -6 dBFS)
@@ -228,6 +233,11 @@ def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
     plana centrada de siempre. Sin esto, comportamiento igual que antes
     (compatibilidad hacia atrás). Con esto, el resultado sigue siendo un
     punto de partida — no una mezcla terminada, ver `automezcla.py`.
+
+    `separar` (opcional): claves de nombre (p. ej. ("gtr", "guit")). Si se
+    pasa, devuelve (mezcla, sr, grupo, nombres_grupo): `grupo` es la suma de
+    los stems cuyo nombre contiene alguna clave, con la MISMA ganancia de
+    headroom que la mezcla, para poder procesarlo aparte y volver a sumarlo.
     """
     archivos = sorted(p for p in Path(carpeta).iterdir()
                       if p.is_file() and p.suffix.lower() in FORMATOS_STEM)
@@ -254,7 +264,8 @@ def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
     except Exception:
         log.exception("No se pudo estimar RAM previa para %s", carpeta)
 
-    pistas, srs = [], []
+    pistas, srs, en_grupo = [], [], []
+    claves_grupo = tuple(c.lower() for c in (separar or ()))
     for p in archivos:
         audio, sr = cargar_audio(p)
         if audio.shape[1] == 1:
@@ -272,6 +283,8 @@ def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
                 audio = aplicar_pan(audio[:, 0] * ganancia, info["pan"])
         pistas.append(audio)
         srs.append(sr)
+        en_grupo.append(bool(claves_grupo)
+                        and any(c in p.name.lower() for c in claves_grupo))
     if len(set(srs)) > 1:
         raise ValueError(f"Los stems tienen sample rates distintos: {sorted(set(srs))}")
 
@@ -281,10 +294,20 @@ def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
         mezcla[: p.shape[0]] += p
 
     pico = float(np.max(np.abs(mezcla)))
-    if pico > 1e-9:
-        mezcla *= (10 ** (-6.0 / 20)) / pico  # headroom -6 dBFS para el master
+    k = (10 ** (-6.0 / 20)) / pico if pico > 1e-9 else 1.0
+    mezcla *= k  # headroom -6 dBFS para el master
     log.info("Mezcla virtual: %d stems sumados desde %s", len(pistas), carpeta)
-    return mezcla, srs[0]
+    if separar is None:
+        return mezcla, srs[0]
+
+    grupo = np.zeros((n, 2))
+    nombres = []
+    for pista, sel, arch in zip(pistas, en_grupo, archivos):
+        if sel:
+            grupo[: pista.shape[0]] += pista
+            nombres.append(arch.name)
+    grupo *= k
+    return mezcla, srs[0], grupo, nombres
 
 
 # ------------------------------------------------------------------ EQ match
@@ -382,8 +405,10 @@ def _score_ab(audio: np.ndarray, sr: int, perfil: dict) -> dict:
     - dinamica: diferencia de crest factor
     - imagen: distancia media del ancho estéreo por banda
     """
-    _, esp_master = espectro_suavizado(audio, sr)
+    freqs, esp_master = espectro_suavizado(audio, sr)
     esp_ref = np.asarray(perfil["espectro_db"])
+    util = freqs <= F_MAX_MATCH_HZ  # misma zona que el matching
+    esp_master, esp_ref = esp_master[util], esp_ref[util]
     forma_master = esp_master - esp_master.mean()
     forma_ref = esp_ref - esp_ref.mean()
     mad_tonal = float(np.mean(np.abs(forma_master - forma_ref)))
@@ -712,14 +737,27 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
     cfg_den = cfg["densidad"]
     cfg_lim = cfg["limitador"]
 
+    grupo_eq, stems_eq = None, []
     if carpeta_stems:
         avisar("Sumando stems en mezcla virtual…")
         cfg_sm = cfg.get("stems_master", {})
-        audio, sr = sumar_stems(
+        claves_eq = tuple(cfg_sm.get("eq_solo_en") or ())
+        resultado = sumar_stems(
             Path(carpeta_stems),
             mejorar_percusion=cfg_sm.get("mejorar_percusion", True),
             transient_cant=float(cfg_sm.get("transient_cantidad", 0.3)),
-            progreso=progreso)
+            progreso=progreso,
+            separar=claves_eq or None)
+        if claves_eq:
+            audio, sr, grupo_eq, stems_eq = resultado
+            if stems_eq:
+                avisar(f"EQ solo en: {', '.join(stems_eq)} — voz y batería no se tocan.")
+            else:
+                grupo_eq = None
+                avisar(f"⚠ Ningún stem coincide con {list(claves_eq)}: "
+                       "el EQ se aplica a toda la mezcla.")
+        else:
+            audio, sr = resultado
         nombre_base = "stems"
     else:
         avisar("Cargando mezcla…")
@@ -727,6 +765,21 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         nombre_base = Path(path_mezcla).stem
     if audio.shape[1] == 1:
         audio = np.repeat(audio, 2, axis=1)
+
+    def aplicar_eq(proceso):
+        """EQ sobre toda la mezcla, o solo sobre el grupo de stems elegido.
+
+        Con grupo (p. ej. las guitarras), el resto de la mezcla pasa intacto:
+        mezcla = (mezcla - grupo) + proceso(grupo). Así el matching y los
+        notches no le tocan el tono a la voz ni a la batería.
+        """
+        nonlocal audio, grupo_eq
+        if grupo_eq is None:
+            audio = proceso(audio)
+            return
+        procesado = proceso(grupo_eq)
+        audio = audio - grupo_eq + procesado
+        grupo_eq = procesado
 
     # Declip ligero (AES 141st Convention, Laguna & Lerch 2016): repara por
     # interpolación cúbica las corridas CORTAS de clipping de la fuente —
@@ -739,7 +792,13 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
 
     # Top-and-tail (pendiente URGENTE, tanda real 2026-08-09): recorta
     # silencio real de cabeza/cola antes de cualquier otro proceso.
+    largo_previo = audio.shape[0]
     audio, recorte_inicio_s, recorte_fin_s = recortar_silencio_extremos(audio, sr)
+    if grupo_eq is not None and audio.shape[0] != largo_previo:
+        i0 = int(round(recorte_inicio_s * sr))
+        grupo_eq = grupo_eq[i0: i0 + audio.shape[0]]
+        if grupo_eq.shape[0] != audio.shape[0]:  # redondeo: se ajusta al largo real
+            grupo_eq = np.resize(grupo_eq, audio.shape)
     if recorte_inicio_s > 0 or recorte_fin_s > 0:
         avisar(f"Recortado silencio: {recorte_inicio_s:.2f}s al inicio, "
                f"{recorte_fin_s:.2f}s al final.")
@@ -755,10 +814,16 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
             max_n=int(cfg_res.get("max_n", 4)))
         if res:
             avisar(f"Resonancias detectadas: {[r['freq'] for r in res]} Hz")
-            audio, resonancias_db = _aplicar_notches(
-                audio, sr, res,
-                float(cfg_res.get("max_cut_db", 3.0)),
-                float(cfg_res.get("q", 6.0)))
+            info_notches = {}
+
+            def _notches(x):
+                y, info_notches["db"] = _aplicar_notches(
+                    x, sr, res,
+                    float(cfg_res.get("max_cut_db", 3.0)),
+                    float(cfg_res.get("q", 6.0)))
+                return y
+            aplicar_eq(_notches)
+            resonancias_db = info_notches.get("db", [])
 
     correccion, ajuste_ancho = {}, {}
     nombres_ref, perfil = [], None
@@ -785,14 +850,21 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
             avisar(f"Matching espectral fino (1/3 octava, máx ±{tope:g} dB)…")
             freqs, esp_mix = espectro_suavizado(audio, sr)
             esp_ref = np.asarray(perfil["espectro_db"])
+            # Por encima de F_MAX_MATCH_HZ ni la mezcla ni un MP3 de referencia
+            # suelen tener contenido real (them_bones2: -140 dB a 19 kHz). Medir
+            # ahí inflaba la distancia de aire con 14.8 dB falsos y empujaba el
+            # EQ a levantar ruido: esa zona queda fuera del matching.
+            util = freqs <= F_MAX_MATCH_HZ
             delta_sin_tope = esp_ref - esp_mix
-            delta_sin_tope = delta_sin_tope - float(np.mean(delta_sin_tope))  # solo forma, no nivel
+            delta_sin_tope = delta_sin_tope - float(np.mean(delta_sin_tope[util]))  # solo forma, no nivel
+            delta_sin_tope[~util] = 0.0
             for b, (f_lo, f_hi) in BANDAS_HZ.items():
-                sel = (freqs >= f_lo) & (freqs < f_hi)
+                sel = (freqs >= f_lo) & (freqs < f_hi) & util
                 distancia_bandas_db[b] = round(float(np.abs(delta_sin_tope[sel]).mean()), 1) if sel.any() else 0.0
             delta = np.clip(delta_sin_tope, -tope, tope)
             delta = np.convolve(delta, [0.25, 0.5, 0.25], mode="same")  # suaviza
-            audio = _aplicar_fir(audio, _curva_fir_fina(freqs, delta, sr))
+            fir_fino = _curva_fir_fina(freqs, delta, sr)
+            aplicar_eq(lambda x: _aplicar_fir(x, fir_fino))
             # resumen por banda para el reporte
             correccion = {}
             for b, (f_lo, f_hi) in BANDAS_HZ.items():
@@ -809,7 +881,8 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
                 for b in BANDAS_HZ
             }
             avisar(f"Aplicando EQ correctivo 7 bandas (máx ±{tope:g} dB)…")
-            audio = _aplicar_fir(audio, _curva_fir(correccion, sr))
+            fir_bandas = _curva_fir(correccion, sr)
+            aplicar_eq(lambda x: _aplicar_fir(x, fir_bandas))
 
         distancia_media_db = round(float(np.mean(list(distancia_bandas_db.values()))), 1) if distancia_bandas_db else 0.0
         aviso_referencia = None
@@ -1063,6 +1136,7 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         "mono_bass_hz": mono_bass_hz,
         "fuente": "stems" if carpeta_stems else "mezcla",
         "genero": genero,
+        "eq_solo_en": stems_eq if grupo_eq is not None else [],
         "referencias": nombres_ref,
         "score": score,
     }
