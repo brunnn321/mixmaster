@@ -1,0 +1,2670 @@
+{
+ "fuente": "D:\\PROYECTOS REPOSITORIOS\\RED-NEURONAL\\generos\\generos.json",
+ "generos": {
+  "cantos_de_trabajo": {
+   "nombre": "Cantos de trabajo",
+   "familia": "Raíz afroamericana",
+   "anio": 1860,
+   "descripcion": "Llamada y respuesta sobre el ritmo del trabajo forzado.",
+   "cuerpo": "La forma es **llamada y respuesta**: un solista lanza una frase y el grupo contesta. No hay armonía funcional, hay pulso y voz. De acá salen la estructura conversacional del blues y el fraseo que después el jazz llama *trading*.",
+   "artistas": [
+    "registros de Alan Lomax"
+   ],
+   "perfil": "vintage-raiz",
+   "perfil_nombre": "Raíz / grabación de época",
+   "perfil_nota": "poco ancho de banda real: forzar aire solo levanta ruido",
+   "master": {
+    "target_lufs_default": -11.0,
+    "eq_correctivo": {
+     "max_correccion_db": 5.0
+    },
+    "mono_bass": {
+     "freq_hz": 60.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.15
+    },
+    "densidad": {
+     "activo": false
+    }
+   }
+  },
+  "spirituals": {
+   "nombre": "Spirituals",
+   "familia": "Raíz afroamericana",
+   "anio": 1867,
+   "descripcion": "Canto religioso colectivo, pentatónico y de armonía vocal.",
+   "cuerpo": "Melodía pentatónica sobre armonía de himno protestante. La tensión entre la escala africana y el acorde europeo produce las **blue notes**: la tercera y la séptima bajadas que definen todo lo que viene después.",
+   "artistas": [
+    "Fisk Jubilee Singers"
+   ],
+   "perfil": "vintage-raiz",
+   "perfil_nombre": "Raíz / grabación de época",
+   "perfil_nota": "poco ancho de banda real: forzar aire solo levanta ruido",
+   "master": {
+    "target_lufs_default": -11.0,
+    "eq_correctivo": {
+     "max_correccion_db": 5.0
+    },
+    "mono_bass": {
+     "freq_hz": 60.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.15
+    },
+    "densidad": {
+     "activo": false
+    }
+   }
+  },
+  "ragtime": {
+   "nombre": "Ragtime",
+   "familia": "Raíz afroamericana",
+   "anio": 1895,
+   "descripcion": "Piano sincopado sobre bajo de marcha.",
+   "cuerpo": "La mano izquierda marca el pulso de marcha y la derecha lo contradice: **síncopa sistemática**, la primera polirritmia escrita de la música popular estadounidense. Forma seccional heredada de la marcha (AABBACCDD).",
+   "artistas": [
+    "Scott Joplin",
+    "Jelly Roll Morton"
+   ],
+   "perfil": "vintage-raiz",
+   "perfil_nombre": "Raíz / grabación de época",
+   "perfil_nota": "poco ancho de banda real: forzar aire solo levanta ruido",
+   "master": {
+    "target_lufs_default": -11.0,
+    "eq_correctivo": {
+     "max_correccion_db": 5.0
+    },
+    "mono_bass": {
+     "freq_hz": 60.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.15
+    },
+    "densidad": {
+     "activo": false
+    }
+   }
+  },
+  "blues": {
+   "nombre": "Blues",
+   "familia": "Raíz afroamericana",
+   "anio": 1903,
+   "descripcion": "Doce compases, tres acordes y una escala que no encaja en ellos.",
+   "cuerpo": "El **blues de doce compases** (I-IV-V) es la forma más reutilizada del siglo XX. Su rareza: la melodía usa escala de blues con terceras y séptimas bajas mientras la armonía es mayor. Esa fricción es el sonido, no un error.",
+   "artistas": [
+    "Robert Johnson",
+    "Bessie Smith",
+    "Muddy Waters"
+   ],
+   "perfil": "vintage-raiz",
+   "perfil_nombre": "Raíz / grabación de época",
+   "perfil_nota": "poco ancho de banda real: forzar aire solo levanta ruido",
+   "master": {
+    "target_lufs_default": -11.0,
+    "eq_correctivo": {
+     "max_correccion_db": 5.0
+    },
+    "mono_bass": {
+     "freq_hz": 60.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.15
+    },
+    "densidad": {
+     "activo": false
+    }
+   }
+  },
+  "stride": {
+   "nombre": "Stride",
+   "familia": "Raíz afroamericana",
+   "anio": 1919,
+   "descripcion": "El ragtime acelerado y virtuoso de Harlem.",
+   "cuerpo": "La izquierda salta entre bajo y acorde (de ahí *stride*) y la derecha improvisa. Es el puente entre la partitura del ragtime y la improvisación del jazz.",
+   "artistas": [
+    "James P. Johnson",
+    "Fats Waller",
+    "Art Tatum"
+   ],
+   "perfil": "vintage-raiz",
+   "perfil_nombre": "Raíz / grabación de época",
+   "perfil_nota": "poco ancho de banda real: forzar aire solo levanta ruido",
+   "master": {
+    "target_lufs_default": -11.0,
+    "eq_correctivo": {
+     "max_correccion_db": 5.0
+    },
+    "mono_bass": {
+     "freq_hz": 60.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.15
+    },
+    "densidad": {
+     "activo": false
+    }
+   }
+  },
+  "gospel": {
+   "nombre": "Gospel",
+   "familia": "Raíz afroamericana",
+   "anio": 1926,
+   "descripcion": "El spiritual con banda, melisma y éxtasis.",
+   "cuerpo": "Aporta tres cosas que se roban todos: el **melisma** como técnica expresiva, la modulación ascendente para levantar el clímax y la dinámica de coro contra solista.",
+   "artistas": [
+    "Thomas A. Dorsey",
+    "Mahalia Jackson",
+    "Sister Rosetta Tharpe"
+   ],
+   "perfil": "vintage-raiz",
+   "perfil_nombre": "Raíz / grabación de época",
+   "perfil_nota": "poco ancho de banda real: forzar aire solo levanta ruido",
+   "master": {
+    "target_lufs_default": -11.0,
+    "eq_correctivo": {
+     "max_correccion_db": 5.0
+    },
+    "mono_bass": {
+     "freq_hz": 60.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.15
+    },
+    "densidad": {
+     "activo": false
+    }
+   }
+  },
+  "boogie_woogie": {
+   "nombre": "Boogie-woogie",
+   "familia": "Raíz afroamericana",
+   "anio": 1928,
+   "descripcion": "Blues de piano con ostinato de ocho por compás.",
+   "cuerpo": "La izquierda repite un **ostinato** de ocho notas por compás, sin variar, durante todo el tema. Ese motor rítmico constante es el antepasado directo del riff de rock.",
+   "artistas": [
+    "Meade Lux Lewis",
+    "Albert Ammons"
+   ],
+   "perfil": "vintage-raiz",
+   "perfil_nombre": "Raíz / grabación de época",
+   "perfil_nota": "poco ancho de banda real: forzar aire solo levanta ruido",
+   "master": {
+    "target_lufs_default": -11.0,
+    "eq_correctivo": {
+     "max_correccion_db": 5.0
+    },
+    "mono_bass": {
+     "freq_hz": 60.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.15
+    },
+    "densidad": {
+     "activo": false
+    }
+   }
+  },
+  "folk_appalache": {
+   "nombre": "Folk apalache",
+   "familia": "Folk y country",
+   "anio": 1900,
+   "descripcion": "Baladas británicas conservadas en las montañas.",
+   "cuerpo": "Baladas inglesas, escocesas e irlandesas que cruzaron el Atlántico y quedaron congeladas. Modos **mixolidio** y **dórico** donde la música europea urbana ya había pasado al sistema mayor-menor.",
+   "artistas": [
+    "Carter Family"
+   ],
+   "perfil": "acustico-dinamico",
+   "perfil_nombre": "Acústico dinámico",
+   "perfil_nota": "crest alto, matching mínimo, la interpretación manda",
+   "master": {
+    "target_lufs_default": -12.0,
+    "eq_correctivo": {
+     "max_correccion_db": 4.0
+    },
+    "mono_bass": {
+     "freq_hz": 60.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.1
+    },
+    "multibanda": {
+     "activo": false
+    },
+    "densidad": {
+     "activo": false
+    }
+   }
+  },
+  "country": {
+   "nombre": "Country",
+   "familia": "Folk y country",
+   "anio": 1925,
+   "descripcion": "La balada blanca se cruza con el blues negro.",
+   "cuerpo": "Jimmie Rodgers canta blues de doce compases con yodel apalache: el primer cruce documentado de las dos tradiciones. De ahí salen el rockabilly y, por transitividad, el rock.",
+   "artistas": [
+    "Jimmie Rodgers",
+    "Hank Williams"
+   ],
+   "perfil": "acustico-dinamico",
+   "perfil_nombre": "Acústico dinámico",
+   "perfil_nota": "crest alto, matching mínimo, la interpretación manda",
+   "master": {
+    "target_lufs_default": -12.0,
+    "eq_correctivo": {
+     "max_correccion_db": 4.0
+    },
+    "mono_bass": {
+     "freq_hz": 60.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.1
+    },
+    "multibanda": {
+     "activo": false
+    },
+    "densidad": {
+     "activo": false
+    }
+   }
+  },
+  "bluegrass": {
+   "nombre": "Bluegrass",
+   "familia": "Folk y country",
+   "anio": 1945,
+   "descripcion": "Country acústico a velocidad de bebop.",
+   "cuerpo": "Instrumentos acústicos, tempos altísimos y solos por turno como en el jazz. El banjo de tres dedos de Scruggs es una **hemiola** permanente: un patrón de tres contra el pulso de cuatro.",
+   "artistas": [
+    "Bill Monroe",
+    "Earl Scruggs"
+   ],
+   "perfil": "acustico-dinamico",
+   "perfil_nombre": "Acústico dinámico",
+   "perfil_nota": "crest alto, matching mínimo, la interpretación manda",
+   "master": {
+    "target_lufs_default": -12.0,
+    "eq_correctivo": {
+     "max_correccion_db": 4.0
+    },
+    "mono_bass": {
+     "freq_hz": 60.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.1
+    },
+    "multibanda": {
+     "activo": false
+    },
+    "densidad": {
+     "activo": false
+    }
+   }
+  },
+  "folk_revival": {
+   "nombre": "Folk revival",
+   "familia": "Folk y country",
+   "anio": 1958,
+   "descripcion": "Guitarra, letra y protesta.",
+   "cuerpo": "Lo importante no es lo musical sino lo que instala: la **letra como contenido central**. Cuando Dylan se enchufa en 1965, esa idea entra al rock y ya no se va.",
+   "artistas": [
+    "Woody Guthrie",
+    "Bob Dylan",
+    "Joan Baez"
+   ],
+   "perfil": "acustico-dinamico",
+   "perfil_nombre": "Acústico dinámico",
+   "perfil_nota": "crest alto, matching mínimo, la interpretación manda",
+   "master": {
+    "target_lufs_default": -12.0,
+    "eq_correctivo": {
+     "max_correccion_db": 4.0
+    },
+    "mono_bass": {
+     "freq_hz": 60.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.1
+    },
+    "multibanda": {
+     "activo": false
+    },
+    "densidad": {
+     "activo": false
+    }
+   }
+  },
+  "tango": {
+   "nombre": "Tango",
+   "familia": "Latino y caribe",
+   "anio": 1880,
+   "descripcion": "Candombe, habanera y milonga en el Río de la Plata.",
+   "cuerpo": "Compás de 4/4 con acentuación **3-3-2** heredada de la habanera. Piazzolla le mete contrapunto, fuga y disonancia de Bartók, y parte el género en dos para siempre.",
+   "artistas": [
+    "Carlos Gardel",
+    "Aníbal Troilo",
+    "Astor Piazzolla"
+   ],
+   "perfil": "acustico-dinamico",
+   "perfil_nombre": "Acústico dinámico",
+   "perfil_nota": "crest alto, matching mínimo, la interpretación manda",
+   "master": {
+    "target_lufs_default": -12.0,
+    "eq_correctivo": {
+     "max_correccion_db": 4.0
+    },
+    "mono_bass": {
+     "freq_hz": 60.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.1
+    },
+    "multibanda": {
+     "activo": false
+    },
+    "densidad": {
+     "activo": false
+    }
+   }
+  },
+  "son_cubano": {
+   "nombre": "Son cubano",
+   "familia": "Latino y caribe",
+   "anio": 1900,
+   "descripcion": "La matriz rítmica de casi toda la música caribeña.",
+   "cuerpo": "Introduce la **clave 3-2 / 2-3**: una célula de cinco golpes en dos compases que gobierna todo lo demás. No es un patrón de percusión, es la gramática a la que se subordinan bajo, piano y voz.",
+   "artistas": [
+    "Trío Matamoros",
+    "Arsenio Rodríguez"
+   ],
+   "perfil": "tropical-percusivo",
+   "perfil_nombre": "Tropical / percusivo",
+   "perfil_nota": "percusión con pegada y medios densos que no se limpian",
+   "master": {
+    "target_lufs_default": -9.0,
+    "eq_correctivo": {
+     "max_correccion_db": 7.0
+    },
+    "mono_bass": {
+     "freq_hz": 90.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.3
+    }
+   }
+  },
+  "samba": {
+   "nombre": "Samba",
+   "familia": "Latino y caribe",
+   "anio": 1916,
+   "descripcion": "Batucada de raíz bantú en 2/4.",
+   "cuerpo": "Polirritmia de percusión sobre un 2/4 con el acento corrido: lo que suena en el tiempo fuerte casi nunca cae en el uno. Esa suspensión es lo que la bossa nova después traduce a la guitarra.",
+   "artistas": [
+    "Cartola",
+    "Noel Rosa"
+   ],
+   "perfil": "tropical-percusivo",
+   "perfil_nombre": "Tropical / percusivo",
+   "perfil_nota": "percusión con pegada y medios densos que no se limpian",
+   "master": {
+    "target_lufs_default": -9.0,
+    "eq_correctivo": {
+     "max_correccion_db": 7.0
+    },
+    "mono_bass": {
+     "freq_hz": 90.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.3
+    }
+   }
+  },
+  "cumbia": {
+   "nombre": "Cumbia",
+   "familia": "Latino y caribe",
+   "anio": 1940,
+   "descripcion": "Tambor africano, gaita indígena, armonía europea.",
+   "cuerpo": "El género que más países adoptó como propio en América Latina. Su patrón de dos acordes y acento en el contratiempo lo vuelve un molde infinitamente rellenable.",
+   "artistas": [
+    "Lucho Bermúdez",
+    "Los Corraleros de Majagual"
+   ],
+   "perfil": "tropical-percusivo",
+   "perfil_nombre": "Tropical / percusivo",
+   "perfil_nota": "percusión con pegada y medios densos que no se limpian",
+   "master": {
+    "target_lufs_default": -9.0,
+    "eq_correctivo": {
+     "max_correccion_db": 7.0
+    },
+    "mono_bass": {
+     "freq_hz": 90.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.3
+    }
+   }
+  },
+  "mambo": {
+   "nombre": "Mambo",
+   "familia": "Latino y caribe",
+   "anio": 1940,
+   "descripcion": "El son con sección de vientos de big band.",
+   "cuerpo": "Cruce explícito: la clave cubana abajo, los arreglos de metales del swing arriba. Machito y Dizzy Gillespie abren desde acá el **afro-cuban jazz**.",
+   "artistas": [
+    "Pérez Prado",
+    "Machito"
+   ],
+   "perfil": "tropical-percusivo",
+   "perfil_nombre": "Tropical / percusivo",
+   "perfil_nota": "percusión con pegada y medios densos que no se limpian",
+   "master": {
+    "target_lufs_default": -9.0,
+    "eq_correctivo": {
+     "max_correccion_db": 7.0
+    },
+    "mono_bass": {
+     "freq_hz": 90.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.3
+    }
+   }
+  },
+  "bossa_nova": {
+   "nombre": "Bossa nova",
+   "familia": "Latino y caribe",
+   "anio": 1958,
+   "descripcion": "Samba susurrada con armonía de jazz.",
+   "cuerpo": "Armonía riquísima —novenas, oncenas, acordes alterados, rearmonizaciones cromáticas— con voz casi hablada y dinámica mínima. La **batida** de la guitarra comprime toda la percusión de una escola de samba en una mano.",
+   "artistas": [
+    "João Gilberto",
+    "Tom Jobim",
+    "Elis Regina"
+   ],
+   "perfil": "acustico-dinamico",
+   "perfil_nombre": "Acústico dinámico",
+   "perfil_nota": "crest alto, matching mínimo, la interpretación manda",
+   "master": {
+    "target_lufs_default": -12.0,
+    "eq_correctivo": {
+     "max_correccion_db": 4.0
+    },
+    "mono_bass": {
+     "freq_hz": 60.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.1
+    },
+    "multibanda": {
+     "activo": false
+    },
+    "densidad": {
+     "activo": false
+    }
+   }
+  },
+  "ska": {
+   "nombre": "Ska",
+   "familia": "Latino y caribe",
+   "anio": 1959,
+   "descripcion": "El R&B de las radios de Miami, con el acento dado vuelta.",
+   "cuerpo": "El aporte es una inversión: la guitarra pega en los tiempos **débiles** (2 y 4, el *skank*). Ese desplazamiento define toda la música jamaiquina posterior.",
+   "artistas": [
+    "The Skatalites",
+    "Prince Buster"
+   ],
+   "perfil": "sound-system",
+   "perfil_nombre": "Sound system",
+   "perfil_nota": "el bajo es la melodía; el vacío y la reverb son material",
+   "master": {
+    "target_lufs_default": -9.5,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 70.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.15
+    },
+    "multibanda": {
+     "cantidad": 0.4
+    }
+   }
+  },
+  "rocksteady": {
+   "nombre": "Rocksteady",
+   "familia": "Latino y caribe",
+   "anio": 1966,
+   "descripcion": "Ska frenado, con el bajo al frente.",
+   "cuerpo": "Al bajar el tempo, el bajo deja de acompañar y pasa a ser la línea melódica principal. Ese cambio de jerarquía es lo que hereda el reggae y, vía dub, el dancehall y el drum and bass.",
+   "artistas": [
+    "Alton Ellis",
+    "The Paragons"
+   ],
+   "perfil": "sound-system",
+   "perfil_nombre": "Sound system",
+   "perfil_nota": "el bajo es la melodía; el vacío y la reverb son material",
+   "master": {
+    "target_lufs_default": -9.5,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 70.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.15
+    },
+    "multibanda": {
+     "cantidad": 0.4
+    }
+   }
+  },
+  "reggae": {
+   "nombre": "Reggae",
+   "familia": "Latino y caribe",
+   "anio": 1968,
+   "descripcion": "One drop: el bombo no toca el uno.",
+   "cuerpo": "El patrón **one drop** vacía el primer tiempo: bombo y redoblante caen juntos en el tercero. Todo el peso métrico se corre, y el oyente siente el pulso donde no hay golpe.",
+   "artistas": [
+    "Bob Marley",
+    "Toots and the Maytals",
+    "Burning Spear"
+   ],
+   "perfil": "sound-system",
+   "perfil_nombre": "Sound system",
+   "perfil_nota": "el bajo es la melodía; el vacío y la reverb son material",
+   "master": {
+    "target_lufs_default": -9.5,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 70.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.15
+    },
+    "multibanda": {
+     "cantidad": 0.4
+    }
+   }
+  },
+  "dub": {
+   "nombre": "Dub",
+   "familia": "Latino y caribe",
+   "anio": 1970,
+   "descripcion": "La mezcla como instrumento.",
+   "cuerpo": "Primer género donde el **estudio es el instrumento**: se borran pistas, se abren delays, se hunde todo en reverb. Inventa la idea de versión y de remix, sin la cual no existen el hip hop ni la electrónica de baile.",
+   "artistas": [
+    "King Tubby",
+    "Lee «Scratch» Perry"
+   ],
+   "perfil": "sound-system",
+   "perfil_nombre": "Sound system",
+   "perfil_nota": "el bajo es la melodía; el vacío y la reverb son material",
+   "master": {
+    "target_lufs_default": -9.5,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 70.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.15
+    },
+    "multibanda": {
+     "cantidad": 0.4
+    }
+   }
+  },
+  "salsa": {
+   "nombre": "Salsa",
+   "familia": "Latino y caribe",
+   "anio": 1970,
+   "descripcion": "El son cubano rearmado por la diáspora en Nueva York.",
+   "cuerpo": "Mantiene la clave y el montuno del son, endurece los arreglos de metales y le suma la armonía y los solos del jazz neoyorquino.",
+   "artistas": [
+    "Héctor Lavoe",
+    "Willie Colón",
+    "Celia Cruz"
+   ],
+   "perfil": "tropical-percusivo",
+   "perfil_nombre": "Tropical / percusivo",
+   "perfil_nota": "percusión con pegada y medios densos que no se limpian",
+   "master": {
+    "target_lufs_default": -9.0,
+    "eq_correctivo": {
+     "max_correccion_db": 7.0
+    },
+    "mono_bass": {
+     "freq_hz": 90.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.3
+    }
+   }
+  },
+  "dancehall": {
+   "nombre": "Dancehall",
+   "familia": "Latino y caribe",
+   "anio": 1979,
+   "descripcion": "El riddim programado y el deejay al frente.",
+   "cuerpo": "Introduce el **riddim** como bien común: una misma base instrumental sobre la que decenas de artistas graban temas distintos. Es autoría compartida, veinte años antes de que el sampleo lo discuta en tribunales.",
+   "artistas": [
+    "Yellowman",
+    "Shabba Ranks"
+   ],
+   "perfil": "urbano-sub",
+   "perfil_nombre": "Urbano",
+   "perfil_nota": "el sub manda; mono-bass estricto o el grave se desarma",
+   "master": {
+    "target_lufs_default": -7.5,
+    "eq_correctivo": {
+     "max_correccion_db": 10.0
+    },
+    "mono_bass": {
+     "freq_hz": 120.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.3
+    }
+   }
+  },
+  "reggaeton": {
+   "nombre": "Reggaetón",
+   "familia": "Latino y caribe",
+   "anio": 1993,
+   "descripcion": "Dem bow, rap en español y cumbia de fondo.",
+   "cuerpo": "Todo el género se apoya en un patrón: el **dem bow**, un 3-3-2 sobre 4/4 que viene del dancehall y comparte esqueleto con la habanera del tango. La misma célula rítmica, cien años después.",
+   "artistas": [
+    "El General",
+    "Daddy Yankee",
+    "Ivy Queen"
+   ],
+   "perfil": "urbano-sub",
+   "perfil_nombre": "Urbano",
+   "perfil_nota": "el sub manda; mono-bass estricto o el grave se desarma",
+   "master": {
+    "target_lufs_default": -7.5,
+    "eq_correctivo": {
+     "max_correccion_db": 10.0
+    },
+    "mono_bass": {
+     "freq_hz": 120.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.3
+    }
+   }
+  },
+  "jazz_nueva_orleans": {
+   "nombre": "Jazz de Nueva Orleans",
+   "familia": "Jazz",
+   "anio": 1915,
+   "descripcion": "Improvisación colectiva de banda de calle.",
+   "cuerpo": "Corneta, clarinete y trombón improvisan **a la vez**: es contrapunto de tres voces, con roles fijos. Armstrong después saca la voz del solista del tejido colectivo e inventa la figura del improvisador moderno.",
+   "artistas": [
+    "Louis Armstrong",
+    "King Oliver"
+   ],
+   "perfil": "jazz-dinamica-alta",
+   "perfil_nombre": "Jazz",
+   "perfil_nota": "el limitador es solo seguridad; nada de multibanda",
+   "master": {
+    "target_lufs_default": -14.0,
+    "eq_correctivo": {
+     "max_correccion_db": 4.0
+    },
+    "mono_bass": {
+     "freq_hz": 50.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.1
+    },
+    "multibanda": {
+     "activo": false
+    },
+    "densidad": {
+     "activo": false
+    }
+   }
+  },
+  "swing": {
+   "nombre": "Swing",
+   "familia": "Jazz",
+   "anio": 1932,
+   "descripcion": "Big band, arreglo escrito y corcheas desiguales.",
+   "cuerpo": "El **swing** como subdivisión: las corcheas se reparten en proporción cercana a 2:1, no iguales. Ellington convierte la big band en un instrumento orquestal con timbres propios por músico.",
+   "artistas": [
+    "Duke Ellington",
+    "Count Basie",
+    "Ella Fitzgerald"
+   ],
+   "perfil": "jazz-dinamica-alta",
+   "perfil_nombre": "Jazz",
+   "perfil_nota": "el limitador es solo seguridad; nada de multibanda",
+   "master": {
+    "target_lufs_default": -14.0,
+    "eq_correctivo": {
+     "max_correccion_db": 4.0
+    },
+    "mono_bass": {
+     "freq_hz": 50.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.1
+    },
+    "multibanda": {
+     "activo": false
+    },
+    "densidad": {
+     "activo": false
+    }
+   }
+  },
+  "bebop": {
+   "nombre": "Bebop",
+   "familia": "Jazz",
+   "anio": 1945,
+   "descripcion": "Tempo extremo, armonía extendida, música para escuchar.",
+   "cuerpo": "Sustituciones tritonales, **ii-V-I** encadenados, extensiones hasta la treceava y melodías construidas sobre las notas altas del acorde. El jazz deja de ser música de baile: el oyente pasa a ser el destinatario.",
+   "artistas": [
+    "Charlie Parker",
+    "Dizzy Gillespie",
+    "Bud Powell"
+   ],
+   "perfil": "jazz-dinamica-alta",
+   "perfil_nombre": "Jazz",
+   "perfil_nota": "el limitador es solo seguridad; nada de multibanda",
+   "master": {
+    "target_lufs_default": -14.0,
+    "eq_correctivo": {
+     "max_correccion_db": 4.0
+    },
+    "mono_bass": {
+     "freq_hz": 50.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.1
+    },
+    "multibanda": {
+     "activo": false
+    },
+    "densidad": {
+     "activo": false
+    }
+   }
+  },
+  "cool_jazz": {
+   "nombre": "Cool jazz",
+   "familia": "Jazz",
+   "anio": 1949,
+   "descripcion": "Bebop bajado de revoluciones, con arreglo y contrapunto.",
+   "cuerpo": "Vibrato mínimo, dinámica contenida y escritura de cámara con tuba y corno. Brubeck además abre los **compases irregulares** en el jazz: 5/4 en *Take Five*, 9/8 en *Blue Rondo*.",
+   "artistas": [
+    "Miles Davis",
+    "Gerry Mulligan",
+    "Dave Brubeck"
+   ],
+   "perfil": "jazz-dinamica-alta",
+   "perfil_nombre": "Jazz",
+   "perfil_nota": "el limitador es solo seguridad; nada de multibanda",
+   "master": {
+    "target_lufs_default": -14.0,
+    "eq_correctivo": {
+     "max_correccion_db": 4.0
+    },
+    "mono_bass": {
+     "freq_hz": 50.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.1
+    },
+    "multibanda": {
+     "activo": false
+    },
+    "densidad": {
+     "activo": false
+    }
+   }
+  },
+  "hard_bop": {
+   "nombre": "Hard bop",
+   "familia": "Jazz",
+   "anio": 1954,
+   "descripcion": "El bebop que vuelve a buscar al blues y al gospel.",
+   "cuerpo": "Responde al cool volviendo al backbeat, al blues y a las cadencias de iglesia. El groove de Blakey y Silver desemboca directamente en el funk de la década siguiente.",
+   "artistas": [
+    "Art Blakey",
+    "Horace Silver",
+    "Clifford Brown"
+   ],
+   "perfil": "jazz-dinamica-alta",
+   "perfil_nombre": "Jazz",
+   "perfil_nota": "el limitador es solo seguridad; nada de multibanda",
+   "master": {
+    "target_lufs_default": -14.0,
+    "eq_correctivo": {
+     "max_correccion_db": 4.0
+    },
+    "mono_bass": {
+     "freq_hz": 50.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.1
+    },
+    "multibanda": {
+     "activo": false
+    },
+    "densidad": {
+     "activo": false
+    }
+   }
+  },
+  "jazz_modal": {
+   "nombre": "Jazz modal",
+   "familia": "Jazz",
+   "anio": 1958,
+   "descripcion": "Menos acordes, más escala.",
+   "cuerpo": "*Kind of Blue* reemplaza el cambio armónico veloz por **modos sostenidos** durante muchos compases. El interés se corre de la progresión al color modal y al desarrollo motívico: dorio, frigio, lidio como territorios, no como pasos.",
+   "artistas": [
+    "Miles Davis",
+    "John Coltrane",
+    "Bill Evans"
+   ],
+   "perfil": "jazz-dinamica-alta",
+   "perfil_nombre": "Jazz",
+   "perfil_nota": "el limitador es solo seguridad; nada de multibanda",
+   "master": {
+    "target_lufs_default": -14.0,
+    "eq_correctivo": {
+     "max_correccion_db": 4.0
+    },
+    "mono_bass": {
+     "freq_hz": 50.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.1
+    },
+    "multibanda": {
+     "activo": false
+    },
+    "densidad": {
+     "activo": false
+    }
+   }
+  },
+  "free_jazz": {
+   "nombre": "Free jazz",
+   "familia": "Jazz",
+   "anio": 1960,
+   "descripcion": "Sin centro tonal, sin forma fija, sin tempo obligatorio.",
+   "cuerpo": "Se abandonan a la vez la cuadratura, la progresión y el centro tonal. Queda la interacción entre músicos como única estructura. Su eco llega al no wave, al noise y a buena parte del rock experimental.",
+   "artistas": [
+    "Ornette Coleman",
+    "Cecil Taylor",
+    "Albert Ayler"
+   ],
+   "perfil": "jazz-dinamica-alta",
+   "perfil_nombre": "Jazz",
+   "perfil_nota": "el limitador es solo seguridad; nada de multibanda",
+   "master": {
+    "target_lufs_default": -14.0,
+    "eq_correctivo": {
+     "max_correccion_db": 4.0
+    },
+    "mono_bass": {
+     "freq_hz": 50.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.1
+    },
+    "multibanda": {
+     "activo": false
+    },
+    "densidad": {
+     "activo": false
+    }
+   }
+  },
+  "jazz_fusion": {
+   "nombre": "Jazz fusion",
+   "familia": "Jazz",
+   "anio": 1969,
+   "descripcion": "Jazz enchufado, con groove de funk y volumen de rock.",
+   "cuerpo": "Rhodes, sintetizadores y guitarra distorsionada sobre armonía modal. McLaughlin y Cobham meten **polirritmia y compases impares** de tradición india: 7/8, 10/8, 19/16. De ahí salen el prog y, más tarde, el djent.",
+   "artistas": [
+    "Miles Davis",
+    "Weather Report",
+    "Mahavishnu Orchestra"
+   ],
+   "perfil": "jazz-dinamica-alta",
+   "perfil_nombre": "Jazz",
+   "perfil_nota": "el limitador es solo seguridad; nada de multibanda",
+   "master": {
+    "target_lufs_default": -14.0,
+    "eq_correctivo": {
+     "max_correccion_db": 4.0
+    },
+    "mono_bass": {
+     "freq_hz": 50.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.1
+    },
+    "multibanda": {
+     "activo": false
+    },
+    "densidad": {
+     "activo": false
+    }
+   }
+  },
+  "rhythm_and_blues": {
+   "nombre": "Rhythm and blues",
+   "familia": "Soul y funk",
+   "anio": 1947,
+   "descripcion": "Blues urbano, con banda y para bailar.",
+   "cuerpo": "Instala el **backbeat**: el golpe seco en 2 y 4 que va a sostener casi toda la música popular posterior. El shuffle de Louis Jordan es, literalmente, el rock and roll un rato antes de que se llame así.",
+   "artistas": [
+    "Louis Jordan",
+    "Ruth Brown",
+    "Ray Charles"
+   ],
+   "perfil": "soul-groove",
+   "perfil_nombre": "Soul y funk",
+   "perfil_nota": "backbeat y groove: la dinámica del conjunto es el género",
+   "master": {
+    "target_lufs_default": -10.0,
+    "eq_correctivo": {
+     "max_correccion_db": 7.0
+    },
+    "mono_bass": {
+     "freq_hz": 80.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.3
+    },
+    "multibanda": {
+     "cantidad": 0.45
+    }
+   }
+  },
+  "soul": {
+   "nombre": "Soul",
+   "familia": "Soul y funk",
+   "anio": 1959,
+   "descripcion": "El gospel cantándole a una persona en vez de a Dios.",
+   "cuerpo": "Toma entera la técnica vocal del gospel —melisma, grito, llamada y respuesta con los coros— y la pone sobre letra secular. Motown y Stax son dos soluciones de producción opuestas para el mismo material.",
+   "artistas": [
+    "Aretha Franklin",
+    "Otis Redding",
+    "Marvin Gaye"
+   ],
+   "perfil": "soul-groove",
+   "perfil_nombre": "Soul y funk",
+   "perfil_nota": "backbeat y groove: la dinámica del conjunto es el género",
+   "master": {
+    "target_lufs_default": -10.0,
+    "eq_correctivo": {
+     "max_correccion_db": 7.0
+    },
+    "mono_bass": {
+     "freq_hz": 80.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.3
+    },
+    "multibanda": {
+     "cantidad": 0.45
+    }
+   }
+  },
+  "funk": {
+   "nombre": "Funk",
+   "familia": "Soul y funk",
+   "anio": 1967,
+   "descripcion": "Todo al uno, y un solo acorde puede durar ocho minutos.",
+   "cuerpo": "Dos cambios enormes: la armonía se congela en un **vamp** de uno o dos acordes, y toda la información pasa al ritmo. Cada instrumento toca una célula corta desfasada de las demás: polirritmia de conjunto, con el acento colectivo en **the One**.",
+   "artistas": [
+    "James Brown",
+    "Sly Stone",
+    "Parliament"
+   ],
+   "perfil": "soul-groove",
+   "perfil_nombre": "Soul y funk",
+   "perfil_nota": "backbeat y groove: la dinámica del conjunto es el género",
+   "master": {
+    "target_lufs_default": -10.0,
+    "eq_correctivo": {
+     "max_correccion_db": 7.0
+    },
+    "mono_bass": {
+     "freq_hz": 80.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.3
+    },
+    "multibanda": {
+     "cantidad": 0.45
+    }
+   }
+  },
+  "disco": {
+   "nombre": "Disco",
+   "familia": "Soul y funk",
+   "anio": 1973,
+   "descripcion": "Bombo en los cuatro tiempos y cuerdas de orquesta.",
+   "cuerpo": "El **four on the floor** —bombo en cada tiempo— existe para que el DJ pueda empalmar dos discos sin que la pista pierda el pulso. Es una decisión de formato que después define toda la música electrónica de baile.",
+   "artistas": [
+    "Chic",
+    "Donna Summer",
+    "Giorgio Moroder"
+   ],
+   "perfil": "soul-groove",
+   "perfil_nombre": "Soul y funk",
+   "perfil_nota": "backbeat y groove: la dinámica del conjunto es el género",
+   "master": {
+    "target_lufs_default": -10.0,
+    "eq_correctivo": {
+     "max_correccion_db": 7.0
+    },
+    "mono_bass": {
+     "freq_hz": 80.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.3
+    },
+    "multibanda": {
+     "cantidad": 0.45
+    }
+   }
+  },
+  "neo_soul": {
+   "nombre": "Neo soul",
+   "familia": "Soul y funk",
+   "anio": 1994,
+   "descripcion": "Soul con armonía de jazz y batería que va corrida.",
+   "cuerpo": "Acordes extendidos y sustituciones tomadas del jazz, sobre un groove deliberadamente **detrás del pulso**: *Voodoo* está tocado tarde a propósito. Esa imprecisión controlada es el rasgo que define el género.",
+   "artistas": [
+    "D'Angelo",
+    "Erykah Badu",
+    "Robert Glasper"
+   ],
+   "perfil": "soul-groove",
+   "perfil_nombre": "Soul y funk",
+   "perfil_nota": "backbeat y groove: la dinámica del conjunto es el género",
+   "master": {
+    "target_lufs_default": -10.0,
+    "eq_correctivo": {
+     "max_correccion_db": 7.0
+    },
+    "mono_bass": {
+     "freq_hz": 80.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.3
+    },
+    "multibanda": {
+     "cantidad": 0.45
+    }
+   }
+  },
+  "pop": {
+   "nombre": "Pop",
+   "familia": "Pop",
+   "anio": 1955,
+   "descripcion": "La canción de tres minutos optimizada para que quede pegada.",
+   "cuerpo": "No es un sonido sino una **forma**: verso-estribillo con gancho temprano, duración de radio y prioridad absoluta de la melodía. Cualquier género puede entrar al pop si acepta esa estructura.",
+   "artistas": [
+    "The Beatles",
+    "ABBA",
+    "Michael Jackson"
+   ],
+   "perfil": "pop-brillante",
+   "perfil_nombre": "Pop",
+   "perfil_nota": "brillo alto, sub presente, loud",
+   "master": {
+    "target_lufs_default": -8.0,
+    "eq_correctivo": {
+     "max_correccion_db": 10.0
+    },
+    "mono_bass": {
+     "freq_hz": 100.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.25
+    }
+   }
+  },
+  "dance_pop": {
+   "nombre": "Dance pop",
+   "familia": "Pop",
+   "anio": 1982,
+   "descripcion": "Pop construido sobre una base de club.",
+   "cuerpo": "La producción pasa a ser el autor principal: el arreglo se arma en secuenciador antes que la canción. Absorbe cada diez años lo que esté sonando en los clubes y lo devuelve en formato de tres minutos.",
+   "artistas": [
+    "Madonna",
+    "Kylie Minogue",
+    "Britney Spears"
+   ],
+   "perfil": "pop-brillante",
+   "perfil_nombre": "Pop",
+   "perfil_nota": "brillo alto, sub presente, loud",
+   "master": {
+    "target_lufs_default": -8.0,
+    "eq_correctivo": {
+     "max_correccion_db": 10.0
+    },
+    "mono_bass": {
+     "freq_hz": 100.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.25
+    }
+   }
+  },
+  "hyperpop": {
+   "nombre": "Hyperpop",
+   "familia": "Pop",
+   "anio": 2014,
+   "descripcion": "Pop saturado hasta la caricatura.",
+   "cuerpo": "Voz afinada al extremo, clipping usado como timbre y cambios bruscos de tempo y tonalidad dentro del mismo tema. Trata los defectos de la producción digital como material expresivo.",
+   "artistas": [
+    "SOPHIE",
+    "100 gecs",
+    "A. G. Cook"
+   ],
+   "perfil": "pop-brillante",
+   "perfil_nombre": "Pop",
+   "perfil_nota": "brillo alto, sub presente, loud",
+   "master": {
+    "target_lufs_default": -8.0,
+    "eq_correctivo": {
+     "max_correccion_db": 10.0
+    },
+    "mono_bass": {
+     "freq_hz": 100.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.25
+    }
+   }
+  },
+  "rock_and_roll": {
+   "nombre": "Rock and roll",
+   "familia": "Rock",
+   "anio": 1954,
+   "descripcion": "R&B y country tocados por una banda chica y fuerte.",
+   "cuerpo": "Blues de doce compases, backbeat marcado y la guitarra eléctrica al frente. El riff de Chuck Berry —doble cuerda con bending— es la plantilla que copian veinte años de guitarristas.",
+   "artistas": [
+    "Chuck Berry",
+    "Little Richard",
+    "Elvis Presley"
+   ],
+   "perfil": "guitarras-banda",
+   "perfil_nombre": "Guitarras / banda",
+   "perfil_nota": "medios con cuerpo, crest ~10, grave controlado",
+   "master": {
+    "target_lufs_default": -9.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 90.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.25
+    }
+   }
+  },
+  "garage_rock": {
+   "nombre": "Garage rock",
+   "familia": "Rock",
+   "anio": 1963,
+   "descripcion": "Bandas de barrio, tres acordes y grabación cruda.",
+   "cuerpo": "Importa por lo que demuestra: que se puede grabar algo bueno sin técnica ni presupuesto. Esa idea reaparece intacta en el punk, en el indie de los ochenta y en el lo-fi.",
+   "artistas": [
+    "The Sonics",
+    "The Kingsmen"
+   ],
+   "perfil": "guitarras-banda",
+   "perfil_nombre": "Guitarras / banda",
+   "perfil_nota": "medios con cuerpo, crest ~10, grave controlado",
+   "master": {
+    "target_lufs_default": -9.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 90.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.25
+    }
+   }
+  },
+  "blues_rock": {
+   "nombre": "Blues rock",
+   "familia": "Rock",
+   "anio": 1963,
+   "descripcion": "El blues del Delta con amplificador a todo volumen.",
+   "cuerpo": "La saturación deja de ser un defecto y pasa a ser timbre. Hendrix suma feedback, wah y una manera de tocar acordes con la melodía adentro que todavía se estudia.",
+   "artistas": [
+    "The Rolling Stones",
+    "Cream",
+    "Jimi Hendrix"
+   ],
+   "perfil": "guitarras-banda",
+   "perfil_nombre": "Guitarras / banda",
+   "perfil_nota": "medios con cuerpo, crest ~10, grave controlado",
+   "master": {
+    "target_lufs_default": -9.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 90.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.25
+    }
+   }
+  },
+  "folk_rock": {
+   "nombre": "Folk rock",
+   "familia": "Rock",
+   "anio": 1965,
+   "descripcion": "La letra del folk con banda eléctrica.",
+   "cuerpo": "La Rickenbacker de doce cuerdas y los **acordes suspendidos** abren el lenguaje armónico del rock más allá del blues. Con la letra de Dylan adentro, la canción de rock deja de ser solo bailable.",
+   "artistas": [
+    "The Byrds",
+    "Bob Dylan",
+    "Simon & Garfunkel"
+   ],
+   "perfil": "guitarras-banda",
+   "perfil_nombre": "Guitarras / banda",
+   "perfil_nota": "medios con cuerpo, crest ~10, grave controlado",
+   "master": {
+    "target_lufs_default": -9.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 90.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.25
+    }
+   }
+  },
+  "rock_psicodelico": {
+   "nombre": "Rock psicodélico",
+   "familia": "Rock",
+   "anio": 1966,
+   "descripcion": "El estudio como instrumento, en versión rock.",
+   "cuerpo": "Cinta al revés, mellotron, raga india, temas que pasan de tres a nueve minutos. Rompe el molde de duración y forma, y con eso deja el terreno listo para el progresivo.",
+   "artistas": [
+    "The Beatles",
+    "Pink Floyd",
+    "Jefferson Airplane"
+   ],
+   "perfil": "guitarras-banda",
+   "perfil_nombre": "Guitarras / banda",
+   "perfil_nota": "medios con cuerpo, crest ~10, grave controlado",
+   "master": {
+    "target_lufs_default": -9.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 90.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.25
+    }
+   }
+  },
+  "hard_rock": {
+   "nombre": "Hard rock",
+   "familia": "Rock",
+   "anio": 1968,
+   "descripcion": "Riff, distorsión y volumen como criterio.",
+   "cuerpo": "El **riff** pasa a ser el núcleo compositivo: la canción se construye alrededor de una figura de guitarra, no de una progresión. Bonham instala además la idea del groove pesado y espacioso.",
+   "artistas": [
+    "Led Zeppelin",
+    "Deep Purple",
+    "The Who"
+   ],
+   "perfil": "guitarras-banda",
+   "perfil_nombre": "Guitarras / banda",
+   "perfil_nota": "medios con cuerpo, crest ~10, grave controlado",
+   "master": {
+    "target_lufs_default": -9.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 90.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.25
+    }
+   }
+  },
+  "rock_progresivo": {
+   "nombre": "Rock progresivo",
+   "familia": "Rock",
+   "anio": 1969,
+   "descripcion": "Forma larga, compases impares y ambición de suite.",
+   "cuerpo": "Importa **compases irregulares** (7/8, 5/4, 11/8), modulaciones lejanas, contrapunto y estructuras de veinte minutos con temas que vuelven transformados. Es la música popular que más abiertamente toma herramientas de la tradición académica.",
+   "artistas": [
+    "King Crimson",
+    "Yes",
+    "Genesis"
+   ],
+   "perfil": "guitarras-banda",
+   "perfil_nombre": "Guitarras / banda",
+   "perfil_nota": "medios con cuerpo, crest ~10, grave controlado",
+   "master": {
+    "target_lufs_default": -9.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 90.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.25
+    }
+   }
+  },
+  "punk": {
+   "nombre": "Punk",
+   "familia": "Rock",
+   "anio": 1975,
+   "descripcion": "Dos minutos, tres acordes y ninguna concesión.",
+   "cuerpo": "Reacción directa contra el virtuosismo del progresivo. Reduce todo a **power chords** en corcheas constantes y elimina el solo. Su consecuencia mayor es cultural: cualquiera puede empezar una banda el mismo día que compra la guitarra.",
+   "artistas": [
+    "Ramones",
+    "Sex Pistols",
+    "The Clash"
+   ],
+   "perfil": "guitarras-banda",
+   "perfil_nombre": "Guitarras / banda",
+   "perfil_nota": "medios con cuerpo, crest ~10, grave controlado",
+   "master": {
+    "target_lufs_default": -9.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 90.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.25
+    }
+   }
+  },
+  "post_punk": {
+   "nombre": "Post-punk",
+   "familia": "Rock",
+   "anio": 1978,
+   "descripcion": "La actitud del punk con curiosidad formal.",
+   "cuerpo": "Bajo melódico al frente, guitarra tratada como textura y no como riff, espacio en la mezcla. Toma del dub el uso del vacío y del funk la lógica de células rítmicas entrelazadas.",
+   "artistas": [
+    "Joy Division",
+    "Talking Heads",
+    "The Cure"
+   ],
+   "perfil": "guitarras-banda",
+   "perfil_nombre": "Guitarras / banda",
+   "perfil_nota": "medios con cuerpo, crest ~10, grave controlado",
+   "master": {
+    "target_lufs_default": -9.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 90.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.25
+    }
+   }
+  },
+  "new_wave": {
+   "nombre": "New wave",
+   "familia": "Rock",
+   "anio": 1978,
+   "descripcion": "Punk con sintetizador y melodía de pop.",
+   "cuerpo": "Acepta el estribillo y el sintetizador que el punk rechazaba. The Police además importa el skank del reggae a la radio de rock.",
+   "artistas": [
+    "Blondie",
+    "The Police",
+    "Devo"
+   ],
+   "perfil": "guitarras-banda",
+   "perfil_nombre": "Guitarras / banda",
+   "perfil_nota": "medios con cuerpo, crest ~10, grave controlado",
+   "master": {
+    "target_lufs_default": -9.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 90.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.25
+    }
+   }
+  },
+  "hardcore_punk": {
+   "nombre": "Hardcore punk",
+   "familia": "Rock",
+   "anio": 1980,
+   "descripcion": "Punk al doble de velocidad y la mitad de duración.",
+   "cuerpo": "Temas de un minuto, tempos arriba de 200 y voz gritada. Los Bad Brains, que venían del jazz fusion, meten cortes rítmicos imposibles y abren la puerta técnica que después usa el thrash.",
+   "artistas": [
+    "Black Flag",
+    "Minor Threat",
+    "Bad Brains"
+   ],
+   "perfil": "guitarras-banda",
+   "perfil_nombre": "Guitarras / banda",
+   "perfil_nota": "medios con cuerpo, crest ~10, grave controlado",
+   "master": {
+    "target_lufs_default": -9.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 90.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.25
+    }
+   }
+  },
+  "indie_rock": {
+   "nombre": "Indie rock",
+   "familia": "Rock",
+   "anio": 1985,
+   "descripcion": "Definido por el sello, no por el sonido.",
+   "cuerpo": "Nace como categoría de distribución —bandas fuera de las discográficas grandes— y recién después se vuelve una estética. Los Pixies instalan la dinámica **suave-fuerte** que Nirvana convierte en fórmula global.",
+   "artistas": [
+    "R.E.M.",
+    "Pixies",
+    "Pavement"
+   ],
+   "perfil": "guitarras-banda",
+   "perfil_nombre": "Guitarras / banda",
+   "perfil_nota": "medios con cuerpo, crest ~10, grave controlado",
+   "master": {
+    "target_lufs_default": -9.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 90.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.25
+    }
+   }
+  },
+  "shoegaze": {
+   "nombre": "Shoegaze",
+   "familia": "Rock",
+   "anio": 1988,
+   "descripcion": "Muros de guitarra donde la voz es un instrumento más.",
+   "cuerpo": "Capas de guitarra con pedales de modulación hasta que la afinación se vuelve inestable. Kevin Shields usa el **glide guitar** —trémolo mientras suena el acorde— para que nada quede exactamente afinado.",
+   "artistas": [
+    "My Bloody Valentine",
+    "Slowdive"
+   ],
+   "perfil": "guitarras-banda",
+   "perfil_nombre": "Guitarras / banda",
+   "perfil_nota": "medios con cuerpo, crest ~10, grave controlado",
+   "master": {
+    "target_lufs_default": -9.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 90.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.25
+    }
+   }
+  },
+  "grunge": {
+   "nombre": "Grunge",
+   "familia": "Rock",
+   "anio": 1988,
+   "descripcion": "Hardcore y metal con melodía de pop.",
+   "cuerpo": "Soundgarden trabaja en afinaciones bajas y compases impares; Nirvana toma de los Pixies la estructura de verso susurrado y estribillo saturado. Es el momento en que el underground pasa a ser la radio.",
+   "artistas": [
+    "Nirvana",
+    "Soundgarden",
+    "Pearl Jam"
+   ],
+   "perfil": "guitarras-banda",
+   "perfil_nombre": "Guitarras / banda",
+   "perfil_nota": "medios con cuerpo, crest ~10, grave controlado",
+   "master": {
+    "target_lufs_default": -10.5,
+    "eq_correctivo": {
+     "max_correccion_db": 10.0
+    },
+    "mono_bass": {
+     "freq_hz": 80.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.3
+    },
+    "resonancias": {
+     "umbral_db": 8.0,
+     "max_cut_db": 2.0,
+     "max_n": 2
+    }
+   }
+  },
+  "post_rock": {
+   "nombre": "Post-rock",
+   "familia": "Rock",
+   "anio": 1991,
+   "descripcion": "Instrumentos de rock usados con lógica de música mínima.",
+   "cuerpo": "Sin estribillo y sin voz: la forma es un **crescendo largo** construido por capas aditivas, como en Reich o Glass. La guitarra hace textura, no riff.",
+   "artistas": [
+    "Slint",
+    "Godspeed You! Black Emperor",
+    "Mogwai"
+   ],
+   "perfil": "guitarras-banda",
+   "perfil_nombre": "Guitarras / banda",
+   "perfil_nota": "medios con cuerpo, crest ~10, grave controlado",
+   "master": {
+    "target_lufs_default": -9.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 90.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.25
+    }
+   }
+  },
+  "math_rock": {
+   "nombre": "Math rock",
+   "familia": "Rock",
+   "anio": 1991,
+   "descripcion": "Compases que cambian todo el tiempo, sin pose sinfónica.",
+   "cuerpo": "Métrica irregular y **polimetría**: guitarra en 7 contra batería en 4 hasta que los ciclos coinciden. Toma la complejidad del progresivo pero con instrumentación y actitud de hardcore.",
+   "artistas": [
+    "Don Caballero",
+    "Slint",
+    "Toe"
+   ],
+   "perfil": "guitarras-banda",
+   "perfil_nombre": "Guitarras / banda",
+   "perfil_nota": "medios con cuerpo, crest ~10, grave controlado",
+   "master": {
+    "target_lufs_default": -9.0,
+    "eq_correctivo": {
+     "max_correccion_db": 6.0
+    },
+    "mono_bass": {
+     "freq_hz": 100.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.25
+    },
+    "resonancias": {
+     "umbral_db": 6.0,
+     "max_cut_db": 3.0,
+     "max_n": 4
+    }
+   }
+  },
+  "heavy_metal": {
+   "nombre": "Heavy metal",
+   "familia": "Metal",
+   "anio": 1970,
+   "descripcion": "El tritono, la distorsión y el riff como doctrina.",
+   "cuerpo": "Black Sabbath abre su primer tema con el **tritono**, el intervalo que la teoría medieval llamaba *diabolus in musica*. Se instalan las afinaciones bajas, el modo eólico y frigio, y el riff como material principal.",
+   "artistas": [
+    "Black Sabbath",
+    "Judas Priest",
+    "Iron Maiden"
+   ],
+   "perfil": "metal-denso",
+   "perfil_nombre": "Metal",
+   "perfil_nota": "densidad alta, crest bajo, low-mid quirúrgico",
+   "master": {
+    "target_lufs_default": -8.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 110.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.35
+    },
+    "multibanda": {
+     "cantidad": 0.75
+    }
+   }
+  },
+  "thrash_metal": {
+   "nombre": "Thrash metal",
+   "familia": "Metal",
+   "anio": 1983,
+   "descripcion": "Metal a velocidad de hardcore, con precisión de reloj.",
+   "cuerpo": "**Palm mute** en corcheas o semicorcheas continuas, riffs cromáticos y cambios de sección abruptos. La exigencia técnica de la mano derecha se vuelve un valor en sí mismo.",
+   "artistas": [
+    "Metallica",
+    "Slayer",
+    "Megadeth"
+   ],
+   "perfil": "metal-denso",
+   "perfil_nombre": "Metal",
+   "perfil_nota": "densidad alta, crest bajo, low-mid quirúrgico",
+   "master": {
+    "target_lufs_default": -8.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 110.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.35
+    },
+    "multibanda": {
+     "cantidad": 0.75
+    }
+   }
+  },
+  "death_metal": {
+   "nombre": "Death metal",
+   "familia": "Metal",
+   "anio": 1985,
+   "descripcion": "Voz gutural, blast beats y disonancia.",
+   "cuerpo": "Abandona el centro tonal claro: los riffs se arman con intervalos disonantes y cromatismo. Chuck Schuldiner lleva el género hacia estructuras casi progresivas antes de morir en 2001.",
+   "artistas": [
+    "Death",
+    "Morbid Angel",
+    "Cannibal Corpse"
+   ],
+   "perfil": "metal-denso",
+   "perfil_nombre": "Metal",
+   "perfil_nota": "densidad alta, crest bajo, low-mid quirúrgico",
+   "master": {
+    "target_lufs_default": -8.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 110.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.35
+    },
+    "multibanda": {
+     "cantidad": 0.75
+    }
+   }
+  },
+  "black_metal": {
+   "nombre": "Black metal",
+   "familia": "Metal",
+   "anio": 1987,
+   "descripcion": "Trémolo, blast beat y grabación deliberadamente cruda.",
+   "cuerpo": "El **trémolo picking** sobre armonías modales —frigio, eólico— genera una textura continua donde las notas individuales se pierden: es micropolifonía hecha con distorsión y cinta gastada.",
+   "artistas": [
+    "Mayhem",
+    "Darkthrone",
+    "Emperor"
+   ],
+   "perfil": "metal-denso",
+   "perfil_nombre": "Metal",
+   "perfil_nota": "densidad alta, crest bajo, low-mid quirúrgico",
+   "master": {
+    "target_lufs_default": -8.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 110.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.35
+    },
+    "multibanda": {
+     "cantidad": 0.75
+    }
+   }
+  },
+  "metal_progresivo": {
+   "nombre": "Metal progresivo",
+   "familia": "Metal",
+   "anio": 1988,
+   "descripcion": "La ambición del prog con el peso del metal.",
+   "cuerpo": "Compases impares sostenidos por temas enteros, modulaciones y secciones instrumentales largas. Tool construye sobre **ciclos métricos superpuestos** que recién coinciden después de varios compases.",
+   "artistas": [
+    "Dream Theater",
+    "Tool",
+    "Opeth"
+   ],
+   "perfil": "metal-denso",
+   "perfil_nombre": "Metal",
+   "perfil_nota": "densidad alta, crest bajo, low-mid quirúrgico",
+   "master": {
+    "target_lufs_default": -8.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 110.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.35
+    },
+    "multibanda": {
+     "cantidad": 0.75
+    }
+   }
+  },
+  "djent": {
+   "nombre": "Djent",
+   "familia": "Metal",
+   "anio": 2007,
+   "descripcion": "Guitarras de ocho cuerdas y polimetría de precisión.",
+   "cuerpo": "Meshuggah toca riffs en ciclos de 17 o 23 semicorcheas contra una batería en 4/4: el patrón se desfasa y recién vuelve a coincidir muchos compases después. **Polimetría** llevada al extremo, con timbre percusivo y afinaciones gravísimas.",
+   "artistas": [
+    "Meshuggah",
+    "Periphery",
+    "Animals as Leaders"
+   ],
+   "perfil": "metal-denso",
+   "perfil_nombre": "Metal",
+   "perfil_nota": "densidad alta, crest bajo, low-mid quirúrgico",
+   "master": {
+    "target_lufs_default": -8.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 110.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.35
+    },
+    "multibanda": {
+     "cantidad": 0.75
+    }
+   }
+  },
+  "musica_concreta": {
+   "nombre": "Música concreta",
+   "familia": "Académica",
+   "anio": 1948,
+   "descripcion": "Composición con sonido grabado en vez de notas.",
+   "cuerpo": "Schaeffer graba trenes y objetos, corta la cinta y la reordena. Inventa el **objeto sonoro**: el material deja de ser la nota y pasa a ser la grabación. Sin esto no existen el sampleo ni el remix.",
+   "artistas": [
+    "Pierre Schaeffer",
+    "Pierre Henry"
+   ],
+   "perfil": "sin-limitar",
+   "perfil_nombre": "Académica / ambient",
+   "perfil_nota": "sin pulso fijo ni target competitivo: se respeta el original",
+   "master": {
+    "target_lufs_default": -16.0,
+    "eq_correctivo": {
+     "max_correccion_db": 3.0
+    },
+    "mono_bass": {
+     "activo": false
+    },
+    "transient_shaping": {
+     "activo": false
+    },
+    "multibanda": {
+     "activo": false
+    },
+    "densidad": {
+     "activo": false
+    },
+    "resonancias": {
+     "activo": false
+    }
+   }
+  },
+  "musica_electronica_de_estudio": {
+   "nombre": "Música electrónica de estudio",
+   "familia": "Académica",
+   "anio": 1951,
+   "descripcion": "Sonido generado, no grabado.",
+   "cuerpo": "Frente a la cinta de Schaeffer, Colonia sintetiza el sonido desde osciladores: control total del timbre, construido armónico por armónico. Stockhausen es citado como influencia directa por Kraftwerk y por los fundadores del techno de Detroit.",
+   "artistas": [
+    "Karlheinz Stockhausen",
+    "Herbert Eimert"
+   ],
+   "perfil": "sin-limitar",
+   "perfil_nombre": "Académica / ambient",
+   "perfil_nota": "sin pulso fijo ni target competitivo: se respeta el original",
+   "master": {
+    "target_lufs_default": -16.0,
+    "eq_correctivo": {
+     "max_correccion_db": 3.0
+    },
+    "mono_bass": {
+     "activo": false
+    },
+    "transient_shaping": {
+     "activo": false
+    },
+    "multibanda": {
+     "activo": false
+    },
+    "densidad": {
+     "activo": false
+    },
+    "resonancias": {
+     "activo": false
+    }
+   }
+  },
+  "minimalismo": {
+   "nombre": "Minimalismo",
+   "familia": "Académica",
+   "anio": 1964,
+   "descripcion": "Repetición con desplazamiento gradual.",
+   "cuerpo": "Reich descubre el **phasing**: dos ejecuciones idénticas que se desfasan lentamente y generan patrones que nadie tocó. Procesos aditivos, pulso constante y armonía estática; el ADN estructural de la música electrónica repetitiva.",
+   "artistas": [
+    "Steve Reich",
+    "Terry Riley",
+    "Philip Glass"
+   ],
+   "perfil": "sin-limitar",
+   "perfil_nombre": "Académica / ambient",
+   "perfil_nota": "sin pulso fijo ni target competitivo: se respeta el original",
+   "master": {
+    "target_lufs_default": -16.0,
+    "eq_correctivo": {
+     "max_correccion_db": 3.0
+    },
+    "mono_bass": {
+     "activo": false
+    },
+    "transient_shaping": {
+     "activo": false
+    },
+    "multibanda": {
+     "activo": false
+    },
+    "densidad": {
+     "activo": false
+    },
+    "resonancias": {
+     "activo": false
+    }
+   }
+  },
+  "krautrock": {
+   "nombre": "Krautrock",
+   "familia": "Electrónica",
+   "anio": 1968,
+   "descripcion": "Rock alemán con pulso de máquina.",
+   "cuerpo": "El **motorik**: 4/4 exacto, sin variación, durante diez minutos. La batería deja de acentuar y pasa a ser un motor. Kraftwerk después reemplaza al baterista por una máquina y define el sonido de los cuarenta años siguientes.",
+   "artistas": [
+    "Can",
+    "Neu!",
+    "Kraftwerk"
+   ],
+   "perfil": "guitarras-banda",
+   "perfil_nombre": "Guitarras / banda",
+   "perfil_nota": "medios con cuerpo, crest ~10, grave controlado",
+   "master": {
+    "target_lufs_default": -9.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 90.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.25
+    }
+   }
+  },
+  "ambient": {
+   "nombre": "Ambient",
+   "familia": "Electrónica",
+   "anio": 1978,
+   "descripcion": "Música pensada para no ser el centro de atención.",
+   "cuerpo": "Eno la define como música que debe premiar la escucha atenta sin exigirla. Sin pulso marcado ni desarrollo temático: cintas de distinto largo girando a la vez producen combinaciones que no se repiten.",
+   "artistas": [
+    "Brian Eno",
+    "Aphex Twin",
+    "Harold Budd"
+   ],
+   "perfil": "sin-limitar",
+   "perfil_nombre": "Académica / ambient",
+   "perfil_nota": "sin pulso fijo ni target competitivo: se respeta el original",
+   "master": {
+    "target_lufs_default": -16.0,
+    "eq_correctivo": {
+     "max_correccion_db": 3.0
+    },
+    "mono_bass": {
+     "activo": false
+    },
+    "transient_shaping": {
+     "activo": false
+    },
+    "multibanda": {
+     "activo": false
+    },
+    "densidad": {
+     "activo": false
+    },
+    "resonancias": {
+     "activo": false
+    }
+   }
+  },
+  "synth_pop": {
+   "nombre": "Synth pop",
+   "familia": "Electrónica",
+   "anio": 1978,
+   "descripcion": "Canción pop tocada íntegramente con sintetizadores.",
+   "cuerpo": "El sintetizador polifónico barato y la caja de ritmos permiten que dos personas suenen como una banda. Instala el **secuenciador** como forma de componer: se programa el patrón y después se decide la melodía.",
+   "artistas": [
+    "Kraftwerk",
+    "Depeche Mode",
+    "Yazoo"
+   ],
+   "perfil": "pop-brillante",
+   "perfil_nombre": "Pop",
+   "perfil_nota": "brillo alto, sub presente, loud",
+   "master": {
+    "target_lufs_default": -8.0,
+    "eq_correctivo": {
+     "max_correccion_db": 10.0
+    },
+    "mono_bass": {
+     "freq_hz": 100.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.25
+    }
+   }
+  },
+  "house": {
+   "nombre": "House",
+   "familia": "Electrónica",
+   "anio": 1984,
+   "descripcion": "Disco reconstruido con caja de ritmos.",
+   "cuerpo": "Roland TR-909, bombo en los cuatro tiempos, hi-hat abierto en los contratiempos y un sample de voz soul arriba. La estructura es acumulativa: entra y sale un elemento por vez, pensada para mezclar en cabina.",
+   "artistas": [
+    "Frankie Knuckles",
+    "Larry Heard",
+    "Marshall Jefferson"
+   ],
+   "perfil": "club-electronico",
+   "perfil_nombre": "Electrónica de club",
+   "perfil_nota": "sub y ancho, transientes de club, sin bombeo",
+   "master": {
+    "target_lufs_default": -8.0,
+    "eq_correctivo": {
+     "max_correccion_db": 9.0,
+     "max_ajuste_ancho_db": 2.0
+    },
+    "mono_bass": {
+     "freq_hz": 110.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.35
+    }
+   }
+  },
+  "techno": {
+   "nombre": "Techno",
+   "familia": "Electrónica",
+   "anio": 1988,
+   "descripcion": "Funk tocado por máquinas, con estética de ciencia ficción.",
+   "cuerpo": "Los tres de Detroit citan a Kraftwerk y a Parliament en la misma frase: es funk sin músicos. Timbre metálico, armonía mínima y foco total en la **evolución tímbrica** a lo largo de seis o siete minutos.",
+   "artistas": [
+    "Juan Atkins",
+    "Derrick May",
+    "Jeff Mills"
+   ],
+   "perfil": "club-electronico",
+   "perfil_nombre": "Electrónica de club",
+   "perfil_nota": "sub y ancho, transientes de club, sin bombeo",
+   "master": {
+    "target_lufs_default": -8.0,
+    "eq_correctivo": {
+     "max_correccion_db": 9.0,
+     "max_ajuste_ancho_db": 2.0
+    },
+    "mono_bass": {
+     "freq_hz": 110.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.35
+    }
+   }
+  },
+  "trance": {
+   "nombre": "Trance",
+   "familia": "Electrónica",
+   "anio": 1990,
+   "descripcion": "Techno con arpegio, melodía y estructura de clímax.",
+   "cuerpo": "Recupera lo que el techno de Detroit había dejado afuera: melodía diatónica, progresiones de acordes y una forma dramática explícita —**breakdown**, tensión, caída— calcada de la música de película.",
+   "artistas": [
+    "Paul van Dyk",
+    "Sasha",
+    "Armin van Buuren"
+   ],
+   "perfil": "club-electronico",
+   "perfil_nombre": "Electrónica de club",
+   "perfil_nota": "sub y ancho, transientes de club, sin bombeo",
+   "master": {
+    "target_lufs_default": -8.0,
+    "eq_correctivo": {
+     "max_correccion_db": 9.0,
+     "max_ajuste_ancho_db": 2.0
+    },
+    "mono_bass": {
+     "freq_hz": 110.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.35
+    }
+   }
+  },
+  "idm": {
+   "nombre": "IDM",
+   "familia": "Electrónica",
+   "anio": 1992,
+   "descripcion": "Electrónica para escuchar sentado.",
+   "cuerpo": "Rompe la cuadrícula: breaks cortados en tresillos y quintillos, métricas cambiantes y síntesis granular. Autechre llega a generar la estructura por algoritmo, con el compositor escribiendo las reglas y no las notas.",
+   "artistas": [
+    "Aphex Twin",
+    "Autechre",
+    "Boards of Canada"
+   ],
+   "perfil": "club-electronico",
+   "perfil_nombre": "Electrónica de club",
+   "perfil_nota": "sub y ancho, transientes de club, sin bombeo",
+   "master": {
+    "target_lufs_default": -8.0,
+    "eq_correctivo": {
+     "max_correccion_db": 9.0,
+     "max_ajuste_ancho_db": 2.0
+    },
+    "mono_bass": {
+     "freq_hz": 110.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.35
+    }
+   }
+  },
+  "jungle": {
+   "nombre": "Jungle",
+   "familia": "Electrónica",
+   "anio": 1993,
+   "descripcion": "Breakbeats acelerados sobre bajo de dub.",
+   "cuerpo": "El **Amen break** —seis segundos de batería de The Winstons— cortado, reordenado y acelerado al doble. El resultado tiene dos capas temporales a la vez: percusión a 170 y bajo que se siente a 85.",
+   "artistas": [
+    "Goldie",
+    "LTJ Bukem"
+   ],
+   "perfil": "club-electronico",
+   "perfil_nombre": "Electrónica de club",
+   "perfil_nota": "sub y ancho, transientes de club, sin bombeo",
+   "master": {
+    "target_lufs_default": -8.0,
+    "eq_correctivo": {
+     "max_correccion_db": 9.0,
+     "max_ajuste_ancho_db": 2.0
+    },
+    "mono_bass": {
+     "freq_hz": 110.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.35
+    }
+   }
+  },
+  "drum_and_bass": {
+   "nombre": "Drum and bass",
+   "familia": "Electrónica",
+   "anio": 1995,
+   "descripcion": "Jungle depurado, con ingeniería de precisión.",
+   "cuerpo": "Los breaks se programan en vez de samplearse enteros, y el sub-bajo se diseña por síntesis. Photek trabaja el patrón de batería con un detalle rítmico que viene declaradamente del jazz.",
+   "artistas": [
+    "Roni Size",
+    "Photek",
+    "Noisia"
+   ],
+   "perfil": "club-electronico",
+   "perfil_nombre": "Electrónica de club",
+   "perfil_nota": "sub y ancho, transientes de club, sin bombeo",
+   "master": {
+    "target_lufs_default": -8.0,
+    "eq_correctivo": {
+     "max_correccion_db": 9.0,
+     "max_ajuste_ancho_db": 2.0
+    },
+    "mono_bass": {
+     "freq_hz": 110.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.35
+    }
+   }
+  },
+  "uk_garage": {
+   "nombre": "UK garage",
+   "familia": "Electrónica",
+   "anio": 1995,
+   "descripcion": "House con el pulso partido y swing.",
+   "cuerpo": "El **2-step**: se sacan golpes del four on the floor para que el pulso quede cojo. Además usa swing en la cuantización, algo que la electrónica había abandonado por la cuadrícula exacta.",
+   "artistas": [
+    "MJ Cole",
+    "Artful Dodger"
+   ],
+   "perfil": "club-electronico",
+   "perfil_nombre": "Electrónica de club",
+   "perfil_nota": "sub y ancho, transientes de club, sin bombeo",
+   "master": {
+    "target_lufs_default": -8.0,
+    "eq_correctivo": {
+     "max_correccion_db": 9.0,
+     "max_ajuste_ancho_db": 2.0
+    },
+    "mono_bass": {
+     "freq_hz": 110.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.35
+    }
+   }
+  },
+  "dubstep": {
+   "nombre": "Dubstep",
+   "familia": "Electrónica",
+   "anio": 2002,
+   "descripcion": "Medio tiempo, espacio vacío y sub-bajo.",
+   "cuerpo": "Suena a 140 pero se siente a 70: el redoblante cae en el tercer tiempo y el resto queda vacío. Hereda del dub el uso del silencio y de la reverb como material compositivo.",
+   "artistas": [
+    "Burial",
+    "Skream",
+    "Mala"
+   ],
+   "perfil": "club-electronico",
+   "perfil_nombre": "Electrónica de club",
+   "perfil_nota": "sub y ancho, transientes de club, sin bombeo",
+   "master": {
+    "target_lufs_default": -8.0,
+    "eq_correctivo": {
+     "max_correccion_db": 9.0,
+     "max_ajuste_ancho_db": 2.0
+    },
+    "mono_bass": {
+     "freq_hz": 110.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.35
+    }
+   }
+  },
+  "hip_hop": {
+   "nombre": "Hip hop",
+   "familia": "Hip hop",
+   "anio": 1973,
+   "descripcion": "Dos bandejas, un break y alguien hablando encima.",
+   "cuerpo": "Kool Herc aísla el **break** —los segundos de pura percusión de un tema de funk— y lo repite con dos copias del mismo disco. Nace la idea de componer con música ya grabada, que después reordena toda la producción musical.",
+   "artistas": [
+    "Kool Herc",
+    "Grandmaster Flash",
+    "Public Enemy"
+   ],
+   "perfil": "urbano-sub",
+   "perfil_nombre": "Urbano",
+   "perfil_nota": "el sub manda; mono-bass estricto o el grave se desarma",
+   "master": {
+    "target_lufs_default": -7.5,
+    "eq_correctivo": {
+     "max_correccion_db": 10.0
+    },
+    "mono_bass": {
+     "freq_hz": 120.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.3
+    }
+   }
+  },
+  "boom_bap": {
+   "nombre": "Boom bap",
+   "familia": "Hip hop",
+   "anio": 1990,
+   "descripcion": "Sampler, batería seca y crates de jazz.",
+   "cuerpo": "El sampleo de discos de jazz y soul mete armonía compleja en un género que no la buscaba. Premier pica el sample en fragmentos de una nota y los reordena: **reconstrucción**, no cita.",
+   "artistas": [
+    "DJ Premier",
+    "Pete Rock",
+    "A Tribe Called Quest"
+   ],
+   "perfil": "urbano-sub",
+   "perfil_nombre": "Urbano",
+   "perfil_nota": "el sub manda; mono-bass estricto o el grave se desarma",
+   "master": {
+    "target_lufs_default": -7.5,
+    "eq_correctivo": {
+     "max_correccion_db": 10.0
+    },
+    "mono_bass": {
+     "freq_hz": 120.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.3
+    }
+   }
+  },
+  "g_funk": {
+   "nombre": "G-funk",
+   "familia": "Hip hop",
+   "anio": 1992,
+   "descripcion": "Hip hop del oeste con sintetizador agudo y bajo grueso.",
+   "cuerpo": "En vez de samplear a Parliament, Dre vuelve a tocar el groove con músicos. Portamento de sintetizador agudo, bajo de sub y tempo relajado: el funk de los setenta reinterpretado, no citado.",
+   "artistas": [
+    "Dr. Dre",
+    "Snoop Dogg",
+    "Warren G"
+   ],
+   "perfil": "urbano-sub",
+   "perfil_nombre": "Urbano",
+   "perfil_nota": "el sub manda; mono-bass estricto o el grave se desarma",
+   "master": {
+    "target_lufs_default": -7.5,
+    "eq_correctivo": {
+     "max_correccion_db": 10.0
+    },
+    "mono_bass": {
+     "freq_hz": 120.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.3
+    }
+   }
+  },
+  "trap": {
+   "nombre": "Trap",
+   "familia": "Hip hop",
+   "anio": 1998,
+   "descripcion": "808, hi-hats en tresillos y medio tiempo.",
+   "cuerpo": "El bombo **808** se afina y hace de bajo a la vez: una sola fuente para el peso y la armonía. Los hi-hats subdividen en tresillos y redobles rapidísimos mientras el pulso percibido va a la mitad del tempo real.",
+   "artistas": [
+    "T.I.",
+    "Gucci Mane",
+    "Metro Boomin"
+   ],
+   "perfil": "urbano-sub",
+   "perfil_nombre": "Urbano",
+   "perfil_nota": "el sub manda; mono-bass estricto o el grave se desarma",
+   "master": {
+    "target_lufs_default": -7.5,
+    "eq_correctivo": {
+     "max_correccion_db": 10.0
+    },
+    "mono_bass": {
+     "freq_hz": 120.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.3
+    }
+   }
+  },
+  "drill": {
+   "nombre": "Drill",
+   "familia": "Hip hop",
+   "anio": 2011,
+   "descripcion": "Trap oscuro con bajo deslizado.",
+   "cuerpo": "La variante británica agrega el **bajo con slide**: la 808 se desliza entre notas dentro del mismo golpe, generando una línea melódica en el registro grave. Armonía menor, casi siempre en modo eólico o frigio.",
+   "artistas": [
+    "Chief Keef",
+    "Pop Smoke",
+    "Central Cee"
+   ],
+   "perfil": "urbano-sub",
+   "perfil_nombre": "Urbano",
+   "perfil_nota": "el sub manda; mono-bass estricto o el grave se desarma",
+   "master": {
+    "target_lufs_default": -7.5,
+    "eq_correctivo": {
+     "max_correccion_db": 10.0
+    },
+    "mono_bass": {
+     "freq_hz": 120.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.3
+    }
+   }
+  },
+  "rockabilly": {
+   "nombre": "Rockabilly",
+   "familia": "Rock",
+   "anio": 1954,
+   "descripcion": "Country blanco tocado con la energía del R&B.",
+   "cuerpo": "El **slapback**: un eco de cinta de 80-120 ms, sin repeticiones, que engorda la voz y la guitarra sin emborronar el ataque. Sam Phillips lo inventa en Sun por necesidad de estudio y termina siendo el timbre del género.",
+   "artistas": [
+    "Carl Perkins",
+    "Elvis Presley",
+    "Wanda Jackson"
+   ],
+   "perfil": "guitarras-banda",
+   "perfil_nombre": "Guitarras / banda",
+   "perfil_nota": "medios con cuerpo, crest ~10, grave controlado",
+   "master": {
+    "target_lufs_default": -9.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 90.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.25
+    }
+   }
+  },
+  "surf_rock": {
+   "nombre": "Surf rock",
+   "familia": "Rock",
+   "anio": 1961,
+   "descripcion": "Guitarra instrumental ahogada en reverb de resorte.",
+   "cuerpo": "Primer género donde un **efecto** define la identidad: el tanque de resorte convierte cada nota en una estela. Dale toca con púa alternada rapidísima sobre escalas de su herencia libanesa, y de ahí sale el fraseo que después copia el metal.",
+   "artistas": [
+    "Dick Dale",
+    "The Ventures",
+    "The Chantays"
+   ],
+   "perfil": "guitarras-banda",
+   "perfil_nombre": "Guitarras / banda",
+   "perfil_nota": "medios con cuerpo, crest ~10, grave controlado",
+   "master": {
+    "target_lufs_default": -9.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 90.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.25
+    }
+   }
+  },
+  "southern_rock": {
+   "nombre": "Southern rock",
+   "familia": "Rock",
+   "anio": 1969,
+   "descripcion": "Blues rock con armonías de guitarra a dos y tres voces.",
+   "cuerpo": "Instala las **armonías de guitarra en terceras y sextas** que después son doctrina en el metal melódico. Los Allman además meten improvisación modal de raíz jazzística en un formato de banda de rock.",
+   "artistas": [
+    "The Allman Brothers Band",
+    "Lynyrd Skynyrd"
+   ],
+   "perfil": "guitarras-banda",
+   "perfil_nombre": "Guitarras / banda",
+   "perfil_nota": "medios con cuerpo, crest ~10, grave controlado",
+   "master": {
+    "target_lufs_default": -9.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 90.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.25
+    }
+   }
+  },
+  "proto_punk": {
+   "nombre": "Proto-punk",
+   "familia": "Rock",
+   "anio": 1969,
+   "descripcion": "La crudeza como decisión, cinco años antes del punk.",
+   "cuerpo": "Reduce la canción a uno o dos acordes sostenidos con **drone** y distorsión constante. La Velvet suma afinaciones alteradas y viola eléctrica: la idea de que el timbre puede reemplazar a la armonía como material.",
+   "artistas": [
+    "The Stooges",
+    "MC5",
+    "The Velvet Underground"
+   ],
+   "perfil": "guitarras-banda",
+   "perfil_nombre": "Guitarras / banda",
+   "perfil_nota": "medios con cuerpo, crest ~10, grave controlado",
+   "master": {
+    "target_lufs_default": -9.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 90.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.25
+    }
+   }
+  },
+  "glam_rock": {
+   "nombre": "Glam rock",
+   "familia": "Rock",
+   "anio": 1971,
+   "descripcion": "Rock and roll de los cincuenta con producción de estadio.",
+   "cuerpo": "Vuelve a la estructura simple del rock and roll pero la graba enorme: **capas de guitarra dobladas** al unísono, batería con room y coros multipista. Bowie además instala el personaje como parte de la obra.",
+   "artistas": [
+    "T. Rex",
+    "David Bowie",
+    "Roxy Music"
+   ],
+   "perfil": "guitarras-banda",
+   "perfil_nombre": "Guitarras / banda",
+   "perfil_nota": "medios con cuerpo, crest ~10, grave controlado",
+   "master": {
+    "target_lufs_default": -9.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 90.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.25
+    }
+   }
+  },
+  "noise_rock": {
+   "nombre": "Noise rock",
+   "familia": "Rock",
+   "anio": 1983,
+   "descripcion": "La disonancia y el feedback como material compositivo.",
+   "cuerpo": "Sonic Youth usa decenas de **afinaciones alteradas** y objetos bajo las cuerdas: los acordes dejan de tener nombre y pasan a definirse por su color. Es música académica de posguerra ejecutada con instrumentos de rock.",
+   "artistas": [
+    "Sonic Youth",
+    "Big Black",
+    "The Jesus Lizard"
+   ],
+   "perfil": "guitarras-banda",
+   "perfil_nombre": "Guitarras / banda",
+   "perfil_nota": "medios con cuerpo, crest ~10, grave controlado",
+   "master": {
+    "target_lufs_default": -9.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 90.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.25
+    }
+   }
+  },
+  "emo": {
+   "nombre": "Emo",
+   "familia": "Rock",
+   "anio": 1985,
+   "descripcion": "Hardcore que cambia la bronca por la confesión.",
+   "cuerpo": "Mantiene la energía del hardcore pero abre la armonía: **cuerdas al aire sonando contra los trastes** producen segundas y cuartas que no resuelven. Esa tensión sin resolver es el equivalente armónico de la letra.",
+   "artistas": [
+    "Rites of Spring",
+    "Sunny Day Real Estate",
+    "American Football"
+   ],
+   "perfil": "guitarras-banda",
+   "perfil_nombre": "Guitarras / banda",
+   "perfil_nota": "medios con cuerpo, crest ~10, grave controlado",
+   "master": {
+    "target_lufs_default": -9.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 90.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.25
+    }
+   }
+  },
+  "post_hardcore": {
+   "nombre": "Post-hardcore",
+   "familia": "Rock",
+   "anio": 1988,
+   "descripcion": "Hardcore que se permite el silencio y el groove.",
+   "cuerpo": "Fugazi trae el **bajo con lógica de dub** al hardcore: espacio, síncopa y silencio donde antes había pared. Las dos guitarras dejan de doblarse y hacen contrapunto de líneas independientes.",
+   "artistas": [
+    "Fugazi",
+    "Slint",
+    "At the Drive-In"
+   ],
+   "perfil": "guitarras-banda",
+   "perfil_nombre": "Guitarras / banda",
+   "perfil_nota": "medios con cuerpo, crest ~10, grave controlado",
+   "master": {
+    "target_lufs_default": -9.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 90.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.25
+    }
+   }
+  },
+  "stoner_rock": {
+   "nombre": "Stoner rock",
+   "familia": "Rock",
+   "anio": 1992,
+   "descripcion": "Sabbath tocado en el desierto, con el bajo por el amplificador de guitarra.",
+   "cuerpo": "El **fuzz** y las afinaciones bajas llenan los medios-graves a propósito: el barro no se limpia, es el sonido. El groove queda suelto y detrás del pulso, más cerca del blues que de la precisión del metal.",
+   "artistas": [
+    "Kyuss",
+    "Sleep",
+    "Queens of the Stone Age"
+   ],
+   "perfil": "guitarras-banda",
+   "perfil_nombre": "Guitarras / banda",
+   "perfil_nota": "medios con cuerpo, crest ~10, grave controlado",
+   "master": {
+    "target_lufs_default": -9.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 90.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.25
+    }
+   }
+  },
+  "britpop": {
+   "nombre": "Britpop",
+   "familia": "Rock",
+   "anio": 1993,
+   "descripcion": "Indie británico reclamando la herencia de los sesenta.",
+   "cuerpo": "Recupera la **cadencia modal** de los Kinks y los Beatles —acordes prestados del modo mixolidio— dentro de una canción de tres minutos. Reacción explícita contra el grunge: melodía cantable y letra local.",
+   "artistas": [
+    "Oasis",
+    "Blur",
+    "Pulp"
+   ],
+   "perfil": "guitarras-banda",
+   "perfil_nombre": "Guitarras / banda",
+   "perfil_nota": "medios con cuerpo, crest ~10, grave controlado",
+   "master": {
+    "target_lufs_default": -9.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 90.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.25
+    }
+   }
+  },
+  "nu_metal": {
+   "nombre": "Nu metal",
+   "familia": "Metal",
+   "anio": 1996,
+   "descripcion": "Metal con groove de hip hop y sin solos.",
+   "cuerpo": "Abandona el solo y el riff veloz: la guitarra pasa a ser **percusión afinada** sobre un groove en medio tiempo. Korn usa la séptima cuerda no para hacer melodía grave sino para golpear una sola nota con sentido rítmico.",
+   "artistas": [
+    "Korn",
+    "Deftones",
+    "System of a Down"
+   ],
+   "perfil": "metal-denso",
+   "perfil_nombre": "Metal",
+   "perfil_nota": "densidad alta, crest bajo, low-mid quirúrgico",
+   "master": {
+    "target_lufs_default": -8.0,
+    "eq_correctivo": {
+     "max_correccion_db": 8.0
+    },
+    "mono_bass": {
+     "freq_hz": 110.0
+    },
+    "transient_shaping": {
+     "cantidad": 0.35
+    },
+    "multibanda": {
+     "cantidad": 0.75
+    }
+   }
+  }
+ }
+}

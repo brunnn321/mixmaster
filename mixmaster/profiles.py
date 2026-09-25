@@ -220,9 +220,53 @@ def crear_genero(nombre: str) -> str:
     return slug
 
 
+# ------------------------------------------------ árbol de géneros (exportado)
+
+ARBOL_FILE = GENEROS_DIR / "arbol.json"
+_arbol_cache: dict = {"mtime": None, "generos": {}}
+
+
+def leer_arbol() -> dict:
+    """Géneros del árbol genealógico (RED-NEURONAL), exportados a arbol.json.
+
+    Cada entrada trae nombre, familia, descripción, cuerpo y el bloque `master`
+    ya resuelto (perfil de la familia + perfil propio + ajustes). Se relee solo
+    si el archivo cambió. Sin el archivo, la app funciona como antes.
+    """
+    try:
+        mtime = ARBOL_FILE.stat().st_mtime
+    except OSError:
+        return {}
+    if _arbol_cache["mtime"] != mtime:
+        try:
+            datos = json.loads(ARBOL_FILE.read_text(encoding="utf-8"))
+            _arbol_cache["generos"] = datos.get("generos", {})
+        except Exception:
+            log.exception("arbol.json ilegible; se ignora")
+            _arbol_cache["generos"] = {}
+        _arbol_cache["mtime"] = mtime
+    return _arbol_cache["generos"]
+
+
+def _texto_desde_arbol(nombre: str, g: dict) -> str:
+    """Texto de contexto para Claude, armado desde la ficha del árbol."""
+    artistas = ", ".join(g.get("artistas", []))
+    return (
+        f"# Género — {g.get('nombre', nombre)} · desde el árbol de géneros\n"
+        f"> Familia: {g.get('familia', '')} · desde {g.get('anio', '')}"
+        f"{' · referentes: ' + artistas if artistas else ''}\n\n"
+        f"**{g.get('descripcion', '')}**\n\n"
+        f"{g.get('cuerpo', '')}\n\n"
+        f"## Mastering\n"
+        f"- Perfil: **{g.get('perfil_nombre') or g.get('perfil') or 'sin perfil'}**"
+        f"{' — ' + g['perfil_nota'] if g.get('perfil_nota') else ''}\n"
+    )
+
+
 def listar_generos() -> list[str]:
-    """Nombres de géneros disponibles (archivos .md en config/generos/)."""
-    return sorted(p.stem for p in GENEROS_DIR.glob("*.md"))
+    """Géneros disponibles: los presets locales (.md) + los del árbol."""
+    locales = {p.stem for p in GENEROS_DIR.glob("*.md")}
+    return sorted(locales | set(leer_arbol()))
 
 
 def dir_referencias_genero(nombre: str) -> Path:
@@ -359,8 +403,12 @@ def leer_genero(nombre: str) -> tuple[str, dict]:
     try:
         texto = md.read_text(encoding="utf-8")
     except Exception:
-        log.warning("Género '%s' sin .md — se usa texto vacío", nombre)
-        texto = f"(Preset de género '{nombre}' no encontrado)"
+        del_arbol = leer_arbol().get(nombre)
+        if del_arbol:
+            texto = _texto_desde_arbol(nombre, del_arbol)
+        else:
+            log.warning("Género '%s' sin .md — se usa texto vacío", nombre)
+            texto = f"(Preset de género '{nombre}' no encontrado)"
 
     umbrales = dict(UMBRALES_DEFAULT)
     if js.exists():

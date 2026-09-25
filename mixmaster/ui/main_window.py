@@ -570,8 +570,14 @@ class MainWindow(QMainWindow):
             "Convierte audio (m4a, wma, mp3, flac…) a WAV o MP3.\n"
             "Para cuando te mandan una toma en un formato que Studio One no reconoce.")
         acc_convertidor.triggered.connect(self._abrir_convertidor)
+        acc_arbol = QAction("🌳 Árbol de géneros", self)
+        acc_arbol.setToolTip(
+            "Genealogía de 92 géneros en 3D: de dónde viene cada uno y con qué\n"
+            "perfil de master lo trata la app. Se abre en el navegador.")
+        acc_arbol.triggered.connect(self._abrir_arbol_generos)
         m_herr.addActions(
-            [acc_hist, acc_masters, acc_notas, acc_null, acc_ab_ciego, acc_convertidor])
+            [acc_hist, acc_masters, acc_notas, acc_null, acc_ab_ciego, acc_convertidor,
+             acc_arbol])
 
     def _crear_ui(self):
         """Layout: proyecto → guía → paso actual → navegación → resultados."""
@@ -1249,6 +1255,21 @@ class MainWindow(QMainWindow):
             return
         from .notas_dialog import NotasDialog
         NotasDialog(self.proyecto, self).exec()
+
+    def _abrir_arbol_generos(self):
+        """Abre el grafo de géneros (exportado desde RED-NEURONAL) en el navegador."""
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        from ..app_paths import APP_ROOT
+
+        html = APP_ROOT / "assets" / "arbol_generos.html"
+        if not html.is_file():
+            QMessageBox.information(
+                self, "Árbol de géneros",
+                "Todavía no se exportó el árbol.\n\n"
+                "En RED-NEURONAL ejecuta:\n  python scripts/exportar_mixmaster.py")
+            return
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(html)))
 
     def _abrir_convertidor(self):
         """Abre el convertidor de audio (no depende de un proyecto abierto)."""

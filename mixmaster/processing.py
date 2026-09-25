@@ -26,7 +26,7 @@ from .audio_analysis import (
     true_peak_db,
 )
 from .logger import get_logger
-from .profiles import leer_genero
+from .profiles import leer_arbol, leer_genero
 
 log = get_logger("mixmaster.processing")
 
@@ -172,9 +172,20 @@ def cargar_config_master(genero: str | None = None) -> dict:
 
 
 def _aplicar_preset_genero(base: dict, genero: str | None) -> dict:
-    """Aplica el bloque `master` del preset de género sobre la config base."""
+    """Aplica el master del género sobre la config base, en dos capas:
+
+    1. el árbol de géneros (config/generos/arbol.json, exportado desde
+       RED-NEURONAL): perfil de su familia de mastering + ajustes propios;
+    2. el preset local (config/generos/<genero>.json), que gana si existe.
+    """
     if not genero:
         return base
+
+    del_arbol = (leer_arbol().get(genero) or {}).get("master") or {}
+    if del_arbol:
+        log.info("Master del árbol para '%s': %s", genero, list(del_arbol))
+        base = _merge_cfg(base, json.loads(json.dumps(del_arbol)))  # sin tocar el cache
+
     try:
         _, preset = leer_genero(genero)
     except Exception:
