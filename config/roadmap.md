@@ -11,6 +11,23 @@
 > con el ítem 3 sin portarlo). Todo el resto verificó OK. Ambos corregidos a
 > `[~]` abajo con su explicación.
 
+## ⏭️ PENDIENTE PARA MÁS TARDE (actualizado 26/9 noche, orden de Bruno)
+
+1. **Propuesta realista v2** (`docs/propuestas/propuesta_realista_v2.html`):
+   vista maximizada; el cursor ya sigue al mouse con Hz y dB. Falta su
+   aprobación explícita → recién ahí pasarla a `mixmaster/ui/web/consola.html`
+   (hoy la app sigue con la consola MM-01 simple).
+2. **Gráfico de 3 espectros en la app**: guardar en el resumen del master el
+   espectro de la mezcla y el de la referencia (hoy solo trae el del master).
+3. **Consola**: sacar el zoom de CSS (rompe coordenadas del mouse).
+4. **Prueba A/B del mentor**: matching al 50% vs 100% a igual loudness.
+5. **Modo voz**: probar de oído con voz real (solo Bruno).
+6. Mezcla mono → la imagen estéreo no puede subir con EQ; si se quiere,
+   evaluar un ensanchador con cuidado (Consejo: riesgo de fase).
+
+HECHO 26/9: matching mid/side + tramos fuertes + segunda pasada + avisos
+(tonal 59→70, global 51→56 en CRISIntro 2), tests en verde, subido.
+
 ## ⏭️ PARA RETOMAR (Bruno se fue el 26/9: "que nada se pierda")
 
 1. **Imagen ultra realista** — v2 hecha 26/9 noche y mostrada maximizada:
