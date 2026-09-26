@@ -20,7 +20,7 @@ visual: **mostrar una imagen/propuesta primero** y esperar el visto bueno.
 **Gráfico de espectros**
 - [x] Propuesta con 3 espectros (mezcla + referencia + master) y "lo que
   falta" en rojo — Bruno: "está genial".
-- [ ] Al recorrer el gráfico con el mouse se tienen que VER los datos
+- [x] (26/9, en la propuesta) Al recorrer el gráfico con el mouse se tienen que VER los datos
   (frecuencia apuntada, dB de cada curva, cuánto falta). En su Chrome no se
   veían: el zoom de CSS desplazaba el cartel fuera de pantalla.
 - [ ] Llevar ese gráfico a la app (paso 03 · Master), con los datos reales de
@@ -31,6 +31,10 @@ visual: **mostrar una imagen/propuesta primero** y esperar el visto bueno.
 **Interfaz**
 - [ ] Mucho más animada y "ultra realista", que se vea en 4K. **Primero una
   imagen de cómo sería**, aprobarla, después implementar.
+  → 26/9: propuesta hecha (aluminio cepillado, madera con vetas, VU con vidrio
+  y zona roja, LCD con dígitos fantasma, pantalla tipo CRT con los 3
+  espectros, perillas moleteadas, carretes girando). **Esperando su visto
+  bueno.** Copia en `docs/propuestas/propuesta_realista.html`.
 - [ ] Sacar el zoom de CSS de la consola (rompe coordenadas del mouse) y
   escalar con el ancho de la ventana.
 

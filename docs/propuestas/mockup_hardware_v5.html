@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>MixMaster — MM-01</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#060606;padding:26px;font-family:'IBM Plex Mono',Consolas,monospace;color:#ddd}
+  .rack{display:flex;align-items:stretch;max-width:960px;margin:0 auto}
+  .wood{width:26px;background:repeating-linear-gradient(180deg,#5a3a22 0 3px,#4a2e1a 3px 4px),linear-gradient(90deg,#6b4527,#3d2515)}
+  .wood.l{border-radius:10px 0 0 10px}.wood.r{border-radius:0 10px 10px 0}
+
+  .unit{flex:1;padding:22px 28px 20px;position:relative;
+    background:linear-gradient(155deg,#2c4a52 0%,#1c333a 45%,#142027 100%);}
+
+  .screw{position:absolute;width:15px;height:15px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#efe9d0,#9a916f 45%,#4a4433 80%)}
+  .screw.tl{top:12px;left:12px}.screw.tr{top:12px;right:12px}.screw.bl{bottom:12px;left:12px}.screw.br{bottom:12px;right:12px}
+
+  header{display:flex;justify-content:space-between;align-items:center;padding:0 4px 14px}
+  .brand{font-family:'Oswald',sans-serif;font-weight:700;font-size:23px;color:#eef3ee}
+  .brand span{color:#e8a33d}
+  .modelo{font-family:'Oswald',sans-serif;font-size:10px;letter-spacing:3px;color:#9fb8ba}
+
+  .steps{display:flex;gap:7px;margin-bottom:16px}
+  .step-btn{flex:1;border:none;border-radius:5px;padding:9px 6px;font-family:'Oswald',sans-serif;font-size:10px;letter-spacing:1.2px;cursor:pointer;
+    background:#1a262b;color:#7f9a9c;text-decoration:none;text-align:center;display:block}
+  .step-btn.active{background:#e8a33d;color:#1c2a2c}
+
+  .view{padding:16px 0 26px;border-bottom:1px solid rgba(255,255,255,.08)}
+  .view:last-child{border-bottom:none}
+  .view-h{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:2px;color:#e8a33d;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+  .view-h .ln{flex:1;height:1px;background:rgba(232,163,61,.35)}
+
+  .meters{display:flex;gap:14px;margin-bottom:14px;flex-wrap:wrap}
+  .meter{flex:1;min-width:220px;border-radius:8px;padding:10px 12px 8px;background:#d6cba0}
+  .meter .lbl{font-family:'Oswald',sans-serif;font-size:9px;letter-spacing:1.3px;color:#4a4227;display:flex;justify-content:space-between}
+  .led{width:6px;height:6px;border-radius:50%;display:inline-block}
+
+  .lcdrow{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+  .lcd{flex:1;min-width:96px;background:#0c1a17;border:1px solid #1f3b34;border-radius:6px;padding:7px 9px}
+  .lcd .k{font-family:'Oswald',sans-serif;font-size:8px;letter-spacing:1.2px;color:#5c8a7c}
+  .lcd .v{font-size:15px;color:#7fe8c4}
+
+  .statusrow{display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap}
+  .status{display:flex;align-items:center;gap:6px;font-size:9.5px;color:#c9d6d2;font-family:'Oswald',sans-serif}
+
+  .chart-card{background:#101c1f;border:1px solid #2c4048;border-radius:7px;padding:14px 16px;margin-bottom:14px}
+  .chart-card .t{font-family:'Oswald',sans-serif;font-size:10px;letter-spacing:1.5px;color:#e8a33d;margin-bottom:2px}
+  .chart-card .d{font-size:9px;color:#7f9a9c;margin-bottom:10px}
+
+  .spectrogram{display:flex;height:80px;border-radius:5px;overflow:hidden}
+  .spectrogram .band{flex:1}
+
+  .drop{border:2px dashed rgba(255,255,255,.18);border-radius:8px;padding:22px;text-align:center;color:#9fb8ba;font-size:11px}
+
+  .reel-row{display:flex;gap:22px;align-items:center;justify-content:center;padding:6px 0 18px}
+  .reel-box{text-align:center}
+  .reel-lbl{font-family:'Oswald',sans-serif;font-size:9px;letter-spacing:1.5px;color:#7f9a9c;margin-top:6px}
+  .reel{width:90px;height:90px;border-radius:50%;position:relative;background:repeating-radial-gradient(circle,#3a2a1a 0 3px,#4a3620 3px 6px)}
+  .reel .inner{position:absolute;inset:14px;border-radius:50%;background:#161616}
+  .reel .spoke{position:absolute;top:50%;left:50%;width:56px;height:7px;margin:-3.5px 0 0 -28px;background:#444;border-radius:3px}
+  .reel .spoke.b{transform:rotate(60deg)}.reel .spoke.c{transform:rotate(120deg)}
+  .reel .hub{position:absolute;top:50%;left:50%;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;background:#a89d80}
+
+  .cardref{display:flex;align-items:center;gap:12px;background:#101c1f;border:1px solid #2c4048;border-radius:7px;padding:9px 14px;color:#cfe4e2;font-size:11px;margin-bottom:12px}
+  .cardref .dot{width:7px;height:7px;border-radius:50%;background:#43e08a;display:inline-block}
+  .cardref .x{margin-left:auto;color:#7f9a9c}
+
+  .lower{display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap}
+  .knobs{display:flex;gap:22px;flex:1;flex-wrap:wrap}
+  .knob-wrap{text-align:center}
+  .knob{width:54px;height:54px;border-radius:50%;position:relative;margin:0 auto 6px}
+  .knob .ptr{position:absolute;width:3px;height:20px;background:#fff;left:50%;top:5px;margin-left:-1.5px;border-radius:2px;transform-origin:1.5px 17px}
+  .k-drive{background:radial-gradient(circle at 40% 32%,#e0654a,#a3311c 70%)}
+  .k-eq{background:radial-gradient(circle at 40% 32%,#4fa0c9,#1c4f6b 70%)}
+  .k-punch{background:radial-gradient(circle at 40% 32%,#5db06a,#245c30 70%)}
+  .k-target{background:radial-gradient(circle at 40% 32%,#c9a24f,#6b501c 70%)}
+  .k-label{font-family:'Oswald',sans-serif;font-size:9px;letter-spacing:1.2px;color:#c9d6d2}
+  .k-val{font-size:9px;color:#e8a33d;margin-top:2px}
+
+  .btn{border:none;border-radius:5px;padding:9px 16px;font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:1px;cursor:pointer;text-decoration:none;display:inline-block}
+  .btn.ghost{background:rgba(255,255,255,.08);color:#dfe9e6;border:1px solid rgba(255,255,255,.15)}
+  .btn.primary{background:#e8a33d;color:#1c2a2c;font-weight:700}
+
+  .toolgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px}
+  .toolcard{background:#101c1f;border:1px solid #2c4048;border-radius:7px;padding:12px 14px}
+  .toolcard .t{font-family:'Oswald',sans-serif;font-size:10.5px;color:#cfe4e2}
+  .toolcard .d{font-size:9px;color:#7f9a9c;line-height:1.4;margin:6px 0 8px}
+  .sw{width:34px;height:16px;border-radius:9px;background:#245c30;position:relative;display:inline-block;vertical-align:middle}
+  .sw .knob2{position:absolute;top:2px;left:20px;width:12px;height:12px;border-radius:50%;background:#5db06a}
+
+  .rotary-target{display:flex;align-items:center;gap:18px;background:#101c1f;border:1px solid #2c4048;border-radius:7px;padding:14px 18px;margin-bottom:14px;flex-wrap:wrap}
+  .detents{font-size:9px;color:#7f9a9c;display:flex;gap:10px;flex-wrap:wrap}
+  .detents b{color:#e8a33d}
+
+  table{width:100%;border-collapse:collapse;font-size:10px}
+  th{color:#7f9a9c;font-family:'Oswald',sans-serif;letter-spacing:1px;text-align:left;padding:4px 8px 8px}
+  td{padding:6px 8px;border-top:1px solid #1f3b34}
+</style>
+</head>
+<body>
+
+<div class="rack">
+<div class="wood l"></div>
+<div class="unit">
+  <div class="screw tl"></div><div class="screw tr"></div><div class="screw bl"></div><div class="screw br"></div>
+
+  <header>
+    <div class="brand">MIX<span>MASTER</span></div>
+    <div class="modelo">MM-01 · MASTERING ENGINE</div>
+  </header>
+
+  <div class="steps">
+    <a class="step-btn" href="#v1">01 FUENTE</a>
+    <a class="step-btn" href="#v2">02 REFERENCIAS</a>
+    <a class="step-btn active" href="#v3">03 MASTER</a>
+    <a class="step-btn" href="#v4">04 HERRAMIENTAS</a>
+  </div>
+
+  <div id="v1" class="view">
+    <div class="view-h">01 · FUENTE<span class="ln"></span></div>
+    <div class="reel-row">
+      <div class="reel-box">
+        <div class="reel"><div class="inner"></div><div class="spoke"></div><div class="spoke b"></div><div class="spoke c"></div><div class="hub"></div></div>
+        <div class="reel-lbl">CARRETE FUENTE</div>
+      </div>
+      <div style="font-size:11px;color:#cfe4e2;text-align:center">
+        <div style="font-family:'Oswald',sans-serif;font-size:13px;margin-bottom:4px">29 STEMS CARGADOS</div>
+        <div style="color:#7f9a9c">Saymon_Los_Cochalitos · 44.1kHz/24bit</div>
+      </div>
+      <div class="reel-box">
+        <div class="reel"><div class="inner"></div><div class="spoke"></div><div class="spoke b"></div><div class="spoke c"></div><div class="hub"></div></div>
+        <div class="reel-lbl">CARRETE TOMA</div>
+      </div>
+    </div>
+    <div class="drop">SOLTÁ ARCHIVOS O CLIC PARA CARGAR OTRA FUENTE</div>
+  </div>
+
+  <div id="v2" class="view">
+    <div class="view-h">02 · REFERENCIAS<span class="ln"></span></div>
+    <div class="cardref"><span class="dot"></span> Saymon & Los Cochalitos.mp3 <span style="color:#7f9a9c">— referencia oficial</span><span class="x">✕</span></div>
+
+    <div class="meters">
+      <div class="meter">
+        <div class="lbl">MATCHING REFERENCIA <span class="led" style="background:#3a8f4f"></span></div>
+        <svg viewBox="0 0 260 110" width="100%" style="display:block">
+          <path d="M64,95 A66,66 0 0,1 196,95" fill="none" stroke="#8f8560" stroke-width="2"/>
+          <line x1="72" y1="95" x2="78" y2="95" stroke="#4a4227" stroke-width="1.4"/>
+          <line x1="89" y1="54" x2="93.2" y2="58.2" stroke="#4a4227" stroke-width="1.4"/>
+          <line x1="130" y1="37" x2="130" y2="43" stroke="#4a4227" stroke-width="1.4"/>
+          <line x1="171" y1="54" x2="166.8" y2="58.2" stroke="#4a4227" stroke-width="1.4"/>
+          <line x1="188" y1="95" x2="182" y2="95" stroke="#4a4227" stroke-width="1.4"/>
+          <text x="88" y="98" text-anchor="middle" font-size="8" fill="#4a4227">12</text>
+          <text x="100" y="68" text-anchor="middle" font-size="8" fill="#4a4227">9</text>
+          <text x="130" y="56" text-anchor="middle" font-size="8" fill="#4a4227">6</text>
+          <text x="160" y="68" text-anchor="middle" font-size="8" fill="#4a4227">3</text>
+          <text x="172" y="98" text-anchor="middle" font-size="8" fill="#4a4227">0</text>
+          <line x1="130" y1="95" x2="141.8" y2="64.2" stroke="#2a2416" stroke-width="2.4"/>
+          <circle cx="130" cy="95" r="5" fill="#2a2416"/>
+          <text x="130" y="108" text-anchor="middle" font-family="Oswald" font-size="10" fill="#4a4227" letter-spacing="1">DISTANCIA A REF. (dB/banda)</text>
+        </svg>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="t">RESONANCIAS DETECTADAS</div>
+      <div class="d">Picos estrechos anómalos encontrados por `detectar_resonancias()` en este master, notch aplicado antes del matching.</div>
+      <svg viewBox="0 0 700 60" width="100%" style="display:block">
+        <line x1="34" y1="30" x2="686" y2="30" stroke="#2c4048" stroke-width="1"/>
+        <g font-family="IBM Plex Mono" font-size="8" fill="#5c8a7c">
+          <text x="34" y="52">20</text><text x="185.9" y="52">100</text><text x="403.2" y="52">1k</text><text x="620.6" y="52">10k</text><text x="686" y="52" text-anchor="end">20k</text>
+        </g>
+        <g>
+          <circle cx="248.2" cy="30" r="4" fill="#e8935a"/><text x="248.2" y="16" text-anchor="middle" font-size="8.5" fill="#e8935a">193Hz</text>
+          <circle cx="391.7" cy="30" r="4" fill="#e8935a"/><text x="391.7" y="16" text-anchor="middle" font-size="8.5" fill="#e8935a">885Hz</text>
+          <circle cx="484.1" cy="30" r="4" fill="#e8935a"/><text x="484.1" y="16" text-anchor="middle" font-size="8.5" fill="#e8935a">2.4kHz</text>
+          <circle cx="597.5" cy="30" r="4" fill="#e8935a"/><text x="597.5" y="16" text-anchor="middle" font-size="8.5" fill="#e8935a">7.8kHz</text>
+        </g>
+      </svg>
+    </div>
+    <div class="drop">ARRASTRÁ OTRA REFERENCIA O CLIC PARA ELEGIR</div>
+  </div>
+
+  <div id="v3" class="view">
+    <div class="view-h">03 · MASTER<span class="ln"></span></div>
+    <div class="meters">
+      <div class="meter">
+        <div class="lbl">CREST FACTOR <span class="led" style="background:#3a8f4f"></span></div>
+        <svg viewBox="0 0 260 110" width="100%" style="display:block">
+          <path d="M64,95 A66,66 0 0,1 196,95" fill="none" stroke="#8f8560" stroke-width="2"/>
+          <line x1="72" y1="95" x2="78" y2="95" stroke="#4a4227" stroke-width="1.4"/>
+          <line x1="89" y1="54" x2="93.2" y2="58.2" stroke="#4a4227" stroke-width="1.4"/>
+          <line x1="130" y1="37" x2="130" y2="43" stroke="#4a4227" stroke-width="1.4"/>
+          <line x1="171" y1="54" x2="166.8" y2="58.2" stroke="#4a4227" stroke-width="1.4"/>
+          <line x1="188" y1="95" x2="182" y2="95" stroke="#4a4227" stroke-width="1.4"/>
+          <text x="88" y="98" text-anchor="middle" font-size="8" fill="#4a4227">4</text>
+          <text x="100" y="68" text-anchor="middle" font-size="8" fill="#4a4227">8</text>
+          <text x="130" y="56" text-anchor="middle" font-size="8" fill="#4a4227">11</text>
+          <text x="160" y="68" text-anchor="middle" font-size="8" fill="#4a4227">14</text>
+          <text x="172" y="98" text-anchor="middle" font-size="8" fill="#4a4227">18</text>
+          <line x1="130" y1="95" x2="130" y2="62" stroke="#2a2416" stroke-width="2.4"/>
+          <circle cx="130" cy="95" r="5" fill="#2a2416"/>
+          <text x="130" y="108" text-anchor="middle" font-family="Oswald" font-size="10" fill="#4a4227" letter-spacing="1">CREST (dB) — zona sana 6-12</text>
+        </svg>
+      </div>
+      <div class="meter">
+        <div class="lbl">TRUE PEAK <span class="led" style="background:#3a8f4f"></span></div>
+        <svg viewBox="0 0 260 110" width="100%" style="display:block">
+          <path d="M64,95 A66,66 0 0,1 196,95" fill="none" stroke="#8f8560" stroke-width="2"/>
+          <line x1="72" y1="95" x2="78" y2="95" stroke="#4a4227" stroke-width="1.4"/>
+          <line x1="89" y1="54" x2="93.2" y2="58.2" stroke="#4a4227" stroke-width="1.4"/>
+          <line x1="130" y1="37" x2="130" y2="43" stroke="#4a4227" stroke-width="1.4"/>
+          <line x1="171" y1="54" x2="166.8" y2="58.2" stroke="#4a4227" stroke-width="1.4"/>
+          <line x1="188" y1="95" x2="182" y2="95" stroke="#4a4227" stroke-width="1.4"/>
+          <text x="88" y="98" text-anchor="middle" font-size="8" fill="#4a4227">-6</text>
+          <text x="100" y="68" text-anchor="middle" font-size="8" fill="#4a4227">-3</text>
+          <text x="130" y="56" text-anchor="middle" font-size="8" fill="#4a4227">-1.6</text>
+          <text x="160" y="68" text-anchor="middle" font-size="8" fill="#4a4227">-1</text>
+          <text x="172" y="98" text-anchor="middle" font-size="8" fill="#4a4227">0</text>
+          <line x1="130" y1="95" x2="152.1" y2="70.5" stroke="#2a2416" stroke-width="2.4"/>
+          <circle cx="130" cy="95" r="5" fill="#2a2416"/>
+          <text x="130" y="108" text-anchor="middle" font-family="Oswald" font-size="10" fill="#4a4227" letter-spacing="1">TRUE PEAK (dBTP) — techo -1.0</text>
+        </svg>
+      </div>
+    </div>
+
+    <div class="lcdrow">
+      <div class="lcd"><div class="k">LUFS FINAL</div><div class="v">-9.4</div></div>
+      <div class="lcd"><div class="k">TARGET</div><div class="v">-9.0</div></div>
+      <div class="lcd"><div class="k">DIST. REF.</div><div class="v">4.6</div></div>
+      <div class="lcd"><div class="k">MONO BASS</div><div class="v">100 Hz</div></div>
+      <div class="lcd"><div class="k">DECLIP</div><div class="v">0 m.</div></div>
+      <div class="lcd"><div class="k">RESONANCIAS</div><div class="v">4</div></div>
+    </div>
+
+    <div class="statusrow">
+      <div class="status"><span class="led" style="background:#3a8f4f"></span> CONVERGIÓ A TARGET</div>
+      <div class="status"><span class="led" style="background:#3a8f4f"></span> DINÁMICA DE SECCIONES</div>
+      <div class="status"><span class="led" style="background:#3a8f4f"></span> DENSIDAD APLICADA</div>
+      <div class="status"><span class="led" style="background:#e04b2e"></span> SIN AVISOS CRÍTICOS</div>
+    </div>
+
+    <div class="chart-card">
+      <div class="t">ESPECTRO — MEZCLA MASTERIZADA</div>
+      <div class="d">Energía relativa por banda (forma ilustrativa de un master típico — se llena con el análisis real de tu audio en la app).</div>
+      <svg viewBox="0 0 700 150" width="100%" style="display:block">
+        <g stroke="#1c2e2a" stroke-width="1">
+          <line x1="34" y1="16" x2="34" y2="120"/><line x1="185.9" y1="16" x2="185.9" y2="120"/>
+          <line x1="403.2" y1="16" x2="403.2" y2="120"/><line x1="620.6" y1="16" x2="620.6" y2="120"/>
+        </g>
+        <g font-family="IBM Plex Mono" font-size="8" fill="#5c8a7c">
+          <text x="34" y="134">20</text><text x="120.5" y="134">50</text><text x="185.9" y="134">100</text>
+          <text x="337.8" y="134">500</text><text x="403.2" y="134">1k</text><text x="620.6" y="134">10k</text>
+          <text x="686" y="134" text-anchor="end">20k</text>
+        </g>
+        <defs>
+          <linearGradient id="gradSpec" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#7fe8c4" stop-opacity="0.45"/>
+            <stop offset="100%" stop-color="#7fe8c4" stop-opacity="0"/>
+          </linearGradient>
+        </defs>
+        <path d="M85.85,59.68 L90.28,58.12 L95.74,56.05 L102.10,53.54 L109.23,50.70 L116.99,47.61 L125.27,44.38 L133.93,41.09 L142.84,37.84 L151.88,34.71 L160.93,31.82 L169.84,29.23 L178.49,27.06 L186.76,25.39 L194.51,24.32 L201.91,23.83 L209.18,23.82 L216.37,24.21 L223.48,24.96 L230.53,26.01 L237.55,27.29 L244.54,28.74 L251.54,30.31 L258.56,31.94 L265.61,33.57 L272.72,35.13 L279.91,36.58 L287.18,37.85 L294.58,38.88 L302.05,39.74 L309.57,40.53 L317.14,41.27 L324.75,41.97 L332.40,42.65 L340.09,43.30 L347.83,43.95 L355.62,44.60 L363.45,45.28 L371.32,45.98 L379.23,46.71 L387.19,47.50 L395.20,48.35 L403.24,49.28 L411.45,50.28 L419.91,51.35 L428.55,52.47 L437.33,53.64 L446.18,54.85 L455.07,56.08 L463.92,57.34 L472.69,58.61 L481.33,59.87 L489.77,61.14 L497.96,62.38 L505.85,63.60 L513.39,64.78 L520.51,65.92 L527.26,67.02 L533.70,68.11 L539.87,69.18 L545.78,70.23 L551.47,71.27 L556.96,72.31 L562.27,73.33 L567.42,74.35 L572.45,75.37 L577.37,76.38 L582.20,77.40 L586.98,78.42 L591.73,79.44 L596.47,80.48 L601.25,81.55 L606.09,82.69 L610.93,83.86 L615.75,85.06 L620.50,86.28 L625.14,87.48 L629.63,88.67 L633.92,89.82 L637.97,90.91 L641.75,91.94 L645.22,92.88 L648.32,93.72 L651.02,94.45 L653.29,95.04 L653.29,120 L85.85,120 Z" fill="url(#gradSpec)" stroke="none"/>
+        <path d="M85.85,59.68 L90.28,58.12 L95.74,56.05 L102.10,53.54 L109.23,50.70 L116.99,47.61 L125.27,44.38 L133.93,41.09 L142.84,37.84 L151.88,34.71 L160.93,31.82 L169.84,29.23 L178.49,27.06 L186.76,25.39 L194.51,24.32 L201.91,23.83 L209.18,23.82 L216.37,24.21 L223.48,24.96 L230.53,26.01 L237.55,27.29 L244.54,28.74 L251.54,30.31 L258.56,31.94 L265.61,33.57 L272.72,35.13 L279.91,36.58 L287.18,37.85 L294.58,38.88 L302.05,39.74 L309.57,40.53 L317.14,41.27 L324.75,41.97 L332.40,42.65 L340.09,43.30 L347.83,43.95 L355.62,44.60 L363.45,45.28 L371.32,45.98 L379.23,46.71 L387.19,47.50 L395.20,48.35 L403.24,49.28 L411.45,50.28 L419.91,51.35 L428.55,52.47 L437.33,53.64 L446.18,54.85 L455.07,56.08 L463.92,57.34 L472.69,58.61 L481.33,59.87 L489.77,61.14 L497.96,62.38 L505.85,63.60 L513.39,64.78 L520.51,65.92 L527.26,67.02 L533.70,68.11 L539.87,69.18 L545.78,70.23 L551.47,71.27 L556.96,72.31 L562.27,73.33 L567.42,74.35 L572.45,75.37 L577.37,76.38 L582.20,77.40 L586.98,78.42 L591.73,79.44 L596.47,80.48 L601.25,81.55 L606.09,82.69 L610.93,83.86 L615.75,85.06 L620.50,86.28 L625.14,87.48 L629.63,88.67 L633.92,89.82 L637.97,90.91 L641.75,91.94 L645.22,92.88 L648.32,93.72 L651.02,94.45 L653.29,95.04" fill="none" stroke="#7fe8c4" stroke-width="2.2" stroke-linecap="round"/>
+        <g fill="#7fe8c4">
+          <circle cx="85.8" cy="59.7" r="3"/><circle cx="194.5" cy="24.3" r="3"/><circle cx="294.6" cy="38.9" r="3"/>
+          <circle cx="403.2" cy="49.3" r="3"/><circle cx="520.5" cy="65.9" r="3"/><circle cx="596.5" cy="80.5" r="3"/><circle cx="653.3" cy="95.0" r="3"/>
+        </g>
+        <g font-family="Oswald" font-size="8" fill="#7f9a9c" text-anchor="middle">
+          <text x="85.8" y="146">SUB</text><text x="194.5" y="146">LOW</text><text x="294.6" y="146">LOW MID</text>
+          <text x="403.2" y="146">MID</text><text x="520.5" y="146">HIGH MID</text><text x="596.5" y="146">HIGH</text><text x="653.3" y="146">AIR</text>
+        </g>
+      </svg>
+    </div>
+
+    <div class="chart-card">
+      <div class="t">ESPECTROGRAMA — VISTA PREVIA</div>
+      <div class="d">Energía por frecuencia a lo largo del tiempo. Vista previa del feature — se llena con el análisis real de tu audio.</div>
+      <div class="spectrogram">
+        <div class="band" style="background:linear-gradient(180deg,#0a2a22,#0d3a2e,#124a37,#1a5a3f,#2a6b45,#3d7a48,#3d7a48,#2a6b45,#1a5a3f,#124a37)"></div>
+        <div class="band" style="background:linear-gradient(180deg,#0a2a22,#0f3f30,#1d5f42,#3a8a50,#5aa855,#3a8a50,#1d5f42,#0f3f30,#0a2a22,#0a2a22)"></div>
+        <div class="band" style="background:linear-gradient(180deg,#0a2a22,#124a37,#2a6b45,#5aa855,#8ac25a,#5aa855,#2a6b45,#124a37,#0a2a22,#0a2a22)"></div>
+        <div class="band" style="background:linear-gradient(180deg,#0a2a22,#0d3a2e,#1a5a3f,#3d7a48,#5aa855,#3d7a48,#1a5a3f,#0d3a2e,#0a2a22,#0a2a22)"></div>
+        <div class="band" style="background:linear-gradient(180deg,#0a2a22,#0d3a2e,#124a37,#1a5a3f,#2a6b45,#1a5a3f,#124a37,#0d3a2e,#0a2a22,#0a2a22)"></div>
+        <div class="band" style="background:linear-gradient(180deg,#0a2a22,#0a2a22,#0d3a2e,#124a37,#1a5a3f,#124a37,#0d3a2e,#0a2a22,#0a2a22,#0a2a22)"></div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="t">TABLA COMPARATIVA EQ — CORRECCIÓN MEZCLA → REFERENCIA</div>
+      <div class="d">Reducción real aplicada por banda en esta corrida (log de `_comprimir_banda`), guiada por la distancia tonal a la referencia.</div>
+      <table>
+        <thead><tr><th>BANDA</th><th>RANGO</th><th>REDUCCIÓN APLICADA</th><th>ESTADO</th></tr></thead>
+        <tbody>
+          <tr><td style="color:#cfe4e2">LOW</td><td style="color:#7f9a9c">60-200Hz</td><td style="color:#7fe8c4">-3.0 dB</td><td style="color:#7fe8c4">ACTIVA</td></tr>
+          <tr><td style="color:#cfe4e2">LOW MID</td><td style="color:#7f9a9c">200-500Hz</td><td style="color:#7fe8c4">-3.0 dB</td><td style="color:#7fe8c4">ACTIVA</td></tr>
+          <tr><td style="color:#cfe4e2">MID</td><td style="color:#7f9a9c">500-2kHz</td><td style="color:#7fe8c4">-3.0 dB</td><td style="color:#7fe8c4">ACTIVA</td></tr>
+          <tr><td style="color:#cfe4e2">HIGH MID</td><td style="color:#7f9a9c">2k-6kHz</td><td style="color:#7fe8c4">-3.0 dB</td><td style="color:#7fe8c4">ACTIVA</td></tr>
+          <tr><td style="color:#cfe4e2">HIGH</td><td style="color:#7f9a9c">6k-10kHz</td><td style="color:#7fe8c4">-2.1 dB</td><td style="color:#e8935a">LEVE</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="lower" style="margin-bottom:14px">
+      <div class="knobs">
+        <div class="knob-wrap"><div class="knob k-drive"><div class="ptr" style="transform:rotate(0deg)"></div></div><div class="k-label">DRIVE</div><div class="k-val">1.5</div></div>
+        <div class="knob-wrap"><div class="knob k-eq"><div class="ptr" style="transform:rotate(26deg)"></div></div><div class="k-label">EQ MATCH</div><div class="k-val">6.0dB</div></div>
+        <div class="knob-wrap"><div class="knob k-punch"><div class="ptr" style="transform:rotate(-65deg)"></div></div><div class="k-label">PUNCH</div><div class="k-val">0.25</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="v4" class="view">
+    <div class="view-h">04 · HERRAMIENTAS<span class="ln"></span></div>
+    <div class="rotary-target">
+      <div class="knob-wrap"><div class="knob k-target"><div class="ptr" style="transform:rotate(13deg)"></div></div><div class="k-label">TARGET</div></div>
+      <div class="detents">
+        <span>SPOTIFY <b>-14</b></span><span>YOUTUBE <b>-14</b></span><span>APPLE MUSIC <b>-16</b></span>
+        <span>TIDAL <b>-14</b></span><span>CD <b>-9</b></span><span style="color:#e8a33d">PERSONALIZADO <b>-9.0</b></span>
+      </div>
+    </div>
+    <div class="toolgrid">
+      <div class="toolcard"><div class="t">HISTORIAL / MASTERS</div><div class="d">Versiones anteriores del proyecto, comparar y reabrir.</div><span class="sw"><span class="knob2"></span></span></div>
+      <div class="toolcard"><div class="t">DIAGNÓSTICO DE STEMS</div><div class="d">Checklist pre-mezcla: choques de banda, masking Bark, fase.</div><span class="sw"><span class="knob2"></span></span></div>
+      <div class="toolcard"><div class="t">NULL TEST</div><div class="d">Resta de fase entre dos versiones.</div><span class="sw"><span class="knob2"></span></span></div>
+      <div class="toolcard"><div class="t">A/B CIEGO</div><div class="d">Compara los 2 masters más recientes sin revelar cuál es cuál.</div><span class="sw"><span class="knob2"></span></span></div>
+      <div class="toolcard"><div class="t">CALIBRACIÓN M50X</div><div class="d">Curva AutoEQ/oratory1990 real.</div><span class="sw"><span class="knob2"></span></span></div>
+      <div class="toolcard"><div class="t">DINÁMICA DE SECCIONES</div><div class="d">±2dB de contraste verso/estribillo, activo por defecto.</div><span class="sw"><span class="knob2"></span></span></div>
+    </div>
+  </div>
+
+  <div class="lower">
+    <a class="btn ghost" href="#v1">← ATRÁS</a>
+    <div style="margin-left:auto"><a class="btn primary" href="#v4">SIGUIENTE ▸</a></div>
+  </div>
+
+</div>
+<div class="wood r"></div>
+</div>
+
+</body>
+</html>
