@@ -22,7 +22,7 @@ carretes, VU crema). Recuperado de la sesión "Estructura y estado de la app".
   de EQ, votos me gusta / no me gusta, herramientas).
 - [x] `mixmaster/ui/consola_web.py`: QWebEngineView + QWebChannel; la ventana
   clásica queda oculta como motor. Se abre con `python main.py --consola`.
-- [ ] **SIN PROBAR TODAVÍA**: abrirla a 1920x1080, cargar una mezcla real,
+- [x] **Probada 2026-09-26** (1920x1080, master real de punta a punta, sin errores de JS). Antes: abrirla a 1920x1080, cargar una mezcla real,
   masterizar y revisar cada paso. Recién después mostrársela a Bruno
   maximizada, avisando antes.
 - [ ] Si la aprueba: que sea la interfaz por defecto (hoy la clásica sigue
