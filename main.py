@@ -20,6 +20,24 @@ _crash_log = open(LOGS_DIR / "crash.log", "a", encoding="utf-8")
 faulthandler.enable(file=_crash_log)
 
 
+def _traer_al_frente(ventana) -> None:
+    """Windows abre la ventana detrás de la que tiene el foco (pasó al lanzar
+    MM-01 desde otra app). Un toque de ALT habilita el cambio de foco y
+    SetForegroundWindow la pone adelante."""
+    ventana.raise_()
+    ventana.activateWindow()
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+        u32 = ctypes.windll.user32
+        u32.keybd_event(0x12, 0, 0, 0)       # ALT abajo
+        u32.keybd_event(0x12, 0, 2, 0)       # ALT arriba
+        u32.SetForegroundWindow(int(ventana.winId()))
+    except Exception:
+        log.debug("No se pudo traer la ventana al frente")
+
+
 def main() -> int:
     """Arranca la app: settings, primera configuración si toca, ventana."""
     ensure_app_dirs()
@@ -83,6 +101,7 @@ def main() -> int:
         if settings.get("primera_ejecucion", True):
             ejecutar_primera_configuracion(ventana.clasica, settings)
         ventana.showMaximized()
+        _traer_al_frente(ventana)
         log.info("MixMaster iniciado (interfaz MM-01)")
         return app.exec()
 
