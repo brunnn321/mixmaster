@@ -13,7 +13,12 @@
 
 ## ⏭️ PARA RETOMAR (Bruno se fue el 26/9: "que nada se pierda")
 
-1. **Imagen ultra realista** (`docs/propuestas/propuesta_realista.html`):
+1. **Imagen ultra realista** — v2 hecha 26/9 noche y mostrada maximizada:
+   `docs/propuestas/propuesta_realista_v2.html` (placas atornilladas, VU con
+   papel y aguja con inercia, barras LED L/R animadas, medidor de correlación
+   que muestra la mezcla MONO, pantalla con cursor que recorre y lee datos,
+   perillas EQ MID / EQ SIDE, cinta entre carretes). **Esperando su opinión.**
+   Anterior: (`docs/propuestas/propuesta_realista.html`):
    Bruno la vio y pidió **mejorarla MÁS antes de aprobarla** — "esa imagen no
    la olvides, hay que mejorarla más". Seguir iterando la propuesta (no la app)
    hasta que diga que sí; después llevarla a `mixmaster/ui/web/consola.html`.
