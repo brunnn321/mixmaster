@@ -11,6 +11,39 @@
 > con el ítem 3 sin portarlo). Todo el resto verificó OK. Ambos corregidos a
 > `[~]` abajo con su explicación.
 
+## 📝 PEDIDOS DE BRUNO — 2026-09-26 (lista viva: se tacha solo lo hecho y verificado)
+
+Regla de Bruno: "anota todo lo que estoy hablando para que no se te escape nada
+ni se te olvide, y vamos resolviendo todo de a poco". Antes de hacer algo
+visual: **mostrar una imagen/propuesta primero** y esperar el visto bueno.
+
+**Gráfico de espectros**
+- [x] Propuesta con 3 espectros (mezcla + referencia + master) y "lo que
+  falta" en rojo — Bruno: "está genial".
+- [ ] Al recorrer el gráfico con el mouse se tienen que VER los datos
+  (frecuencia apuntada, dB de cada curva, cuánto falta). En su Chrome no se
+  veían: el zoom de CSS desplazaba el cartel fuera de pantalla.
+- [ ] Llevar ese gráfico a la app (paso 03 · Master), con los datos reales de
+  cada master: hoy el resumen solo trae el espectro del master; hay que
+  guardar también el de la mezcla y el de la referencia.
+- [ ] Mejorar "1000x" los gráficos en general.
+
+**Interfaz**
+- [ ] Mucho más animada y "ultra realista", que se vea en 4K. **Primero una
+  imagen de cómo sería**, aprobarla, después implementar.
+- [ ] Sacar el zoom de CSS de la consola (rompe coordenadas del mouse) y
+  escalar con el ancho de la ventana.
+
+**Audio: acercarse al 100% sin que suene peor** (Consejo + mentor + Matchering)
+- [ ] Matching por MID y SIDE por separado (imagen hoy da 0). Side solo
+  arriba de ~150 Hz; nunca abrir graves.
+- [ ] Analizar solo los tramos fuertes (piezas de ~15 s sobre el RMS medio).
+- [ ] Segunda pasada de matching después del limitador (≤2 dB) + limitador
+  final.
+- [ ] Avisar cuando la referencia es MP3 de baja calidad (corte ~16 kHz) o
+  una banda pide más de 6 dB ("eso ya es arreglar la mezcla").
+- [ ] Prueba A/B del mentor: matching al 50% vs 100% a igual loudness.
+
 ## 🔥 PRIORIDAD ABIERTA — Interfaz MM-01 (el mockup aprobado)
 
 Bruno: "no es como me mostraste el mockup". El mockup aprobado es
