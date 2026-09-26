@@ -522,7 +522,7 @@ const MM = {
 
     // estados
     const st = (ok, txt, color) => `<div class="status"><span class="led ${color || (ok ? "verde" : "")}"></span> ${txt}</div>`;
-    const avisos = [r.aviso_crest_fuera_zona, r.aviso_referencia_no_calza].filter(Boolean);
+    const avisos = [r.aviso_crest_fuera_zona, r.aviso_referencia_no_calza, r.aviso_eq_grande, r.aviso_referencia_calidad].filter(Boolean);
     document.getElementById("estados").innerHTML =
       st(r.convergio_target, r.convergio_target ? "CONVERGIÓ A TARGET" : "NO LLEGÓ AL TARGET", r.convergio_target ? "verde" : "rojo") +
       st(r.dinamica_macro, "DINÁMICA DE SECCIONES") +

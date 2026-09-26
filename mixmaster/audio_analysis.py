@@ -490,6 +490,55 @@ def espectro_suavizado(audio: np.ndarray, sr: int, n_puntos: int = 31) -> tuple[
     return puntos, np.array(dbs)
 
 
+def tramos_fuertes(audio: np.ndarray, sr: int, pieza_s: float = 15.0) -> np.ndarray:
+    """Solo las partes fuertes del tema, concatenadas.
+
+    Idea de Matchering: el timbre que importa igualar es el de los estribillos
+    y partes llenas, no el de una intro callada o un final que se apaga, que
+    arrastran el promedio. Se corta en piezas de `pieza_s` y se quedan las que
+    tienen un RMS igual o mayor al RMS medio de las piezas. Con menos de dos
+    piezas (temas cortos) devuelve el audio entero.
+    """
+    n = int(pieza_s * sr)
+    if audio.shape[0] < 2 * n:
+        return audio
+    mono = audio.mean(axis=1) if audio.ndim > 1 else audio
+    piezas = [(i, i + n) for i in range(0, audio.shape[0] - n + 1, n)]
+    rms = np.array([np.sqrt(np.mean(mono[a:b] ** 2)) for a, b in piezas])
+    elegidas = [p for p, r in zip(piezas, rms) if r >= rms.mean()]
+    if not elegidas:
+        return audio
+    return np.concatenate([audio[a:b] for a, b in elegidas])
+
+
+def espectro_ms(audio: np.ndarray, sr: int, n_puntos: int = 31):
+    """Espectros suavizados del MID y del SIDE: (freqs, mid_db, side_db)."""
+    if audio.ndim == 1 or audio.shape[1] == 1:
+        mono = audio if audio.ndim == 1 else audio[:, 0]
+        f, m = espectro_suavizado(mono, sr, n_puntos)
+        return f, m, np.full_like(m, -200.0)
+    mid = (audio[:, 0] + audio[:, 1]) / 2
+    side = (audio[:, 0] - audio[:, 1]) / 2
+    f, m = espectro_suavizado(mid, sr, n_puntos)
+    _, s = espectro_suavizado(side, sr, n_puntos)
+    return f, m, s
+
+
+def corte_agudos_hz(freqs, esp_db) -> float:
+    """Frecuencia donde el espectro cae 30 dB bajo su nivel de 2-8 kHz.
+
+    Un MP3 de 128 kbps corta cerca de 16 kHz; un master sin pérdida llega a
+    19-20 kHz. Sirve para avisar que la referencia no tiene agudos reales.
+    """
+    freqs, esp_db = np.asarray(freqs), np.asarray(esp_db)
+    sel = (freqs >= 2000) & (freqs <= 8000)
+    if not sel.any():
+        return float(freqs[-1])
+    base = float(np.mean(esp_db[sel]))
+    arriba = np.where((freqs > 8000) & (esp_db < base - 30))[0]
+    return float(freqs[arriba[0]]) if arriba.size else float(freqs[-1])
+
+
 def detectar_resonancias(audio: np.ndarray, sr: int, umbral_db: float = 6.0,
                          max_n: int = 4, f_min: float = 80.0,
                          f_max: float = 12000.0,
@@ -599,7 +648,7 @@ def centroide_rolloff(audio: np.ndarray, sr: int) -> tuple[float, float]:
 
 # Versión del análisis de referencia. Al agregar métricas nuevas, subir este
 # número → el caché viejo se invalida solo y las referencias se re-analizan.
-ANALISIS_VERSION_REF = 2
+ANALISIS_VERSION_REF = 3  # v3: espectros mid/side de los tramos fuertes
 
 def _cache_refs_path():
     from .app_paths import CONFIG_DIR
@@ -670,6 +719,7 @@ def analizar_referencia_cacheada(path: Path) -> dict:
     audio, sr = cargar_audio(path)
     lufs = lufs_integrado(audio, sr)
     freqs, esp = espectro_suavizado(audio, sr)
+    _, esp_mid, esp_side = espectro_ms(tramos_fuertes(audio, sr), sr)
     bandas = balance_bandas_db(audio, sr)
     tp = true_peak_db(audio, sr)
     centroide, rolloff = centroide_rolloff(audio, sr)
@@ -686,6 +736,10 @@ def analizar_referencia_cacheada(path: Path) -> dict:
         "crest_por_banda": crest_por_banda(audio, sr),
         "espectro_freqs": [float(x) for x in freqs],
         "espectro_db": [float(x) for x in esp],
+        # v3: mid y side de los tramos fuertes (matching mid/side)
+        "espectro_mid_db": [float(x) for x in esp_mid],
+        "espectro_side_db": [float(x) for x in esp_side],
+        "corte_agudos_hz": corte_agudos_hz(freqs, esp),
         "mfcc_mean": cepstral_fingerprint(audio, sr)["mfcc_mean"],
         # descriptores profundos v2 (preset)
         "inclinacion_db_oct": inclinacion_espectral(audio, sr),
@@ -717,6 +771,7 @@ def perfil_referencias(paths_ref, lufs_mix: float) -> dict:
 
     bandas_acum, anchos_acum, lufs_refs, nombres = [], [], [], []
     espectros, crests, crests_banda_acum = [], [], []
+    mids, sides, cortes = [], [], []
     freqs = None
     for p in paths_ref:
         e = analizar_referencia_cacheada(p)   # rápido: solo analiza la 1ª vez
@@ -729,6 +784,10 @@ def perfil_referencias(paths_ref, lufs_mix: float) -> dict:
         crests_banda_acum.append(e["crest_por_banda"])    # invariante al nivel
         freqs = np.asarray(e["espectro_freqs"])
         espectros.append(np.asarray(e["espectro_db"]) + off)
+        if e.get("espectro_mid_db"):
+            mids.append(np.asarray(e["espectro_mid_db"]) + off)
+            sides.append(np.asarray(e["espectro_side_db"]) + off)
+        cortes.append(float(e.get("corte_agudos_hz") or freqs[-1]))
         crests.append(e["crest_db"])                      # invariante al nivel
         if lufs_ref is not None:
             lufs_refs.append(float(lufs_ref))
@@ -747,6 +806,9 @@ def perfil_referencias(paths_ref, lufs_mix: float) -> dict:
         "crest_por_banda": crest_banda_prom,
         "espectro_freqs": freqs,
         "espectro_db": np.mean(espectros, axis=0),
+        "espectro_mid_db": np.mean(mids, axis=0) if len(mids) == len(espectros) else None,
+        "espectro_side_db": np.mean(sides, axis=0) if len(sides) == len(espectros) else None,
+        "corte_agudos_hz": min(cortes) if cortes else None,
         "crest_db": round(float(np.mean(crests)), 1),
         "lufs": round(float(np.mean(lufs_refs)), 1) if lufs_refs else None,
     }

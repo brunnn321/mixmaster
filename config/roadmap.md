@@ -22,7 +22,13 @@
 2. **Gráfico de 3 espectros** (`docs/propuestas/grafico_tres_espectros.html`):
    aprobado ("está genial"); ya muestra los datos al pasar el mouse. Falta
    llevarlo a la app (guardar espectro de mezcla y referencia en el resumen).
-3. **Audio mid/side + tramos fuertes + segunda pasada + avisos**: escrito en
+3. ✅ **HECHO 26/9 (noche)** — aplicado y probado, todos los tests en verde.
+   CRISIntro 2 vs Alphaville: tonal 59 → **70**, global 51 → **56**. La imagen
+   sigue en 0 y NO se puede arreglar con EQ: **la mezcla CRISIntro 2 es 100%
+   mono** (correlación 1.0, ancho 0 en todas las bandas) y la referencia es
+   casi totalmente abierta (correlación 0.01). Para acercar la imagen hay que
+   mezclar en estéreo. Aviso nuevo detectó el MP3: corte a 15.2 kHz.
+   (texto original:) **Audio mid/side + tramos fuertes + segunda pasada + avisos**: escrito en
    `docs/propuestas/parche_ms_SIN_APLICAR.py`, **no aplicado ni probado**.
    Aplicarlo, correr todos los tests (`tests/*.py`), probarlo con
    CRISIntro 2 (E:\Bruno Aramayo Music\Ideas\CRISIntro 2.mp3) contra

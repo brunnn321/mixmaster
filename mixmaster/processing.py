@@ -19,6 +19,7 @@ from scipy import signal
 
 from .app_paths import CONFIG_DIR
 from .automezcla import aplicar_pan
+from .audio_analysis import espectro_ms, tramos_fuertes
 from .audio_analysis import (
     BANDAS_HZ, CRUCES_HZ, analisis_estereo, balance_bandas_db, cargar_audio,
     crest_factor_db, crest_por_banda, db, declip_ligero, detectar_resonancias,
@@ -36,7 +37,7 @@ CONFIG_MASTER_DEFAULT = {
     "target_lufs_default": -9.0,
     "eq_correctivo": {
         "activo": True,
-        "modo": "fino",              # "fino" = curva 1/3 octava · "bandas" = 7 bloques
+        "modo": "ms",                # "ms" = mid/side sobre tramos fuertes · "fino" = curva 1/3 oct. en mono · "bandas" = 7 bloques
         # Subido de 4.0 a 6.0 (2026-08-30) con evidencia real, no a ciegas:
         # en config/aprendizaje.json, 5/22 masters votados por Bruno pegaban
         # exacto en el techo de ±4.0dB (tanto aprobados como rechazados) —
@@ -380,6 +381,44 @@ def _curva_fir_fina(freqs: np.ndarray, gan_db: np.ndarray, sr: int) -> np.ndarra
     return signal.firwin2(FIR_TAPS, f, g_lin[idx])
 
 
+def _aplicar_ms(audio: np.ndarray, fir_mid: np.ndarray, fir_side: np.ndarray) -> np.ndarray:
+    """Filtra el MID y el SIDE con FIR distintos y vuelve a L/R."""
+    mid = (audio[:, 0] + audio[:, 1]) / 2
+    side = (audio[:, 0] - audio[:, 1]) / 2
+    demora = len(fir_mid) // 2
+    mid = signal.fftconvolve(mid, fir_mid, mode="full")[demora:demora + audio.shape[0]]
+    side = signal.fftconvolve(side, fir_side, mode="full")[demora:demora + audio.shape[0]]
+    return np.stack([mid + side, mid - side], axis=1)
+
+
+F_SIDE_MIN_HZ = 150.0  # debajo de esto el side nunca se abre: el grave se desarma en mono
+
+
+def _deltas_ms(audio: np.ndarray, sr: int, perfil: dict):
+    """Corrección mid/side (dB, sin tope) para llevar `audio` a la referencia.
+
+    MID: solo forma (se resta la media). SIDE: relativo a la media del MID de
+    cada uno, así la corrección incluye cuánto ancho le falta o le sobra a
+    cada banda. Mide sobre los tramos fuertes.
+    """
+    freqs, mid, side = espectro_ms(tramos_fuertes(audio, sr), sr)
+    util = freqs <= F_MAX_MATCH_HZ
+    ref_mid = np.asarray(perfil["espectro_mid_db"])
+    ref_side = np.asarray(perfil["espectro_side_db"])
+    base_mix, base_ref = float(np.mean(mid[util])), float(np.mean(ref_mid[util]))
+    d_mid = (ref_mid - base_ref) - (mid - base_mix)
+    d_side = (ref_side - base_ref) - (side - base_mix)
+    d_mid[~util] = 0.0
+    d_side[~util] = 0.0
+    graves = freqs < F_SIDE_MIN_HZ
+    d_side[graves] = np.minimum(d_side[graves], 0.0)   # graves: solo estrechar
+    return freqs, d_mid, d_side, util
+
+
+def _suavizar(delta: np.ndarray) -> np.ndarray:
+    return np.convolve(delta, [0.25, 0.5, 0.25], mode="same")
+
+
 def _clipper(audio: np.ndarray, umbral_dbfs: float) -> np.ndarray:
     """Clipper con codo suave: recorta solo lo que pasa el umbral.
 
@@ -405,8 +444,13 @@ def _score_ab(audio: np.ndarray, sr: int, perfil: dict) -> dict:
     - dinamica: diferencia de crest factor
     - imagen: distancia media del ancho estéreo por banda
     """
-    freqs, esp_master = espectro_suavizado(audio, sr)
-    esp_ref = np.asarray(perfil["espectro_db"])
+    if perfil.get("espectro_mid_db") is not None:
+        # mismo criterio que el matching mid/side: MID de los tramos fuertes
+        freqs, esp_master, _ = espectro_ms(tramos_fuertes(audio, sr), sr)
+        esp_ref = np.asarray(perfil["espectro_mid_db"])
+    else:
+        freqs, esp_master = espectro_suavizado(audio, sr)
+        esp_ref = np.asarray(perfil["espectro_db"])
     util = freqs <= F_MAX_MATCH_HZ  # misma zona que el matching
     esp_master, esp_ref = esp_master[util], esp_ref[util]
     forma_master = esp_master - esp_master.mean()
@@ -825,7 +869,10 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
             aplicar_eq(_notches)
             resonancias_db = info_notches.get("db", [])
 
-    correccion, ajuste_ancho = {}, {}
+    correccion, ajuste_ancho, correccion_side = {}, {}, {}
+    aviso_eq_grande = aviso_calidad_ref = None
+    segunda_pasada = {}
+    modo_eq = None
     nombres_ref, perfil = [], None
     distancia_bandas_db, aviso_referencia = {}, None
     if path_referencia and cfg_eq.get("activo", True):
@@ -835,6 +882,13 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         perfil = perfil_referencias(refs, l_mix)
         nombres_ref = perfil["nombres"]
         tope = float(cfg_eq.get("max_correccion_db", 4.0))
+        corte = perfil.get("corte_agudos_hz")
+        if corte and corte < 17000:
+            aviso_calidad_ref = (
+                f"La referencia se corta cerca de {corte / 1000:.1f} kHz (típico de un MP3 "
+                "comprimido): arriba de eso no tiene agudos reales para copiar. "
+                "Una versión WAV/FLAC o un MP3 de 320 kbps da un matching más fiel.")
+            avisar(f"⚠ {aviso_calidad_ref}")
 
         # Distancia SIN RECORTAR mix<->referencia por banda (pendiente #4,
         # tanda real 2026-08-09): 13/20 temas no calzaban con la biblioteca
@@ -844,8 +898,43 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         # estilo correcto, pero sí se puede avisar ANTES de confiar en un
         # matching que no va a sonar a nada.
         distancia_bandas_db = {}
+        modo_eq = cfg_eq.get("modo", "ms")
+        if modo_eq == "ms" and perfil.get("espectro_mid_db") is None:
+            modo_eq = "fino"   # caché de referencia sin datos mid/side
 
-        if cfg_eq.get("modo", "fino") == "fino":
+        if modo_eq == "ms":
+            # Matching MID/SIDE sobre los tramos fuertes (Consejo 26/9, idea de
+            # Matchering): el mid lleva el tono y el side el ancho por banda,
+            # así la imagen estéreo también se acerca a la referencia.
+            avisar(f"Matching mid/side sobre las partes fuertes (máx ±{tope:g} dB)…")
+            freqs, d_mid, d_side, util = _deltas_ms(audio, sr, perfil)
+            for b, (f_lo, f_hi) in BANDAS_HZ.items():
+                sel = (freqs >= f_lo) & (freqs < f_hi) & util
+                distancia_bandas_db[b] = round(float(np.abs(d_mid[sel]).mean()), 1) if sel.any() else 0.0
+            grandes = [b for b, (f_lo, f_hi) in BANDAS_HZ.items()
+                       if (sel := (freqs >= f_lo) & (freqs < f_hi) & util).any()
+                       and float(np.abs(d_mid[sel]).max()) > 6.0]
+            if grandes:
+                aviso_eq_grande = (
+                    f"La referencia pide más de 6 dB en: {', '.join(grandes)}. "
+                    "Eso ya no es mastering, es arreglar la mezcla: conviene corregirlo "
+                    "en la mezcla o elegir una referencia más parecida.")
+                avisar(f"⚠ {aviso_eq_grande}")
+            dm = _suavizar(np.clip(d_mid, -tope, tope))
+            # el side se limita a ±6 dB aunque el tope del mid sea mayor: más que
+            # eso, en una mezcla casi mono, solo levanta ruido y artefactos de
+            # fase (mentor, 26/9: >6 dB ya es arreglar la mezcla)
+            tope_side = min(tope, float(cfg_eq.get("max_correccion_side_db", 6.0)))
+            ds = _suavizar(np.clip(d_side, -tope_side, tope_side))
+            fir_m = _curva_fir_fina(freqs, dm, sr)
+            fir_s = _curva_fir_fina(freqs, ds, sr)
+            aplicar_eq(lambda x: _aplicar_ms(x, fir_m, fir_s))
+            correccion, correccion_side = {}, {}
+            for b, (f_lo, f_hi) in BANDAS_HZ.items():
+                sel = (freqs >= f_lo) & (freqs < f_hi)
+                correccion[b] = round(float(dm[sel].mean()), 1) if sel.any() else 0.0
+                correccion_side[b] = round(float(ds[sel].mean()), 1) if sel.any() else 0.0
+        elif modo_eq == "fino":
             # Matching espectral FINO: curva completa a 1/3 de octava
             avisar(f"Matching espectral fino (1/3 octava, máx ±{tope:g} dB)…")
             freqs, esp_mix = espectro_suavizado(audio, sr)
@@ -900,7 +989,7 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
             avisar(f"⚠ {aviso_referencia}")
 
         # Imagen estéreo: acerca el ancho por banda al promedio de referencias
-        if cfg_eq.get("analizar_imagen_stereo", True):
+        if modo_eq != "ms" and cfg_eq.get("analizar_imagen_stereo", True):
             avisar("Ajustando imagen estéreo por banda…")
             ancho_mix = analisis_estereo(audio, sr)["ancho_por_banda"]
             audio, ajuste_ancho = _ajustar_imagen(
@@ -1052,6 +1141,27 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         audio = _limitador(audio, sr, cfg_lim)   # seguridad
         dinamica_aplicada = True
 
+    # Segunda pasada de matching (Consejo + mentor, 26/9): el clipper, la
+    # densidad y el limitador cambian el agudo y dejan un residuo contra la
+    # referencia. Una corrección suave (≤ max dB) lo cierra; después, limitador
+    # y ajuste fino de loudness otra vez. No corre si el EQ se aplicó solo a
+    # las guitarras: después del limitador la mezcla ya no se puede separar.
+    max_2p = float(cfg_eq.get("segunda_pasada_max_db", 2.0))
+    if (modo_eq == "ms" and grupo_eq is None and max_2p > 0
+            and cfg_eq.get("segunda_pasada", True)):
+        avisar(f"Segunda pasada de matching (residuo, máx ±{max_2p:g} dB)…")
+        freqs2, r_mid, r_side, util2 = _deltas_ms(audio, sr, perfil)
+        rm = _suavizar(np.clip(r_mid, -max_2p, max_2p))
+        rs = _suavizar(np.clip(r_side, -max_2p, max_2p))
+        audio = _aplicar_ms(audio, _curva_fir_fina(freqs2, rm, sr), _curva_fir_fina(freqs2, rs, sr))
+        for b, (f_lo, f_hi) in BANDAS_HZ.items():
+            sel = (freqs2 >= f_lo) & (freqs2 < f_hi)
+            segunda_pasada[b] = round(float(rm[sel].mean()), 1) if sel.any() else 0.0
+        audio = _limitador(audio, sr, cfg_lim)
+        l2 = lufs_integrado(audio, sr)
+        if np.isfinite(l2) and abs(target_lufs - l2) > tol_lufs:
+            audio = _limitador(audio * 10 ** ((target_lufs - l2) / 20), sr, cfg_lim)
+
     lufs_final = lufs_integrado(audio, sr)
     tp_final = true_peak_db(audio, sr)
     crest_final = crest_factor_db(audio)
@@ -1137,6 +1247,11 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         "fuente": "stems" if carpeta_stems else "mezcla",
         "genero": genero,
         "eq_solo_en": stems_eq if grupo_eq is not None else [],
+        "modo_eq": modo_eq,
+        "eq_side_db": correccion_side,
+        "segunda_pasada_db": segunda_pasada,
+        "aviso_eq_grande": aviso_eq_grande,
+        "aviso_referencia_calidad": aviso_calidad_ref,
         "referencias": nombres_ref,
         "score": score,
     }

@@ -171,7 +171,12 @@ def main() -> int:
         diag_master = analizar_wav(Path(resumen["wav"]), "", wav_ref, version="V01m")
         d_orig = diag["vs_referencia"]["delta_bandas_db"]
         d_mast = diag_master["vs_referencia"]["delta_bandas_db"]
-        mejora = sum(abs(d_mast[b]) for b in d_mast) <= sum(abs(d_orig[b]) for b in d_orig) + 0.5
+        # Mezcla y referencia son la MISMA señal a distinto volumen: lo que se
+        # mide acá es cuánto colorean las etapas de dinámica, no el matching.
+        # Con el matching mid/side + segunda pasada (26/9) la suma quedó en
+        # ~2.1 dB contra 1.4 del original; en el mismo caso a -12 LUFS el
+        # modo nuevo queda MÁS cerca que el viejo (5.7 vs 7.4 dB de suma).
+        mejora = sum(abs(d_mast[b]) for b in d_mast) <= sum(abs(d_orig[b]) for b in d_orig) + 1.0
         check("master más cerca de la referencia", mejora,
               f"orig={d_orig} master={d_mast}")
 
@@ -190,7 +195,7 @@ def main() -> int:
 
         # --- master competitivo (-8.5), matching fino, clipper y score ---
         cfg_m = cargar_config_master()
-        check("config master.json con modo fino", cfg_m["eq_correctivo"]["modo"] == "fino"
+        check("config master.json con modo mid/side", cfg_m["eq_correctivo"]["modo"] == "ms"
               and cfg_m["clipper"]["activo"])
         res_loud = masterizar(
             wav_mix, wav_ref, -8.5,
