@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>MixMaster — propuesta de gráfico de espectros</title>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#060606;padding:22px;font-family:'IBM Plex Mono',Consolas,monospace;color:#ddd}
+  .rack{display:flex;max-width:96vw;margin:0 auto}
+  .wood{width:30px;flex:none;background:repeating-linear-gradient(180deg,#5a3a22 0 3px,#4a2e1a 3px 4px),linear-gradient(90deg,#6b4527,#3d2515)}
+  .wood.l{border-radius:10px 0 0 10px}.wood.r{border-radius:0 10px 10px 0}
+  .unit{flex:1;padding:26px 36px 24px;position:relative;background:linear-gradient(155deg,#2c4a52 0%,#1c333a 45%,#142027 100%)}
+  .screw{position:absolute;width:15px;height:15px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#efe9d0,#9a916f 45%,#4a4433 80%)}
+  .screw.tl{top:12px;left:12px}.screw.tr{top:12px;right:12px}.screw.bl{bottom:12px;left:12px}.screw.br{bottom:12px;right:12px}
+  .osw{font-family:'Oswald','Arial Narrow',sans-serif}
+  .propuesta{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:2px;color:#9fb8ba;margin-bottom:6px}
+  h1{font-family:'Oswald',sans-serif;font-size:22px;margin:0 0 18px;color:#eef3ee;letter-spacing:1px}
+  h1 span{color:#e8a33d}
+
+  .card{background:#0d1719;border:1px solid #2c4048;border-radius:9px;padding:18px 20px 14px;margin-bottom:16px;box-shadow:inset 0 0 40px rgba(0,0,0,.35)}
+  .card-h{display:flex;align-items:baseline;gap:14px;margin-bottom:4px;flex-wrap:wrap}
+  .card-h .t{font-family:'Oswald',sans-serif;font-size:13px;letter-spacing:1.8px;color:#e8a33d}
+  .card-h .d{font-size:10.5px;color:#7f9a9c}
+  .leyenda{display:flex;gap:10px;margin:10px 0 6px;flex-wrap:wrap}
+  .ley{display:flex;align-items:center;gap:8px;padding:6px 12px;border-radius:14px;background:#15232a;border:1px solid #2c4048;font-size:11.5px;cursor:pointer;user-select:none;transition:opacity .2s,border-color .2s}
+  .ley:hover{border-color:#5c8a7c}
+  .ley.off{opacity:.35}
+  .ley .sw{width:22px;height:0;border-top:3px solid}
+  .ley .sw.dash{border-top-style:dashed}
+  .ley .sw.area{height:10px;border:none;border-radius:2px}
+  svg text{font-family:'IBM Plex Mono',monospace}
+  .lectura{display:flex;gap:26px;align-items:baseline;flex-wrap:wrap;background:#0a1416;border:1px solid #1f3b34;border-radius:6px;padding:9px 14px;margin:4px 0 10px;font-size:13px;color:#7f9a9c;min-height:40px}
+  .lectura .f{font-family:'Oswald',sans-serif;font-size:18px;color:#eef3ee;letter-spacing:1px;min-width:110px}
+  .lectura .v{font-size:15px}
+  .tip{position:fixed;pointer-events:none;background:rgba(8,16,18,.96);border:1px solid #2c4048;border-radius:7px;padding:9px 12px;font-size:11.5px;line-height:1.65;display:none;box-shadow:0 8px 20px rgba(0,0,0,.5);min-width:190px}
+  .tip b{font-family:'Oswald',sans-serif;letter-spacing:1px;color:#eef3ee;font-weight:500}
+
+  .bandas{display:grid;grid-template-columns:repeat(7,1fr);gap:10px}
+  .banda{background:#101c1f;border:1px solid #2c4048;border-radius:7px;padding:10px 12px}
+  .banda .n{font-family:'Oswald',sans-serif;font-size:11px;letter-spacing:1.4px;color:#cfe4e2}
+  .banda .r{font-size:9.5px;color:#5c8a7c;margin-bottom:8px}
+  .fila{display:flex;align-items:center;gap:6px;font-size:10.5px;margin:3px 0}
+  .fila .k{width:48px;color:#7f9a9c}
+  .barra{flex:1;height:7px;border-radius:4px;background:#1a2a2f;overflow:hidden}
+  .barra i{display:block;height:100%;border-radius:4px;width:0;transition:width 1.2s cubic-bezier(.2,.9,.3,1)}
+  .fila .v{width:44px;text-align:right}
+  .mejora{font-family:'Oswald',sans-serif;font-size:11px;margin-top:6px;letter-spacing:.8px}
+
+  .nota{font-size:11px;color:#9fb8ba;line-height:1.6;border-left:2px solid #e8a33d;padding:4px 0 4px 12px;margin-top:6px}
+  .nota b{color:#e8a33d;font-weight:500}
+</style>
+</head>
+<body>
+<div class="rack">
+<div class="wood l"></div>
+<div class="unit">
+  <div class="screw tl"></div><div class="screw tr"></div><div class="screw bl"></div><div class="screw br"></div>
+  <div class="propuesta">PROPUESTA — PASO 03 · MASTER · CON TUS DATOS REALES (CRISIntro 2)</div>
+  <h1>MIX<span>MASTER</span> · ESPECTRO COMPARADO</h1>
+
+  <div class="card">
+    <div class="card-h">
+      <div class="t">ESPECTRO — MEZCLA · REFERENCIA · MASTER</div>
+      <div class="d">Forma del espectro a igual volumen (1/3 de octava). La zona roja es lo que todavía separa tu master de la referencia.</div>
+    </div>
+    <div class="leyenda">
+      <div class="ley" data-c="mezcla"><span class="sw dash" style="border-color:#cfc6a4"></span>MEZCLA (antes)</div>
+      <div class="ley" data-c="referencia"><span class="sw" style="border-color:#e8a33d"></span>REFERENCIA</div>
+      <div class="ley" data-c="master"><span class="sw" style="border-color:#7fe8c4"></span>MASTER (después)</div>
+      <div class="ley" data-c="brecha"><span class="sw area" style="background:rgba(224,75,46,.45)"></span>LO QUE FALTA</div>
+    </div>
+    <div class="lectura" id="lectura">Pasa el mouse por el gráfico para ver cada frecuencia.</div>
+    <svg id="graf" viewBox="0 0 1400 470" width="100%" style="display:block;cursor:crosshair"></svg>
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <div class="t">DISTANCIA A LA REFERENCIA POR BANDA</div>
+      <div class="d">Cuánto se acercó cada banda: antes (tu mezcla) y después (el master). Menos es mejor.</div>
+    </div>
+    <div class="bandas" id="bandas"></div>
+    <div class="nota" id="nota"></div>
+  </div>
+</div>
+<div class="wood r"></div>
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+const D = __DATOS__;
+const W = 1400, H = 470, X0 = 70, X1 = 1370, Y0 = 46, Y1 = 400;
+const F_MIN = 20, F_MAX = 20000, F_UTIL = 16000;
+const xLog = f => X0 + (Math.log10(f) - Math.log10(F_MIN)) / (Math.log10(F_MAX) - Math.log10(F_MIN)) * (X1 - X0);
+const hz = f => f >= 1000 ? (f / 1000).toFixed(f >= 10000 ? 0 : 1).replace(".0", "") + "k" : Math.round(f);
+
+// Forma a igual volumen: cada curva menos su media en 30 Hz-16 kHz (lo mismo
+// que compara el matching), y todo referido a la referencia.
+const util = D.freqs.map(f => f >= 30 && f <= F_UTIL);
+const media = a => { let s = 0, n = 0; a.forEach((v, i) => { if (util[i]) { s += v; n++; } }); return s / n; };
+const forma = {};
+["mezcla", "referencia", "master"].forEach(k => { const m = media(D[k]); forma[k] = D[k].map(v => v - m); });
+const todos = [].concat(...["mezcla", "referencia", "master"].map(k => forma[k].filter((_, i) => D.freqs[i] <= F_UTIL)));
+const TOP = Math.ceil(Math.max(...todos) / 6) * 6 + 3, BOT = Math.floor(Math.min(...todos) / 6) * 6 - 3;
+const yDb = v => Y0 + (TOP - Math.max(BOT, Math.min(TOP, v))) / (TOP - BOT) * (Y1 - Y0);
+
+const BANDAS = [["SUB", 20, 60], ["LOW", 60, 200], ["LOW MID", 200, 500], ["MID", 500, 2000], ["HIGH MID", 2000, 6000], ["HIGH", 6000, 10000], ["AIR", 10000, 16000]];
+
+function dibujar() {
+  const svg = document.getElementById("graf");
+  let s = `<defs>
+    <linearGradient id="gM" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#7fe8c4" stop-opacity=".30"/><stop offset="100%" stop-color="#7fe8c4" stop-opacity="0"/></linearGradient>
+    <filter id="glow" x="-5%" y="-20%" width="110%" height="140%"><feGaussianBlur stdDeviation="3.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <pattern id="rayas" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" stroke="#2c4048" stroke-width="2"/></pattern>
+  </defs>`;
+  // zonas de banda
+  BANDAS.forEach(([n, a, b], i) => {
+    s += `<rect x="${xLog(a)}" y="${Y0}" width="${xLog(b) - xLog(a)}" height="${Y1 - Y0}" fill="${i % 2 ? "#0f1c1f" : "#0b1618"}"/>`;
+    s += `<text x="${(xLog(a) + xLog(b)) / 2}" y="${Y0 - 14}" text-anchor="middle" font-family="Oswald" font-size="12" letter-spacing="1.5" fill="#7f9a9c">${n}</text>`;
+  });
+  // zona sin contenido fiable
+  s += `<rect x="${xLog(F_UTIL)}" y="${Y0}" width="${X1 - xLog(F_UTIL)}" height="${Y1 - Y0}" fill="url(#rayas)" opacity=".8"/>`;
+  s += `<text x="${(xLog(F_UTIL) + X1) / 2}" y="${Y0 + 18}" text-anchor="middle" font-size="9.5" fill="#5c8a7c">sin contenido</text>`;
+  s += `<text x="${(xLog(F_UTIL) + X1) / 2}" y="${Y0 + 31}" text-anchor="middle" font-size="9.5" fill="#5c8a7c">fiable (MP3)</text>`;
+  // grilla dB
+  for (let v = Math.ceil(BOT / 6) * 6; v <= TOP; v += 6) {
+    s += `<line x1="${X0}" y1="${yDb(v)}" x2="${X1}" y2="${yDb(v)}" stroke="${v === 0 ? "#35535a" : "#1a2c30"}" stroke-width="${v === 0 ? 1.4 : 1}"/>`;
+    s += `<text x="${X0 - 10}" y="${yDb(v) + 3.5}" text-anchor="end" font-size="11" fill="#5c8a7c">${v > 0 ? "+" : ""}${v}</text>`;
+  }
+  s += `<text x="${X0 - 52}" y="${(Y0 + Y1) / 2}" font-size="10.5" fill="#5c8a7c" transform="rotate(-90 ${X0 - 52} ${(Y0 + Y1) / 2})" text-anchor="middle">dB (forma, a igual volumen)</text>`;
+  // grilla frecuencia
+  [20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000].forEach(f => {
+    s += `<line x1="${xLog(f)}" y1="${Y0}" x2="${xLog(f)}" y2="${Y1}" stroke="#1a2c30"/>`;
+    s += `<text x="${xLog(f)}" y="${Y1 + 20}" text-anchor="middle" font-size="12" fill="#7f9a9c">${hz(f)}</text>`;
+  });
+  s += `<text x="${(X0 + X1) / 2}" y="${Y1 + 44}" text-anchor="middle" font-size="10.5" fill="#5c8a7c">frecuencia (Hz)</text>`;
+
+  const pts = k => D.freqs.map((f, i) => `${xLog(f).toFixed(1)},${yDb(forma[k][i]).toFixed(1)}`);
+  const pm = pts("master"), pr = pts("referencia");
+  // brecha master <-> referencia
+  s += `<path class="c-brecha" d="M${pm.join(" L")} L${pr.slice().reverse().join(" L")} Z" fill="rgba(224,75,46,.26)" stroke="none"/>`;
+  // área del master
+  s += `<path class="c-master" d="M${pm.join(" L")} L${xLog(D.freqs.at(-1))},${Y1} L${xLog(D.freqs[0])},${Y1} Z" fill="url(#gM)"/>`;
+  s += `<path class="c-mezcla trazo" d="M${pts("mezcla").join(" L")}" fill="none" stroke="#cfc6a4" stroke-width="1.8" stroke-dasharray="7 5" opacity=".75"/>`;
+  s += `<path class="c-referencia trazo" d="M${pr.join(" L")}" fill="none" stroke="#e8a33d" stroke-width="2.6" filter="url(#glow)" stroke-linejoin="round"/>`;
+  s += `<path class="c-master trazo" d="M${pm.join(" L")}" fill="none" stroke="#7fe8c4" stroke-width="2.8" filter="url(#glow)" stroke-linejoin="round"/>`;
+  // cursor
+  s += `<line id="cur" x1="0" y1="${Y0}" x2="0" y2="${Y1}" stroke="#eef3ee" stroke-width="1" opacity="0"/>`;
+  ["mezcla", "referencia", "master"].forEach(k => s += `<circle id="p-${k}" r="5" opacity="0" fill="${{mezcla: "#cfc6a4", referencia: "#e8a33d", master: "#7fe8c4"}[k]}" stroke="#0d1719" stroke-width="2"/>`);
+  s += `<g id="cartel" opacity="0" pointer-events="none">
+    <rect width="206" height="96" rx="7" fill="rgba(6,14,16,.94)" stroke="#35535a"/>
+    <text class="cf" x="12" y="21" font-family="Oswald" font-size="14" fill="#eef3ee" letter-spacing="1"></text>
+    <text class="cm" x="12" y="41" font-size="12" fill="#cfc6a4" xml:space="preserve"></text>
+    <text class="cr" x="12" y="57" font-size="12" fill="#e8a33d" xml:space="preserve"></text>
+    <text class="cM" x="12" y="73" font-size="12" fill="#7fe8c4" xml:space="preserve"></text>
+    <text class="cg" x="12" y="89" font-size="12" fill="#e8935a" xml:space="preserve"></text></g>`;
+  s += `<rect id="zona" x="${X0}" y="${Y0}" width="${X1 - X0}" height="${Y1 - Y0}" fill="transparent"/>`;
+  svg.innerHTML = s;
+
+  // animación de trazado
+  svg.querySelectorAll(".trazo").forEach((p, i) => {
+    const L = p.getTotalLength();
+    p.style.strokeDasharray = p.getAttribute("stroke-dasharray") ? p.getAttribute("stroke-dasharray") : `${L}`;
+    if (!p.getAttribute("stroke-dasharray")) {
+      p.style.strokeDashoffset = L; p.getBoundingClientRect();
+      p.style.transition = `stroke-dashoffset 1.6s ${0.25 * i}s ease-out`; p.style.strokeDashoffset = 0;
+    }
+  });
+
+  // cursor con valores
+  const tip = document.getElementById("tip"), zona = document.getElementById("zona");
+  zona.addEventListener("mousemove", ev => {
+    const rc = svg.getBoundingClientRect();
+    const p = {x: (ev.clientX - rc.left) / rc.width * W, y: (ev.clientY - rc.top) / rc.height * H};
+    let i = 0, best = 1e9;
+    D.freqs.forEach((f, k) => { const d = Math.abs(xLog(f) - p.x); if (d < best) { best = d; i = k; } });
+    const x = xLog(D.freqs[i]);
+    const cur = document.getElementById("cur"); cur.setAttribute("x1", x); cur.setAttribute("x2", x); cur.setAttribute("opacity", ".35");
+    ["mezcla", "referencia", "master"].forEach(k => { const c = document.getElementById("p-" + k); c.setAttribute("cx", x); c.setAttribute("cy", yDb(forma[k][i])); c.setAttribute("opacity", 1); });
+    const f = n => (n > 0 ? "+" : "") + n.toFixed(1) + " dB";
+    const gap = forma.master[i] - forma.referencia[i];
+    const banda = (BANDAS.find(([, a, b]) => D.freqs[i] >= a && D.freqs[i] < b) || ["AIR"])[0];
+    document.getElementById("lectura").innerHTML =
+      `<span class="f">${hz(D.freqs[i])} Hz</span><span style="color:#7f9a9c">${banda}</span>
+       <span class="v" style="color:#cfc6a4">Mezcla ${f(forma.mezcla[i])}</span>
+       <span class="v" style="color:#e8a33d">Referencia ${f(forma.referencia[i])}</span>
+       <span class="v" style="color:#7fe8c4">Master ${f(forma.master[i])}</span>
+       <span class="v" style="color:${Math.abs(gap) < 1.5 ? "#43e08a" : "#e8935a"}">Falta ${f(-gap)} ${Math.abs(gap) < 1.5 ? "✓ igual" : ""}</span>`;
+    // cartel junto al cursor, dibujado DENTRO del SVG: no depende de zoom ni scroll
+    const cx = x + (x > W - 260 ? -222 : 16), cy = Math.max(Y0 + 4, Math.min(Y1 - 98, yDb(forma.master[i]) - 50));
+    const cart = document.getElementById("cartel");
+    cart.setAttribute("transform", `translate(${cx},${cy})`); cart.setAttribute("opacity", 1);
+    cart.querySelector(".cf").textContent = `${hz(D.freqs[i])} Hz · ${banda}`;
+    cart.querySelector(".cm").textContent = `Mezcla      ${f(forma.mezcla[i])}`;
+    cart.querySelector(".cr").textContent = `Referencia  ${f(forma.referencia[i])}`;
+    cart.querySelector(".cM").textContent = `Master      ${f(forma.master[i])}`;
+    cart.querySelector(".cg").textContent = `Falta       ${f(-gap)}`;
+  });
+  zona.addEventListener("mouseleave", () => { tip.style.display = "none"; ["cur", "cartel", "p-mezcla", "p-referencia", "p-master"].forEach(id => document.getElementById(id).setAttribute("opacity", 0)); });
+}
+
+function bandas() {
+  const dist = (k, a, b) => {
+    const idx = D.freqs.map((f, i) => [f, i]).filter(([f]) => f >= a && f < b && f <= F_UTIL).map(([, i]) => i);
+    return idx.reduce((s, i) => s + Math.abs(forma[k][i] - forma.referencia[i]), 0) / Math.max(1, idx.length);
+  };
+  const MAX = 12;
+  let html = "", antes = 0, despues = 0;
+  BANDAS.forEach(([n, a, b]) => {
+    const da = dist("mezcla", a, b), dd = dist("master", a, b);
+    antes += da; despues += dd;
+    const mejora = da - dd;
+    html += `<div class="banda"><div class="n">${n}</div><div class="r">${hz(a)}-${hz(b)} Hz</div>
+      <div class="fila"><span class="k">ANTES</span><span class="barra"><i style="background:#cfc6a4" data-w="${Math.min(100, da / MAX * 100)}"></i></span><span class="v" style="color:#cfc6a4">${da.toFixed(1)}</span></div>
+      <div class="fila"><span class="k">DESPUÉS</span><span class="barra"><i style="background:${dd < 2 ? "#43e08a" : dd < 4.6 ? "#7fe8c4" : "#e8935a"}" data-w="${Math.min(100, dd / MAX * 100)}"></i></span><span class="v" style="color:${dd < 4.6 ? "#7fe8c4" : "#e8935a"}">${dd.toFixed(1)}</span></div>
+      <div class="mejora" style="color:${mejora > 0.3 ? "#43e08a" : mejora < -0.3 ? "#e04b2e" : "#7f9a9c"}">${mejora > 0.3 ? "▼ " + mejora.toFixed(1) + " dB más cerca" : mejora < -0.3 ? "▲ " + (-mejora).toFixed(1) + " dB más lejos" : "sin cambio"}</div></div>`;
+  });
+  document.getElementById("bandas").innerHTML = html;
+  requestAnimationFrame(() => document.querySelectorAll(".barra i").forEach(i => i.style.width = i.dataset.w + "%"));
+  document.getElementById("nota").innerHTML =
+    `Distancia media: <b>${(antes / 7).toFixed(1)} dB</b> antes → <b>${(despues / 7).toFixed(1)} dB</b> después. ` +
+    `Por debajo de ~2 dB el oído ya casi no distingue la forma tonal; por encima de 4.6 dB el matching suele no notarse.`;
+}
+
+document.querySelectorAll(".ley").forEach(l => l.onclick = () => {
+  l.classList.toggle("off");
+  document.querySelectorAll(".c-" + l.dataset.c).forEach(p => p.style.display = l.classList.contains("off") ? "none" : "");
+});
+dibujar(); bandas();
+</script>
+</body>
+</html>

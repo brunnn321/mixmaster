@@ -11,6 +11,28 @@
 > con el ítem 3 sin portarlo). Todo el resto verificó OK. Ambos corregidos a
 > `[~]` abajo con su explicación.
 
+## ⏭️ PARA RETOMAR (Bruno se fue el 26/9: "que nada se pierda")
+
+1. **Imagen ultra realista** (`docs/propuestas/propuesta_realista.html`):
+   Bruno la vio y pidió **mejorarla MÁS antes de aprobarla** — "esa imagen no
+   la olvides, hay que mejorarla más". Seguir iterando la propuesta (no la app)
+   hasta que diga que sí; después llevarla a `mixmaster/ui/web/consola.html`.
+   Plantilla editable: `docs/propuestas/propuesta_realista.plantilla.html` +
+   `tres_espectros.json` (se reemplaza `__DATOS__` por el JSON).
+2. **Gráfico de 3 espectros** (`docs/propuestas/grafico_tres_espectros.html`):
+   aprobado ("está genial"); ya muestra los datos al pasar el mouse. Falta
+   llevarlo a la app (guardar espectro de mezcla y referencia en el resumen).
+3. **Audio mid/side + tramos fuertes + segunda pasada + avisos**: escrito en
+   `docs/propuestas/parche_ms_SIN_APLICAR.py`, **no aplicado ni probado**.
+   Aplicarlo, correr todos los tests (`tests/*.py`), probarlo con
+   CRISIntro 2 (E:\Bruno Aramayo Music\Ideas\CRISIntro 2.mp3) contra
+   Alphaville (E:\Música\...128kbps.mp3) y comparar el score (hoy 51%:
+   tonal 59, dinámica 85, imagen 0). Sube la versión del caché de
+   referencias a 3: la primera corrida re-analiza cada referencia.
+4. Consola: sacar el zoom de CSS (rompe el mouse) y mostrar los avisos
+   nuevos (`aviso_eq_grande`, `aviso_referencia_calidad`).
+5. Prueba A/B del mentor: matching al 50% vs 100% a igual loudness.
+
 ## 📝 PEDIDOS DE BRUNO — 2026-09-26 (lista viva: se tacha solo lo hecho y verificado)
 
 Regla de Bruno: "anota todo lo que estoy hablando para que no se te escape nada

@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>MixMaster MM-01 — propuesta ultra realista</title>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --u: calc(min(100vw, 177.8vh) / 1920);   /* 1 px de diseño a 1920 de ancho; escala a 4K */
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:#050505;overflow:hidden}
+  body{display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',Consolas,monospace}
+
+  /* ---------- rack ---------- */
+  .rack{position:relative;width:calc(1880*var(--u));height:calc(1040*var(--u));display:flex;border-radius:calc(14*var(--u));
+    box-shadow:0 calc(30*var(--u)) calc(80*var(--u)) rgba(0,0,0,.8)}
+  .madera{width:calc(46*var(--u));flex:none;position:relative;overflow:hidden}
+  .madera.l{border-radius:calc(14*var(--u)) 0 0 calc(14*var(--u))}
+  .madera.r{border-radius:0 calc(14*var(--u)) calc(14*var(--u)) 0}
+  .madera svg{position:absolute;inset:0;width:100%;height:100%}
+  .madera::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(255,220,170,.10),transparent 30%,transparent 70%,rgba(0,0,0,.45))}
+
+  .frente{flex:1;position:relative;padding:calc(34*var(--u)) calc(44*var(--u)) calc(30*var(--u));display:grid;
+    grid-template-columns:calc(1030*var(--u)) 1fr;grid-template-rows:auto auto auto 1fr auto;gap:calc(18*var(--u)) calc(26*var(--u));overflow:hidden}
+  .frente > .metal{position:absolute;inset:0;z-index:0}
+  .frente > *:not(.metal):not(.tornillo):not(.sello){position:relative;z-index:1}
+
+  .tornillo{position:absolute;width:calc(22*var(--u));height:calc(22*var(--u));border-radius:50%;z-index:2;
+    background:radial-gradient(circle at 35% 30%,#fbf6e4,#b3ab8c 38%,#5c5641 78%,#3a3628);
+    box-shadow:0 calc(2*var(--u)) calc(3*var(--u)) rgba(0,0,0,.6),inset 0 0 calc(2*var(--u)) rgba(0,0,0,.5)}
+  .tornillo::before,.tornillo::after{content:"";position:absolute;left:18%;right:18%;top:calc(50% - 1.2*var(--u));height:calc(2.4*var(--u));background:#2e2a20;border-radius:2px;transform:rotate(var(--r,30deg));box-shadow:0 calc(1*var(--u)) 0 rgba(255,255,255,.25)}
+  .tornillo::after{transform:rotate(calc(var(--r,30deg) + 90deg))}
+
+  /* ---------- cabecera ---------- */
+  .cab{grid-column:1/3;display:flex;align-items:center;gap:calc(26*var(--u))}
+  .marca{font-family:'Oswald';font-weight:700;font-size:calc(46*var(--u));letter-spacing:calc(1*var(--u));color:#e9eee9;
+    text-shadow:0 calc(-1*var(--u)) 0 rgba(0,0,0,.6),0 calc(1*var(--u)) 0 rgba(255,255,255,.18)}
+  .marca span{color:#f0a53a;text-shadow:0 0 calc(18*var(--u)) rgba(240,165,58,.45),0 calc(-1*var(--u)) 0 rgba(0,0,0,.5)}
+  .grabado{font-family:'Oswald';font-size:calc(13*var(--u));letter-spacing:calc(4*var(--u));color:#9bb4b6;
+    text-shadow:0 calc(1*var(--u)) 0 rgba(255,255,255,.12),0 calc(-1*var(--u)) 0 rgba(0,0,0,.7)}
+  .power{margin-left:auto;display:flex;align-items:center;gap:calc(12*var(--u))}
+  .ledg{width:calc(14*var(--u));height:calc(14*var(--u));border-radius:50%;background:radial-gradient(circle at 40% 35%,#d7ffe9,#43e08a 45%,#1b7a45);
+    box-shadow:0 0 calc(10*var(--u)) #43e08a,0 0 calc(26*var(--u)) rgba(67,224,138,.55);animation:latido 2.4s ease-in-out infinite}
+  @keyframes latido{50%{box-shadow:0 0 calc(6*var(--u)) #43e08a,0 0 calc(14*var(--u)) rgba(67,224,138,.35)}}
+
+  /* ---------- pasos (botones retroiluminados) ---------- */
+  .pasos{grid-column:1/3;display:grid;grid-template-columns:repeat(4,1fr);gap:calc(12*var(--u))}
+  .paso{height:calc(52*var(--u));border-radius:calc(7*var(--u));display:flex;align-items:center;justify-content:center;gap:calc(10*var(--u));
+    font-family:'Oswald';font-size:calc(15*var(--u));letter-spacing:calc(2.4*var(--u));color:#8aa6a8;
+    background:linear-gradient(180deg,#26363c,#172226);box-shadow:inset 0 calc(1*var(--u)) 0 rgba(255,255,255,.08),0 calc(3*var(--u)) 0 #0b1113,0 calc(5*var(--u)) calc(10*var(--u)) rgba(0,0,0,.5)}
+  .paso i{width:calc(9*var(--u));height:calc(9*var(--u));border-radius:50%;background:#1d4d33}
+  .paso.hecho i{background:#43e08a;box-shadow:0 0 calc(8*var(--u)) #43e08a}
+  .paso.activo{color:#2a1a05;background:linear-gradient(180deg,#ffc56a,#e8961f);text-shadow:0 calc(1*var(--u)) 0 rgba(255,255,255,.35);
+    box-shadow:inset 0 calc(1*var(--u)) 0 rgba(255,255,255,.5),0 calc(3*var(--u)) 0 #8a5510,0 0 calc(28*var(--u)) rgba(240,165,58,.45)}
+
+  /* ---------- VU realistas ---------- */
+  .vus{display:grid;grid-template-columns:1fr 1fr;gap:calc(22*var(--u))}
+  .bisel{border-radius:calc(12*var(--u));padding:calc(12*var(--u));
+    background:linear-gradient(145deg,#4b5a5e,#1b2427);box-shadow:inset 0 calc(2*var(--u)) calc(2*var(--u)) rgba(255,255,255,.18),inset 0 calc(-3*var(--u)) calc(4*var(--u)) rgba(0,0,0,.6),0 calc(8*var(--u)) calc(18*var(--u)) rgba(0,0,0,.55)}
+  .vu{position:relative;border-radius:calc(7*var(--u));overflow:hidden;height:calc(246*var(--u));
+    background:radial-gradient(ellipse 80% 90% at 50% 95%,#fff3c9 0%,#f0dfa6 45%,#d9c47f 100%);
+    box-shadow:inset 0 0 calc(40*var(--u)) rgba(120,80,10,.45),inset 0 calc(6*var(--u)) calc(10*var(--u)) rgba(0,0,0,.35)}
+  .vu svg{position:absolute;inset:0;width:100%;height:100%}
+  .vu .vidrio{position:absolute;inset:0;pointer-events:none;
+    background:linear-gradient(160deg,rgba(255,255,255,.55) 0%,rgba(255,255,255,.08) 28%,transparent 42%),
+               linear-gradient(0deg,rgba(0,0,0,.18),transparent 25%)}
+  .vu .aguja{transform-box:view-box;transform-origin:200px 250px;animation:vaiven 3.2s ease-in-out infinite}
+  @keyframes vaiven{0%,100%{transform:rotate(var(--a))}35%{transform:rotate(calc(var(--a) + 5deg))}60%{transform:rotate(calc(var(--a) - 3deg))}}
+  .vu-t{display:flex;justify-content:space-between;align-items:center;font-family:'Oswald';font-size:calc(13*var(--u));letter-spacing:calc(2*var(--u));color:#a9c0c1;margin:0 calc(4*var(--u)) calc(9*var(--u))}
+
+  /* ---------- LCD ---------- */
+  .lcds{display:grid;grid-template-columns:repeat(2,1fr);gap:calc(12*var(--u));align-content:start}
+  .lcd{position:relative;border-radius:calc(8*var(--u));padding:calc(12*var(--u)) calc(16*var(--u));
+    background:radial-gradient(ellipse at 50% 0%,#0f2a24,#061310 70%);
+    box-shadow:inset 0 0 calc(16*var(--u)) rgba(0,0,0,.9),inset 0 calc(1*var(--u)) 0 rgba(127,232,196,.10),0 calc(1*var(--u)) 0 rgba(255,255,255,.08)}
+  .lcd::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+    background:repeating-linear-gradient(0deg,rgba(0,0,0,.18) 0 calc(1*var(--u)),transparent calc(1*var(--u)) calc(3*var(--u))),linear-gradient(165deg,rgba(255,255,255,.07),transparent 40%)}
+  .lcd .k{font-family:'Oswald';font-size:calc(12*var(--u));letter-spacing:calc(2*var(--u));color:#4f8577}
+  .lcd .v{position:relative;font-family:'Share Tech Mono',monospace;font-size:calc(36*var(--u));line-height:1.1;color:#8ff5cf;
+    text-shadow:0 0 calc(6*var(--u)) rgba(143,245,207,.8),0 0 calc(18*var(--u)) rgba(143,245,207,.35)}
+  .lcd .v .fantasma{position:absolute;left:0;top:0;color:rgba(143,245,207,.07);text-shadow:none}
+  .lcd .v small{font-size:calc(16*var(--u));color:#5fb99a;margin-left:calc(6*var(--u))}
+  .lcd.alerta .v{color:#ffb36b;text-shadow:0 0 calc(6*var(--u)) rgba(255,179,107,.8),0 0 calc(18*var(--u)) rgba(255,179,107,.35)}
+
+  /* ---------- pantalla del espectro ---------- */
+  .pantalla{grid-column:1/3;position:relative;border-radius:calc(14*var(--u));padding:calc(12*var(--u));
+    background:linear-gradient(145deg,#3c4a4e,#141b1d);box-shadow:inset 0 calc(2*var(--u)) calc(2*var(--u)) rgba(255,255,255,.14),0 calc(10*var(--u)) calc(24*var(--u)) rgba(0,0,0,.6)}
+  .crt{position:relative;border-radius:calc(8*var(--u));overflow:hidden;height:100%;min-height:calc(180*var(--u));
+    background:radial-gradient(ellipse at 50% 40%,#0c1c1f,#040a0b 80%);box-shadow:inset 0 0 calc(50*var(--u)) rgba(0,0,0,.95)}
+  .crt svg{position:absolute;inset:0;width:100%;height:100%}
+  .crt::after{content:"";position:absolute;inset:0;pointer-events:none;
+    background:repeating-linear-gradient(0deg,rgba(0,0,0,.20) 0 1px,transparent 1px 3px),
+               radial-gradient(ellipse at 50% 50%,transparent 60%,rgba(0,0,0,.55)),
+               linear-gradient(170deg,rgba(255,255,255,.06),transparent 35%)}
+  .barrido{position:absolute;top:0;bottom:0;width:calc(140*var(--u));pointer-events:none;
+    background:linear-gradient(90deg,transparent,rgba(127,232,196,.07),transparent);animation:barrer 6s linear infinite}
+  @keyframes barrer{from{left:-10%}to{left:105%}}
+
+  /* ---------- fila inferior: perillas y teclas ---------- */
+  .abajo{grid-column:1/3;display:flex;align-items:center;gap:calc(40*var(--u))}
+  .perilla{text-align:center}
+  .perilla .cuerpo{position:relative;width:calc(92*var(--u));height:calc(92*var(--u));margin:0 auto calc(8*var(--u));border-radius:50%;
+    background:repeating-conic-gradient(from 0deg,#2a2a2a 0 3deg,#4a4a4a 3deg 6deg);
+    box-shadow:0 calc(8*var(--u)) calc(16*var(--u)) rgba(0,0,0,.7),inset 0 0 0 calc(3*var(--u)) rgba(0,0,0,.4)}
+  .perilla .tapa{position:absolute;inset:calc(12*var(--u));border-radius:50%;
+    background:radial-gradient(circle at 38% 30%,#f4f1ea,#a8a397 40%,#55524a 85%);box-shadow:inset 0 calc(-2*var(--u)) calc(4*var(--u)) rgba(0,0,0,.45)}
+  .perilla .marca-p{position:absolute;left:calc(50% - 2*var(--u));top:calc(14*var(--u));width:calc(4*var(--u));height:calc(22*var(--u));border-radius:2px;background:var(--c);
+    box-shadow:0 0 calc(8*var(--u)) var(--c);transform-origin:calc(2*var(--u)) calc(32*var(--u));transform:rotate(var(--a))}
+  .perilla .n{font-family:'Oswald';font-size:calc(13*var(--u));letter-spacing:calc(2*var(--u));color:#c7d6d4}
+  .perilla .val{font-family:'Share Tech Mono';font-size:calc(16*var(--u));color:#f0a53a;text-shadow:0 0 calc(8*var(--u)) rgba(240,165,58,.5)}
+  .escala-p{position:absolute;inset:calc(-10*var(--u));border-radius:50%;
+    background:repeating-conic-gradient(from -135deg,rgba(200,215,210,.55) 0 1.4deg,transparent 1.4deg 27deg);
+    -webkit-mask:radial-gradient(circle,transparent 62%,#000 63%,#000 67%,transparent 68%);mask:radial-gradient(circle,transparent 62%,#000 63%,#000 67%,transparent 68%)}
+
+  .tecla{height:calc(72*var(--u));padding:0 calc(34*var(--u));border-radius:calc(9*var(--u));display:flex;align-items:center;gap:calc(12*var(--u));
+    font-family:'Oswald';font-size:calc(19*var(--u));letter-spacing:calc(3*var(--u));border:none}
+  .tecla.master{margin-left:auto;color:#2a1a05;background:linear-gradient(180deg,#ffcf80,#e8961f);
+    box-shadow:inset 0 calc(2*var(--u)) 0 rgba(255,255,255,.55),0 calc(5*var(--u)) 0 #7e4c0c,0 0 calc(40*var(--u)) rgba(240,165,58,.5);animation:respira 2.6s ease-in-out infinite}
+  @keyframes respira{50%{box-shadow:inset 0 calc(2*var(--u)) 0 rgba(255,255,255,.55),0 calc(5*var(--u)) 0 #7e4c0c,0 0 calc(18*var(--u)) rgba(240,165,58,.3)}}
+  .tecla.voto{color:#d9efe0;background:linear-gradient(180deg,#2f6b3e,#1b4526);box-shadow:inset 0 calc(1*var(--u)) 0 rgba(255,255,255,.25),0 calc(4*var(--u)) 0 #0e2615}
+  .tecla.voto.no{background:linear-gradient(180deg,#7a2a1e,#4a160f);box-shadow:inset 0 calc(1*var(--u)) 0 rgba(255,255,255,.2),0 calc(4*var(--u)) 0 #2a0b07}
+
+  .carretes{display:flex;gap:calc(16*var(--u));align-items:center}
+  .carrete{width:calc(84*var(--u));height:calc(84*var(--u));border-radius:50%;position:relative;
+    background:radial-gradient(circle,#161616 34%,transparent 35%),repeating-radial-gradient(circle,#3b2a18 0 calc(2*var(--u)),#5a4024 calc(2*var(--u)) calc(4*var(--u)));
+    box-shadow:0 calc(6*var(--u)) calc(12*var(--u)) rgba(0,0,0,.7)}
+  .carrete .r{position:absolute;inset:0;animation:gira 5s linear infinite}
+  .carrete .r b{position:absolute;left:50%;top:50%;width:calc(56*var(--u));height:calc(7*var(--u));margin:calc(-3.5*var(--u)) 0 0 calc(-28*var(--u));background:linear-gradient(180deg,#8a8578,#4a473f);border-radius:3px}
+  .carrete .r b:nth-child(2){transform:rotate(60deg)}.carrete .r b:nth-child(3){transform:rotate(120deg)}
+  .carrete .r i{position:absolute;left:50%;top:50%;width:calc(18*var(--u));height:calc(18*var(--u));margin:calc(-9*var(--u)) 0 0 calc(-9*var(--u));border-radius:50%;background:radial-gradient(circle at 40% 35%,#eee,#999)}
+  @keyframes gira{to{transform:rotate(360deg)}}
+
+  .sello{position:absolute;right:calc(56*var(--u));bottom:calc(8*var(--u));font-family:'Oswald';font-size:calc(11*var(--u));letter-spacing:calc(3*var(--u));color:#6f8a8c;z-index:3}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <!-- aluminio cepillado: ruido estirado en horizontal -->
+    <filter id="cepillado" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.0015 0.9" numOctaves="3" seed="4" result="n"/>
+      <feColorMatrix in="n" type="matrix" values="0 0 0 0 0.17  0 0 0 0 0.29  0 0 0 0 0.32  0 0 0 .55 0" result="c"/>
+      <feBlend in="c" in2="SourceGraphic" mode="overlay"/>
+    </filter>
+    <!-- vetas de madera -->
+    <filter id="vetas" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.035 0.0035" numOctaves="4" seed="9" result="n"/>
+      <feColorMatrix in="n" type="matrix" values="0 0 0 0 0.42  0 0 0 0 0.25  0 0 0 0 0.12  0 0 0 1.4 -0.25" result="c"/>
+      <feBlend in="c" in2="SourceGraphic" mode="multiply"/>
+    </filter>
+    <radialGradient id="brillo-g" cx="50%" cy="0%" r="100%"><stop offset="0" stop-color="#2e4f57"/><stop offset=".55" stop-color="#1c343b"/><stop offset="1" stop-color="#101c20"/></radialGradient>
+  </defs>
+</svg>
+
+<div class="rack">
+  <div class="madera l"><svg preserveAspectRatio="none" viewBox="0 0 46 1040"><rect width="46" height="1040" fill="#6e4526" filter="url(#vetas)"/></svg></div>
+
+  <div class="frente">
+    <svg class="metal" preserveAspectRatio="none" viewBox="0 0 1788 1040" width="100%" height="100%">
+      <rect width="1788" height="1040" fill="url(#brillo-g)" filter="url(#cepillado)"/>
+      <rect width="1788" height="1040" fill="url(#brillo-g)" opacity=".35"/>
+    </svg>
+    <div class="tornillo" style="top:calc(14*var(--u));left:calc(14*var(--u));--r:25deg"></div>
+    <div class="tornillo" style="top:calc(14*var(--u));right:calc(14*var(--u));--r:70deg"></div>
+    <div class="tornillo" style="bottom:calc(14*var(--u));left:calc(14*var(--u));--r:-40deg"></div>
+    <div class="tornillo" style="bottom:calc(14*var(--u));right:calc(14*var(--u));--r:10deg"></div>
+
+    <div class="cab">
+      <div class="marca">MIX<span>MASTER</span></div>
+      <div class="grabado">MM-01 · REFERENCE MASTERING ENGINE</div>
+      <div class="power"><span class="grabado">CRISINTRO 2 · GRUNGE</span><span class="ledg"></span></div>
+    </div>
+
+    <div class="pasos">
+      <div class="paso hecho"><i></i>01 FUENTE</div>
+      <div class="paso hecho"><i></i>02 REFERENCIAS</div>
+      <div class="paso activo"><i></i>03 MASTER</div>
+      <div class="paso"><i></i>04 HERRAMIENTAS</div>
+    </div>
+
+    <div class="vus" id="vus"></div>
+
+    <div class="lcds">
+      <div class="lcd"><div class="k">LUFS FINAL</div><div class="v"><span class="fantasma">-88.8</span>-11.1<small>LUFS</small></div></div>
+      <div class="lcd"><div class="k">TARGET</div><div class="v"><span class="fantasma">-88.8</span>-11.0<small>LUFS</small></div></div>
+      <div class="lcd"><div class="k">TRUE PEAK</div><div class="v"><span class="fantasma">-88.8</span>-1.7<small>dBTP</small></div></div>
+      <div class="lcd alerta"><div class="k">DISTANCIA A REF.</div><div class="v"><span class="fantasma">88.8</span>11.6<small>dB</small></div></div>
+      <div class="lcd"><div class="k">PARECIDO A REF.</div><div class="v"><span class="fantasma">888</span>51<small>%</small></div></div>
+      <div class="lcd"><div class="k">RESONANCIAS · DECLIP</div><div class="v"><span class="fantasma">8 · 8</span>2 · 0</div></div>
+    </div>
+
+    <div class="pantalla"><div class="crt"><svg id="esp" viewBox="0 0 1790 340" preserveAspectRatio="none"></svg><div class="barrido"></div></div></div>
+
+    <div class="abajo">
+      <div class="carretes"><div class="carrete"><div class="r"><b></b><b></b><b></b><i></i></div></div><div class="carrete"><div class="r" style="animation-duration:3.4s"><b></b><b></b><b></b><i></i></div></div></div>
+      <div class="perilla" style="--c:#4fb6ff;--a:95deg"><div class="cuerpo"><div class="escala-p"></div><div class="tapa"></div><div class="marca-p"></div></div><div class="n">EQ MATCH</div><div class="val">±10.0 dB</div></div>
+      <div class="perilla" style="--c:#6be07e;--a:-20deg"><div class="cuerpo"><div class="escala-p"></div><div class="tapa"></div><div class="marca-p"></div></div><div class="n">PUNCH</div><div class="val">0.30</div></div>
+      <div class="perilla" style="--c:#ff7a5a;--a:40deg"><div class="cuerpo"><div class="escala-p"></div><div class="tapa"></div><div class="marca-p"></div></div><div class="n">MONO BASS</div><div class="val">80 Hz</div></div>
+      <div class="perilla" style="--c:#f0a53a;--a:25deg"><div class="cuerpo"><div class="escala-p"></div><div class="tapa"></div><div class="marca-p"></div></div><div class="n">TARGET</div><div class="val">-11.0 LUFS</div></div>
+      <button class="tecla voto">✓ ME GUSTA</button>
+      <button class="tecla voto no">✕ NO ME GUSTA</button>
+      <button class="tecla master">▶ MASTERIZAR</button>
+    </div>
+    <div class="sello">PROPUESTA VISUAL · DATOS REALES DE CRISINTRO 2</div>
+  </div>
+
+  <div class="madera r"><svg preserveAspectRatio="none" viewBox="0 0 46 1040"><rect width="46" height="1040" fill="#6e4526" filter="url(#vetas)"/></svg></div>
+</div>
+
+<script>
+const D = __DATOS__;
+// ---- VU: arco real con zonas, numeración grabada, aguja con sombra
+function vu(titulo, marcas, pos, rojoDesde, unidad) {
+  const cx = 200, cy = 250, R = 170;
+  const ang = t => Math.PI - t * Math.PI;             // 0 izq -> 1 der
+  const P = (t, r) => [cx + r * Math.cos(ang(t)), cy - r * Math.sin(ang(t))];
+  let s = `<svg viewBox="0 0 400 290" preserveAspectRatio="xMidYMid meet">`;
+  // arco principal y zona roja
+  const arco = (a, b, r) => { const [x1, y1] = P(a, r), [x2, y2] = P(b, r); return `M${x1},${y1} A${r},${r} 0 0,1 ${x2},${y2}`; };
+  s += `<path d="${arco(0, 1, R)}" fill="none" stroke="#3d3420" stroke-width="2"/>`;
+  s += `<path d="${arco(rojoDesde, 1, R - 6)}" fill="none" stroke="#c0392b" stroke-width="9" opacity=".85"/>`;
+  // marcas finas
+  for (let k = 0; k <= 40; k++) {
+    const t = k / 40, [x1, y1] = P(t, R), [x2, y2] = P(t, R - (k % 10 === 0 ? 20 : k % 5 === 0 ? 14 : 8));
+    s += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#2c2616" stroke-width="${k % 10 === 0 ? 2.4 : 1.2}"/>`;
+  }
+  marcas.forEach((m, k) => { const [x, y] = P(k / (marcas.length - 1), R + 22); s += `<text x="${x}" y="${y + 6}" text-anchor="middle" font-family="Oswald" font-size="19" fill="#2c2616">${m}</text>`; });
+  s += `<text x="200" y="198" text-anchor="middle" font-family="Oswald" font-size="30" letter-spacing="3" fill="#2c2616" opacity=".85">${unidad}</text>`;
+  s += `<text x="200" y="222" text-anchor="middle" font-family="Oswald" font-size="13" letter-spacing="2" fill="#5a4c2c">${titulo}</text>`;
+  // aguja (sombra desplazada + aguja)
+  const a = pos * 180 - 90;
+  s += `<g class="aguja" style="--a:${a}deg"><line x1="203" y1="253" x2="203" y2="${cy - R + 6}" stroke="rgba(0,0,0,.25)" stroke-width="4" stroke-linecap="round"/>
+        <line x1="200" y1="250" x2="200" y2="${cy - R + 4}" stroke="#141008" stroke-width="2.6" stroke-linecap="round"/>
+        <line x1="200" y1="${cy - R + 4}" x2="200" y2="${cy - R + 36}" stroke="#c0392b" stroke-width="2.6" stroke-linecap="round"/></g>`;
+  s += `<rect x="0" y="252" width="400" height="40" fill="#1a1710"/><circle cx="200" cy="250" r="18" fill="#1a1710"/><circle cx="200" cy="250" r="7" fill="#6a624a"/>`;
+  return s + `</svg>`;
+}
+document.getElementById("vus").innerHTML =
+  `<div><div class="vu-t">CREST FACTOR<span class="ledg" style="background:radial-gradient(circle at 40% 35%,#ffe0d9,#e04b2e 45%,#7a1f10);box-shadow:0 0 calc(10*var(--u)) #e04b2e"></span></div><div class="bisel"><div class="vu">${vu("ZONA SANA 6-12 dB", ["4", "8", "11", "14", "18"], 0.62, 0.72, "CREST")}<div class="vidrio"></div></div></div></div>` +
+  `<div><div class="vu-t">TRUE PEAK<span class="ledg"></span></div><div class="bisel"><div class="vu">${vu("TECHO -1.0 dBTP", ["-6", "-3", "-1.6", "-1", "0"], 0.43, 0.75, "dBTP")}<div class="vidrio"></div></div></div></div>`;
+
+// ---- pantalla: los tres espectros con brillo de fósforo
+(function espectro() {
+  const W = 1790, H = 340, X0 = 60, X1 = 1760, Y0 = 26, Y1 = 300;
+  const xL = f => X0 + (Math.log10(f) - Math.log10(20)) / 3 * (X1 - X0);
+  const util = D.freqs.map(f => f >= 30 && f <= 16000);
+  const med = a => { let s = 0, n = 0; a.forEach((v, i) => { if (util[i]) { s += v; n++; } }); return s / n; };
+  const F = {}; ["mezcla", "referencia", "master"].forEach(k => { const m = med(D[k]); F[k] = D[k].map(v => v - m); });
+  const TOP = 30, BOT = -48, y = v => Y0 + (TOP - Math.max(BOT, Math.min(TOP, v))) / (TOP - BOT) * (Y1 - Y0);
+  const pts = k => D.freqs.map((f, i) => `${xL(f).toFixed(1)},${y(F[k][i]).toFixed(1)}`);
+  let s = `<defs><linearGradient id="gm" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8ff5cf" stop-opacity=".35"/><stop offset="1" stop-color="#8ff5cf" stop-opacity="0"/></linearGradient>
+    <filter id="fosforo" x="-5%" y="-30%" width="110%" height="160%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>`;
+  [20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000].forEach(f => s += `<line x1="${xL(f)}" y1="${Y0}" x2="${xL(f)}" y2="${Y1}" stroke="rgba(127,232,196,.08)"/><text x="${xL(f)}" y="${Y1 + 26}" text-anchor="middle" font-size="15" fill="rgba(127,232,196,.55)">${f >= 1000 ? f / 1000 + "k" : f}</text>`);
+  for (let v = -42; v <= 24; v += 12) s += `<line x1="${X0}" y1="${y(v)}" x2="${X1}" y2="${y(v)}" stroke="rgba(127,232,196,${v === 0 ? .2 : .07})"/>`;
+  [["SUB", 35], ["LOW", 110], ["LOW MID", 320], ["MID", 1000], ["HIGH MID", 3500], ["HIGH", 8000], ["AIR", 13000]].forEach(([n, f]) => s += `<text x="${xL(f)}" y="${Y0 + 4}" text-anchor="middle" font-family="Oswald" font-size="14" letter-spacing="2" fill="rgba(127,232,196,.45)">${n}</text>`);
+  const pm = pts("master"), pr = pts("referencia");
+  s += `<path d="M${pm.join(" L")} L${pr.slice().reverse().join(" L")} Z" fill="rgba(255,90,60,.22)"/>`;
+  s += `<path d="M${pm.join(" L")} L${xL(D.freqs.at(-1))},${Y1} L${xL(D.freqs[0])},${Y1} Z" fill="url(#gm)"/>`;
+  s += `<path d="M${pts("mezcla").join(" L")}" fill="none" stroke="#d8cfa8" stroke-width="2" stroke-dasharray="8 6" opacity=".7"/>`;
+  s += `<path d="M${pr.join(" L")}" fill="none" stroke="#ffb14a" stroke-width="3" filter="url(#fosforo)"/>`;
+  s += `<path d="M${pm.join(" L")}" fill="none" stroke="#8ff5cf" stroke-width="3.2" filter="url(#fosforo)"/>`;
+  // leyenda estilo serigrafía
+  s += `<g font-family="Oswald" font-size="15" letter-spacing="2"><text x="${X0 + 8}" y="${Y1 - 12}" fill="#d8cfa8">- - MEZCLA</text><text x="${X0 + 150}" y="${Y1 - 12}" fill="#ffb14a">━ REFERENCIA</text><text x="${X0 + 320}" y="${Y1 - 12}" fill="#8ff5cf">━ MASTER</text><text x="${X0 + 460}" y="${Y1 - 12}" fill="#ff7a5a">▇ LO QUE FALTA</text></g>`;
+  // cursor de ejemplo
+  const i = D.freqs.findIndex(f => f >= 276), x = xL(D.freqs[i]);
+  s += `<line x1="${x}" y1="${Y0}" x2="${x}" y2="${Y1}" stroke="rgba(255,255,255,.4)"/>`;
+  ["mezcla", "referencia", "master"].forEach((k, j) => s += `<circle cx="${x}" cy="${y(F[k][i])}" r="6" fill="${["#d8cfa8", "#ffb14a", "#8ff5cf"][j]}" stroke="#040a0b" stroke-width="2"/>`);
+  s += `<g transform="translate(${x + 18},${y(F.master[i]) - 40})"><rect width="230" height="104" rx="8" fill="rgba(4,12,13,.92)" stroke="rgba(127,232,196,.35)"/>
+    <text x="14" y="26" font-family="Oswald" font-size="17" fill="#eef3ee" letter-spacing="1">276 Hz · LOW MID</text>
+    <text x="14" y="50" font-size="14" fill="#d8cfa8">Mezcla     +${F.mezcla[i].toFixed(1)} dB</text>
+    <text x="14" y="70" font-size="14" fill="#ffb14a">Referencia +${F.referencia[i].toFixed(1)} dB</text>
+    <text x="14" y="90" font-size="14" fill="#8ff5cf">Master     +${F.master[i].toFixed(1)} dB</text></g>`;
+  document.getElementById("esp").innerHTML = s;
+})();
+</script>
+</body>
+</html>
