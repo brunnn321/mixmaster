@@ -391,11 +391,21 @@ agujaViva(hacerVU(document.getElementById("vu2"), "TECHO -1.0 dBTP", ["-6", "-3"
   // trazado inicial
   svg.querySelectorAll(".tr").forEach((p, i) => { const L = p.getTotalLength(); p.style.strokeDasharray = L; p.style.strokeDashoffset = L; p.getBoundingClientRect();
     p.style.transition = `stroke-dashoffset 2s ${.3 * i}s ease-out`; p.style.strokeDashoffset = 0; });
-  // cursor automático que recorre y muestra los datos (en la app: sigue al mouse)
-  const lect = document.getElementById("lectura"); let t = 0;
+  // Cursor: SIGUE AL MOUSE y muestra frecuencia y dB de cada curva donde
+  // apunta. Si el mouse no está sobre la pantalla, recorre solo como demo.
+  const lect = document.getElementById("lectura"); let t = 0, iMouse = null;
+  const crt = svg.parentElement;
+  crt.style.cursor = "crosshair";
+  crt.addEventListener("mousemove", ev => {
+    const rc = svg.getBoundingClientRect();
+    const xs = (ev.clientX - rc.left) / rc.width * W;
+    let best = 1e9;
+    D.freqs.forEach((f, k) => { const d = Math.abs(xL(f) - xs); if (d < best) { best = d; iMouse = k; } });
+  });
+  crt.addEventListener("mouseleave", () => { iMouse = null; });
   (function recorrer() {
     t += .0016; const u = (Math.sin(t * Math.PI * 2 - Math.PI / 2) + 1) / 2;
-    const i = Math.round(u * (D.freqs.length - 1)), x = xL(D.freqs[i]);
+    const i = iMouse !== null ? iMouse : Math.round(u * (D.freqs.length - 1)), x = xL(D.freqs[i]);
     const cur = document.getElementById("cur"); cur.setAttribute("x1", x); cur.setAttribute("x2", x);
     ["mezcla", "referencia", "master"].forEach(k => { const c = document.getElementById("c-" + k); c.setAttribute("cx", x); c.setAttribute("cy", y(F[k][i])); });
     const f = v => (v > 0 ? "+" : "") + v.toFixed(1);
