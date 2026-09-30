@@ -19,7 +19,23 @@ Orden por impacto en cómo suena. Cada ítem se valida de oído (A/B a igual
 loudness), no solo con el score.
 
 **30/9: investigación completa (mentor + Consejo), 23 mejoras en orden:**
-`docs/propuestas/investigacion_calidad_elite.md`. **Esperando que Bruno elija.**
+`docs/propuestas/investigacion_calidad_elite.md`.
+
+**Forma de trabajo (Bruno, 30/9):** empezar por lo más liviano, de a 3 ítems;
+al terminar cada tanda de 3, recién ahí preguntarle.
+
+- [x] **Tanda 1 (30/9) — ítems 1, 7 y 8**, tests en verde (18 archivos):
+  - 1 · Igual sonoridad: el comparador pre-master/master/M50x y el A/B ciego
+    bajan el volumen del más fuerte (`volumenes_igual_sonoridad`).
+  - 7 · Bus de batería al masterizar desde stems: paralela 10:1 a −9 dB +
+    pegamento 3:1 con ataque 20 ms, vuelve al RMS original (`_bus_bateria`).
+  - 8 · Bajo dividido: LR4 en 200 Hz, grave mono comprimido 4:1, medios
+    saturados con sobremuestreo 2x y filtro de caja a 6 kHz (`_bajo_dividido`).
+  - Se apagan en `config/master.json` → `stems_master.bus_bateria` /
+    `bajo_dividido`. **Falta escucharlo con stems reales** (solo probado con
+    señal sintética).
+- [ ] Tanda 2: siguientes livianos → 12 (códec), 16 (exciter de graves),
+  18 (procesar a 2x).
 
 **Mezcla (desde stems — hoy la auto-mezcla solo pone nivel y paneo)**
 - [ ] 1. **Fase/polaridad automática**: hoy solo avisa; que la corrija

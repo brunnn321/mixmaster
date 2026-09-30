@@ -417,16 +417,24 @@ class EscuchaWorker(QThread):
     terminado = Signal(dict)
     fallo = Signal(str)
 
-    def __init__(self, path_master: Path, dir_salida: Path):
+    def __init__(self, path_master: Path, dir_salida: Path, path_premaster: Path | None = None):
         super().__init__()
         self.path_master, self.dir_salida = path_master, dir_salida
+        self.path_premaster = path_premaster
 
     def run(self):
-        """Genera la copia M50x (nivel igualado) o emite el error."""
+        """Genera la copia M50x (nivel igualado) y mide el volumen de
+        reproducción de cada fuente para oírlas a igual sonoridad."""
         try:
+            from ..audio_analysis import volumenes_igual_sonoridad
             from ..m50x_calibration import generar_copia_calibrada
             m50x = generar_copia_calibrada(self.path_master, self.dir_salida)
-            self.terminado.emit({"m50x": m50x})
+            volumenes = volumenes_igual_sonoridad(
+                [self.path_premaster, self.path_master, m50x["ruta"]]
+                if self.path_premaster else [self.path_master, m50x["ruta"]])
+            if not self.path_premaster:
+                volumenes = [1.0] + volumenes
+            self.terminado.emit({"m50x": m50x, "volumenes": volumenes})
         except Exception as e:
             log.exception("Fallo generando la copia de escucha")
             self.fallo.emit(str(e))
@@ -2101,7 +2109,8 @@ class MainWindow(QMainWindow):
         self._m50x_path_premaster = self.wav_activo  # None si viene de stems (sin "original" único)
         self._m50x_path_master = Path(resumen["wav"])
         self._m50x_path_calibrado = None
-        self._m50x_worker = EscuchaWorker(self._m50x_path_master, self._m50x_path_master.parent)
+        self._m50x_worker = EscuchaWorker(self._m50x_path_master, self._m50x_path_master.parent,
+                                          self._m50x_path_premaster)
         self._m50x_worker.setParent(self)
         self._m50x_worker.terminado.connect(self._m50x_listo)
         self._m50x_worker.fallo.connect(self._m50x_error)
@@ -2110,8 +2119,10 @@ class MainWindow(QMainWindow):
     def _m50x_listo(self, info: dict):
         """Copia generada: muestra el panel de escucha comparada."""
         self._m50x_path_calibrado = Path(info["m50x"]["ruta"])
+        self._m50x_volumenes = info.get("volumenes") or [1.0, 1.0, 1.0]
         # sin mezcla pre-master única (master por stems): arranca directo en "Master"
         arranque = 1 if not self._m50x_path_premaster else 0
+        self._m50x_audio_out.setVolume(self._m50x_volumenes[arranque])
         self.combo_escucha.model().item(0).setEnabled(bool(self._m50x_path_premaster))
         self._m50x_player.setSource(QUrl.fromLocalFile(
             str(self._m50x_path_premaster or self._m50x_path_master)))
@@ -2120,7 +2131,8 @@ class MainWindow(QMainWindow):
         self.combo_escucha.blockSignals(False)
         self.btn_m50x_play.setText("▶ Reproducir")
         self.panel_m50x.setVisible(True)
-        self._status("Copia de escucha M50x lista.")
+        self._status("Copia de escucha M50x lista. Las fuentes suenan a igual volumen: "
+                     "gana el sonido, no el más fuerte.")
 
     def _m50x_error(self, msg: str):
         """Falla la copia: no bloquea el flujo, solo se oculta el panel."""
@@ -2145,6 +2157,7 @@ class MainWindow(QMainWindow):
         sonando = self._m50x_player.playbackState() == QMediaPlayer.PlayingState
         pos = self._m50x_player.position()
         self._m50x_player.setSource(QUrl.fromLocalFile(str(rutas[indice])))
+        self._m50x_audio_out.setVolume(getattr(self, "_m50x_volumenes", [1.0] * 3)[indice])
         self._m50x_player.setPosition(pos)
         if sonando:
             self._m50x_player.play()

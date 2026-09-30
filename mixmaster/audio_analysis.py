@@ -136,6 +136,30 @@ def lufs_integrado(audio: np.ndarray, sr: int) -> float:
     return float(meter.integrated_loudness(audio))
 
 
+def volumenes_igual_sonoridad(rutas) -> list[float]:
+    """Volumen de reproducción (0..1, lineal) por archivo para escucharlos
+    todos a la misma sonoridad: el más suave queda en 1.0 y los demás bajan
+    lo que le sacan de LUFS integrado.
+
+    Sin esto, en un A/B gana el que suena más fuerte: el oído percibe más
+    graves y más agudos cuando sube el volumen (curvas de igual sonoridad,
+    ISO 226). Un archivo que falta o no se puede medir queda en 1.0.
+    """
+    lufs = []
+    for r in rutas:
+        try:
+            audio, sr = cargar_audio(Path(r))
+            v = lufs_integrado(audio, sr)
+            lufs.append(v if np.isfinite(v) else None)
+        except Exception:
+            lufs.append(None)
+    validos = [v for v in lufs if v is not None]
+    if not validos:
+        return [1.0] * len(lufs)
+    piso = min(validos)
+    return [1.0 if v is None else float(10 ** ((piso - v) / 20)) for v in lufs]
+
+
 def lufs_short_term(audio: np.ndarray, sr: int) -> tuple[list[float], list[float]]:
     """Serie de LUFS short-term (ventanas de 3 s, paso 1 s).
 

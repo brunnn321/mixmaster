@@ -18,7 +18,7 @@ import soundfile as sf
 from scipy import signal
 
 from .app_paths import CONFIG_DIR
-from .automezcla import aplicar_pan
+from .automezcla import aplicar_pan, clasificar_rol
 from .audio_analysis import espectro_ms, tramos_fuertes
 from .audio_analysis import (
     BANDAS_HZ, CRUCES_HZ, analisis_estereo, balance_bandas_db, cargar_audio,
@@ -103,6 +103,10 @@ CONFIG_MASTER_DEFAULT = {
         # claves de nombre de los stems que reciben el EQ de master (matching y
         # notches). Vacío = toda la mezcla. Pedido de Bruno: solo guitarras.
         "eq_solo_en": [],
+        # 30/9 (investigación de calidad, ítems 7 y 8): procesado por rol
+        # antes de sumar; el rol sale del nombre (automezcla.clasificar_rol).
+        "bus_bateria": True,     # compresión paralela + pegamento del bus
+        "bajo_dividido": True,   # grave limpio y mono + medios saturados
     },
     "clipper": {
         # recorta solo los picos (transitorios de batería) antes del limitador:
@@ -217,10 +221,136 @@ def _es_percusion(nombre: str) -> bool:
     return any(k in n for k in _PERC_CLAVES)
 
 
+# Roles (automezcla.clasificar_rol) que van al bus de batería
+_ROLES_BATERIA = ("kick", "snare", "toms", "hats", "overhead", "room")
+
+
+def _rms(audio: np.ndarray) -> float:
+    return float(np.sqrt(np.mean(audio ** 2)))
+
+
+def _compresor_bus(audio: np.ndarray, sr: int, ratio: float, attack_ms: float,
+                   release_ms: float, percentil: float = 90.0, margen_db: float = 3.0,
+                   knee_db: float = 6.0) -> tuple[np.ndarray, float]:
+    """Compresor con ataque y release separados, para buses de mezcla.
+
+    A diferencia de `_comprimir_banda` (detector de fase cero, pensado para el
+    master), este es causal: con ataque de 10-30 ms deja pasar el transitorio
+    y comprime lo que viene después, que es lo que se busca en un bus.
+    Suavizado de la reducción en dB con ataque/release por rama (Giannoulis,
+    Massberg & Reiss, JAES 2012). La reducción se calcula en bloques de 32
+    muestras (<1 ms) y se interpola: mismo resultado audible, 32 veces menos
+    iteraciones de Python.
+
+    El umbral es automático: `percentil` de los picos de la parte con señal,
+    menos `margen_db`. Devuelve (audio, reducción media en dB mientras suena).
+    """
+    bloque = 32
+    mono = np.max(np.abs(audio), axis=1)
+    n_b = -(-len(mono) // bloque)
+    picos = np.pad(mono, (0, n_b * bloque - len(mono))).reshape(n_b, bloque).max(axis=1)
+    det_db = 20 * np.log10(np.maximum(picos, 1e-9))
+    activos = det_db > det_db.max() - 40
+    if not activos.any():
+        return audio, 0.0
+    umbral_db = float(np.percentile(det_db[activos], percentil)) - margen_db
+
+    exceso = det_db - umbral_db
+    pend = 1.0 / ratio - 1.0
+    red = np.where(2 * exceso < -knee_db, 0.0,
+                   np.where(2 * np.abs(exceso) <= knee_db,
+                            pend * (exceso + knee_db / 2) ** 2 / (2 * knee_db),
+                            pend * exceso))
+    fs_b = sr / bloque
+    a_at = float(np.exp(-1.0 / max(attack_ms / 1000 * fs_b, 1e-3)))
+    a_re = float(np.exp(-1.0 / max(release_ms / 1000 * fs_b, 1e-3)))
+    suave = np.empty_like(red)
+    g = 0.0
+    for i, x in enumerate(red):
+        a = a_at if x < g else a_re
+        g = a * g + (1 - a) * x
+        suave[i] = g
+    gan_db = np.interp(np.arange(len(mono)), np.arange(n_b) * bloque + bloque / 2, suave)
+    return audio * (10 ** (gan_db / 20))[:, np.newaxis], float(-suave[activos].mean())
+
+
+def _bus_bateria(bus: np.ndarray, sr: int, paralela: float = 0.35) -> tuple[np.ndarray, dict]:
+    """Bus de batería: compresión paralela ("New York") + pegamento suave.
+
+    1. Copia aplastada (10:1, ataque 1 ms): suma cuerpo y sustain.
+    2. Se mezcla por debajo de la original (`paralela`, ~ -9 dB): el golpe
+       queda intacto porque la original no se toca.
+    3. Pegamento 3:1 con ataque 20 ms sobre la suma: une los tambores sin
+       comerse el ataque.
+    4. Vuelve al RMS de entrada: cambia la densidad, no el balance del plan.
+    """
+    rms_in = _rms(bus)
+    if rms_in < 1e-9:
+        return bus, {"reduccion_paralela_db": 0.0, "reduccion_pegamento_db": 0.0}
+    aplastada, red_par = _compresor_bus(bus, sr, ratio=10.0, attack_ms=1.0,
+                                        release_ms=80.0, percentil=50.0, margen_db=0.0)
+    aplastada *= rms_in / max(_rms(aplastada), 1e-12)
+    suma = bus + paralela * aplastada
+    pegado, red_peg = _compresor_bus(suma, sr, ratio=3.0, attack_ms=20.0,
+                                     release_ms=150.0, percentil=90.0, margen_db=3.0)
+    pegado *= rms_in / max(_rms(pegado), 1e-12)
+    return pegado, {"reduccion_paralela_db": round(red_par, 1),
+                    "reduccion_pegamento_db": round(red_peg, 1)}
+
+
+def _saturar_2x(x: np.ndarray, drive: float) -> np.ndarray:
+    """Saturación tanh con sobremuestreo 2x (menos aliasing). `x` 1-D,
+    normalizado internamente a pico 1 para que el drive no dependa del nivel
+    de grabación del stem."""
+    pico = float(np.max(np.abs(x)))
+    if pico < 1e-9:
+        return x
+    up = signal.resample_poly(x / pico, 2, 1)
+    sat = np.tanh(up * drive) / np.tanh(drive)
+    return signal.resample_poly(sat, 1, 2)[: len(x)] * pico
+
+
+def _bajo_dividido(audio: np.ndarray, sr: int, corte_hz: float = 200.0,
+                   drive: float = 3.0, mezcla_sat: float = 0.6) -> np.ndarray:
+    """Bajo dividido, práctica del metal moderno: el grave limpio, mono y
+    parejo; los medios saturados para que el bajo se oiga en parlantes chicos.
+
+    Crossover Linkwitz-Riley de 4º orden (dos Butterworth de 2º en cascada):
+    las dos bandas quedan en fase y suman plano en amplitud. El camino
+    saturado se filtra a 6 kHz antes y después (como una caja de
+    amplificador): sin agudos altos la saturación a 2x no genera aliasing
+    audible. Vuelve al RMS de entrada, así el nivel del plan no cambia.
+    """
+    sos_lp = signal.butter(2, corte_hz, "lowpass", fs=sr, output="sos")
+    sos_hp = signal.butter(2, corte_hz, "highpass", fs=sr, output="sos")
+    sos_caja = signal.butter(4, min(6000.0, sr * 0.45), "lowpass", fs=sr, output="sos")
+
+    grave = signal.sosfilt(sos_lp, signal.sosfilt(sos_lp, audio, axis=0), axis=0)
+    medios = signal.sosfilt(sos_hp, signal.sosfilt(sos_hp, audio, axis=0), axis=0)
+
+    grave = np.repeat(grave.mean(axis=1, keepdims=True), 2, axis=1)
+    grave, _ = _compresor_bus(grave, sr, ratio=4.0, attack_ms=10.0, release_ms=120.0,
+                              percentil=50.0, margen_db=0.0)
+
+    canales = [0] if np.allclose(medios[:, 0], medios[:, 1]) else [0, 1]
+    sat = np.empty_like(medios)
+    for c in canales:
+        filtrado = signal.sosfilt(sos_caja, medios[:, c])
+        sat[:, c] = signal.sosfilt(sos_caja, _saturar_2x(filtrado, drive))
+    if canales == [0]:
+        sat[:, 1] = sat[:, 0]
+    sat *= _rms(medios) / max(_rms(sat), 1e-12)
+    medios = (1 - mezcla_sat) * medios + mezcla_sat * sat
+
+    salida = grave + medios
+    return salida * (_rms(audio) / max(_rms(salida), 1e-12))
+
+
 def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
                 transient_cant: float = 0.3, progreso=None,
                 plan_mezcla: dict | None = None,
-                separar: tuple[str, ...] | None = None):
+                separar: tuple[str, ...] | None = None,
+                bus_bateria: bool = False, bajo_dividido: bool = False):
     """Suma todos los stems de una carpeta en una mezcla virtual estéreo.
 
     Alinea longitudes al stem más largo y deja headroom (pico a -6 dBFS)
@@ -239,6 +369,11 @@ def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
     pasa, devuelve (mezcla, sr, grupo, nombres_grupo): `grupo` es la suma de
     los stems cuyo nombre contiene alguna clave, con la MISMA ganancia de
     headroom que la mezcla, para poder procesarlo aparte y volver a sumarlo.
+
+    `bus_bateria` / `bajo_dividido` (30/9): procesado por rol antes de sumar
+    (ver `_bus_bateria` y `_bajo_dividido`). El rol sale del plan si hay, o
+    del nombre del archivo. Apagados por defecto; `masterizar` los prende
+    desde `stems_master` del config.
     """
     archivos = sorted(p for p in Path(carpeta).iterdir()
                       if p.is_file() and p.suffix.lower() in FORMATOS_STEM)
@@ -265,7 +400,7 @@ def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
     except Exception:
         log.exception("No se pudo estimar RAM previa para %s", carpeta)
 
-    pistas, srs, en_grupo = [], [], []
+    pistas, srs, en_grupo, roles = [], [], [], []
     claves_grupo = tuple(c.lower() for c in (separar or ()))
     for p in archivos:
         audio, sr = cargar_audio(p)
@@ -282,7 +417,14 @@ def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
                 # fábrica, se colapsa a mono para repanear — caso raro en
                 # stems de grabación en vivo, casi siempre mono por mic).
                 audio = aplicar_pan(audio[:, 0] * ganancia, info["pan"])
+        rol = ((plan_mezcla or {}).get("stems", {}).get(p.stem, {}).get("rol")
+               or clasificar_rol(p.stem))
+        # "Bass Drum" contiene "bass": no es un bajo
+        if bajo_dividido and rol == "bajo" and not _es_percusion(p.name):
+            audio = _bajo_dividido(audio, sr)
+            log.info("Bajo dividido (grave limpio + medios saturados): %s", p.name)
         pistas.append(audio)
+        roles.append(rol)
         srs.append(sr)
         en_grupo.append(bool(claves_grupo)
                         and any(c in p.name.lower() for c in claves_grupo))
@@ -291,8 +433,19 @@ def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
 
     n = max(p.shape[0] for p in pistas)
     mezcla = np.zeros((n, 2))
-    for p in pistas:
-        mezcla[: p.shape[0]] += p
+    en_bus = [bus_bateria and r in _ROLES_BATERIA for r in roles]
+    bus = np.zeros((n, 2)) if any(en_bus) else None
+    for p, b in zip(pistas, en_bus):
+        (bus if b else mezcla)[: p.shape[0]] += p
+    if bus is not None:
+        bus, info_bus = _bus_bateria(bus, srs[0])
+        msg = (f"Bus de batería ({sum(en_bus)} stems): paralela "
+               f"{info_bus['reduccion_paralela_db']} dB, pegamento "
+               f"{info_bus['reduccion_pegamento_db']} dB")
+        log.info(msg)
+        if progreso:
+            progreso(msg)
+        mezcla += bus
 
     pico = float(np.max(np.abs(mezcla)))
     k = (10 ** (-6.0 / 20)) / pico if pico > 1e-9 else 1.0
@@ -791,7 +944,9 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
             mejorar_percusion=cfg_sm.get("mejorar_percusion", True),
             transient_cant=float(cfg_sm.get("transient_cantidad", 0.3)),
             progreso=progreso,
-            separar=claves_eq or None)
+            separar=claves_eq or None,
+            bus_bateria=bool(cfg_sm.get("bus_bateria", True)),
+            bajo_dividido=bool(cfg_sm.get("bajo_dividido", True)))
         if claves_eq:
             audio, sr, grupo_eq, stems_eq = resultado
             if stems_eq:

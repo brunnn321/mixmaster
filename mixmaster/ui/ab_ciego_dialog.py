@@ -38,6 +38,11 @@ class PanelABCiego(QFrame):
         self._player = QMediaPlayer(self)
         self._audio_out = QAudioOutput(self)
         self._player.setAudioOutput(self._audio_out)
+        # A igual sonoridad: si no, se elige el más fuerte y no el que suena mejor
+        from ..audio_analysis import volumenes_igual_sonoridad
+        vol_a, vol_b = volumenes_igual_sonoridad([self._rutas["A"], self._rutas["B"]])
+        self._volumen = {"A": vol_a, "B": vol_b}
+        self._audio_out.setVolume(vol_a)
         self._fragmento_puesto = False
         self._player.durationChanged.connect(self._ir_a_fragmento)
         self._player.setSource(QUrl.fromLocalFile(str(self._rutas["A"])))
@@ -48,7 +53,8 @@ class PanelABCiego(QFrame):
         lay.addWidget(titulo)
         lay.addWidget(QLabel(
             "Empieza en un fragmento del tema (no desde el inicio) para comparar\n"
-            "donde suele estar el groove. Elige A o B; recién ahí se revela cuál era."))
+            "donde suele estar el groove. Elige A o B; recién ahí se revela cuál era.\n"
+            "Las dos suenan a igual volumen: gana el sonido, no el más fuerte."))
 
         fila = QHBoxLayout()
         self.btn_a = QPushButton("🔘 Escuchar A")
@@ -95,6 +101,7 @@ class PanelABCiego(QFrame):
         pos = self._player.position()
         self._actual = letra
         self._player.setSource(QUrl.fromLocalFile(str(self._rutas[letra])))
+        self._audio_out.setVolume(self._volumen[letra])
         self._player.setPosition(pos)
         if sonando:
             self._player.play()
