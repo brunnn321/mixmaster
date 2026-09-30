@@ -37,6 +37,13 @@ al terminar cada tanda de 3, recién ahí preguntarle.
 - [ ] Tanda 2: siguientes livianos → 12 (códec), 16 (exciter de graves),
   18 (procesar a 2x).
 
+**PARA RETOMAR (Bruno se fue el 30/9):** seguir con la tanda 2 sin preguntar;
+preguntar recién al terminarla. Aparte quedó guardado (commit "WIP consola")
+un trabajo a medio hacer de una sesión anterior, **sin revisar ni probar**:
+`masterizar` guarda en el resumen el espectro de mezcla y referencia, la
+correlación y la envolvente L/R, y `consola.html` tiene ~1100 líneas cambiadas
+(parece el paso de la propuesta v2 a la app, que Bruno todavía no aprobó).
+
 **Mezcla (desde stems — hoy la auto-mezcla solo pone nivel y paneo)**
 - [ ] 1. **Fase/polaridad automática**: hoy solo avisa; que la corrija
   (invertir polaridad / alinear en ms) antes de sumar. Es lo que más cambia

@@ -993,6 +993,10 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
     # silencio real de cabeza/cola antes de cualquier otro proceso.
     largo_previo = audio.shape[0]
     audio, recorte_inicio_s, recorte_fin_s = recortar_silencio_extremos(audio, sr)
+    # Para la pantalla de la consola: el espectro y la correlación de la mezcla
+    # ANTES de procesar, a la misma resolución que el del master.
+    _, esp_entrada = espectro_suavizado(audio, sr, n_puntos=200)
+    corr_entrada = analisis_estereo(audio, sr)["correlacion_global"]
     if grupo_eq is not None and audio.shape[0] != largo_previo:
         i0 = int(round(recorte_inicio_s * sr))
         grupo_eq = grupo_eq[i0: i0 + audio.shape[0]]
@@ -1372,6 +1376,32 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
     # espectro del master final (alta resolución) para la gráfica pre/post
     freqs_out, esp_out = espectro_suavizado(audio, sr, n_puntos=200)
 
+    # Referencia a la misma resolución (la del caché es de 31 puntos): se lee
+    # una vez más el archivo, solo para dibujarla junto a mezcla y master.
+    esp_ref_200 = None
+    if nombres_ref and path_referencia:
+        try:
+            ref0 = (path_referencia if isinstance(path_referencia, list) else [path_referencia])[0]
+            a_ref, sr_ref = cargar_audio(Path(ref0))
+            _, esp_ref_200 = espectro_suavizado(a_ref, sr_ref, n_puntos=200)
+        except Exception:
+            log.exception("No se pudo calcular el espectro de la referencia para la pantalla")
+
+    # Envolvente L/R (dB RMS, 10 por segundo) para las barras LED: el
+    # recorrido real del master, no una animación inventada.
+    paso = max(1, sr // 10)
+    n_fr = audio.shape[0] // paso
+    env = []
+    if n_fr:
+        bloques = audio[: n_fr * paso].reshape(n_fr, paso, audio.shape[1])
+        rms = np.sqrt(np.mean(bloques ** 2, axis=1) + 1e-12)
+        env = np.round(20 * np.log10(rms), 1)
+        if env.shape[1] == 1:
+            env = np.repeat(env, 2, axis=1)
+        if len(env) > 3000:
+            env = env[np.linspace(0, len(env) - 1, 3000).astype(int)]
+        env = env.tolist()
+
     resumen = {
         "wav": str(out_wav),
         "mp3": str(out_mp3),
@@ -1382,6 +1412,12 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
             "freqs": [round(float(f), 1) for f in freqs_out],
             "db": [round(float(d), 1) for d in esp_out],
         },
+        "espectro_mezcla": [round(float(d), 1) for d in esp_entrada],
+        "espectro_referencia": ([round(float(d), 1) for d in esp_ref_200]
+                                if esp_ref_200 is not None else None),
+        "correlacion_mezcla": round(float(corr_entrada), 2),
+        "correlacion_master": round(float(analisis_estereo(audio, sr)["correlacion_global"]), 2),
+        "envolvente_lr": env,
         "target_lufs": target_lufs,
         "recorte_silencio_s": {"inicio": recorte_inicio_s, "fin": recorte_fin_s},
         "muestras_declipeadas": muestras_declipeadas,
