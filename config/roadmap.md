@@ -11,6 +11,43 @@
 > con el ítem 3 sin portarlo). Todo el resto verificó OK. Ambos corregidos a
 > `[~]` abajo con su explicación.
 
+## 🔥🔥 PRIORIDAD N.º 1 — MEJORAR EL RESULTADO DEL AUDIO (30/9, pedido de Bruno)
+
+Bruno: "lo que más me importa es la mejora de resultados, mezcla, master,
+volumen, EQ, limiter, comp, wide, sidechain". Esto va ANTES que lo visual.
+Orden por impacto en cómo suena. Cada ítem se valida de oído (A/B a igual
+loudness), no solo con el score.
+
+**Mezcla (desde stems — hoy la auto-mezcla solo pone nivel y paneo)**
+- [ ] 1. **Fase/polaridad automática**: hoy solo avisa; que la corrija
+  (invertir polaridad / alinear en ms) antes de sumar. Es lo que más cambia
+  el grave en grabaciones en vivo.
+- [ ] 2. **Filtro pasa-altos por rol**: quitar el grave que no aporta
+  (guitarras, voces, overheads, teclas) para dejar lugar a bombo y bajo.
+- [ ] 3. **EQ de desenmascarado**: usar el choque que ya detecta el checklist
+  (7 bandas + Bark) para recortar, en el stem que acompaña, la zona donde
+  pisa al principal.
+- [ ] 4. **Compresión por stem según rol**: voz (nivel parejo), bajo
+  (constante), bombo/caja (ataque). Valores de partida por rol.
+- [ ] 5. **Sidechain**: bombo → bajo (ducking corto en graves) y voz →
+  guitarras/teclas (EQ dinámica en 1–4 kHz solo cuando canta).
+- [ ] 6. **Bus de batería**: compresión de pegamento suave.
+- [ ] 7. **De-esser en la voz** (reusar el del modo voz).
+- [ ] 8. **Reverb/espacio por rol** (envíos cortos, voz y caja) — al final,
+  es lo más de gusto.
+
+**Master**
+- [ ] 9. **Prueba A/B matching 50% vs 100%** a igual loudness (del mentor).
+- [ ] 10. **Volumen guiado por crest**: elegir el LUFS final para aterrizar
+  en crest ~10 (su zona medida: <6 machacado, >12 no se nota).
+- [ ] 11. **Clipper suave antes del limitador**: gana volumen sin bombeo.
+- [ ] 12. **Compresión de bus (glue)** antes del limitador, suave (1–2 dB).
+- [ ] 13. **EQ dinámica de resonancias**: cortar solo cuando la resonancia
+  aparece, no todo el tema.
+- [ ] 14. **Ensanchador M/S seguro**: solo arriba de ~150 Hz, controlando
+  la correlación (no bajar de ~0.2). Para mezclas mono como CRISIntro 2.
+- [ ] 15. **Saturación/excitador armónico suave** en agudos o graves.
+
 ## ⏭️ PENDIENTE PARA MÁS TARDE (actualizado 26/9 noche, orden de Bruno)
 
 1. **Propuesta realista v2** (`docs/propuestas/propuesta_realista_v2.html`):
