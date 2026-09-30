@@ -18,6 +18,9 @@ volumen, EQ, limiter, comp, wide, sidechain". Esto va ANTES que lo visual.
 Orden por impacto en cómo suena. Cada ítem se valida de oído (A/B a igual
 loudness), no solo con el score.
 
+**30/9: investigación completa (mentor + Consejo), 23 mejoras en orden:**
+`docs/propuestas/investigacion_calidad_elite.md`. **Esperando que Bruno elija.**
+
 **Mezcla (desde stems — hoy la auto-mezcla solo pone nivel y paneo)**
 - [ ] 1. **Fase/polaridad automática**: hoy solo avisa; que la corrija
   (invertir polaridad / alinear en ms) antes de sumar. Es lo que más cambia
