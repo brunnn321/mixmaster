@@ -41,8 +41,19 @@ al terminar cada tanda de 3, recién ahí preguntarle.
     **solo cuando no hay referencia**: con referencia el matching recorta
     esos armónicos y se lleva la fundamental (medido: low −1.8 dB).
   - 18 · Clipper y saturación de densidad a 2x (aliasing −52 dB medido).
-- [ ] Tanda 3 (propuesta): 3 fase/polaridad automática, 4 gate de batería
-  con "key spikes", 6 pasa-altos por rol + EQ espejo bajo/guitarras.
+- **Elección de Bruno (2/10)** en `docs/propuestas/lista_para_elegir.md`:
+  quedan 2, 3, 5, 6, 9, 10, 11, 13, 14, 17, 19, 21, 22, 23, 24.
+  **Descartados: 4 (gate de batería), 15 (samples), 20 (reverb/delay).**
+- [x] **Tanda 3 (2/10) — ítems 3, 6 (parte 1) y 14**, tests en verde (20):
+  - 3 · Fase/polaridad automática entre micrófonos de la misma fuente
+    (`_alinear_fase`): ancla caja/bombo/overhead, GCC + afinado sub-muestra.
+  - 6 · Pasa-altos por rol + EQ espejo bajo/guitarras ±1.5 dB en 80 Hz
+    (`_filtros_por_rol`). **Falta la parte 2: desenmascarado dinámico**
+    (la voz baja a guitarras/teclas en 1–4 kHz solo cuando canta).
+  - 14 · Medidores de reducción, distorsión y bombeo de la etapa de volumen
+    (`_medir_limitacion`, `resumen["limitacion"]`). Umbrales iniciales.
+  - Se apagan en `stems_master.alinear_fase` / `filtros_por_rol`.
+- [ ] Tanda 4 (propuesta): 5 voz, 13 saturación + bus suave, 19 estribillos.
 
 **PARA RETOMAR (Bruno se fue el 30/9):** seguir con la tanda 2 sin preguntar;
 preguntar recién al terminarla. Aparte quedó guardado (commit "WIP consola")

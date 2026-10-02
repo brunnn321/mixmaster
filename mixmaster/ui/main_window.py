@@ -2077,6 +2077,13 @@ class MainWindow(QMainWindow):
             aviso_ref_txt += f"\n  ⚠ {resumen['aviso_codec']}"
         elif tp_mp3 is not None:
             aviso_ref_txt += f"\n  MP3 decodificado: {tp_mp3:+.2f} dBTP (sin riesgo en streaming)"
+        lim = resumen.get("limitacion") or {}
+        if lim:
+            aviso_ref_txt += (f"\n  Limitación: −{lim['reduccion_media_db']} dB media, "
+                              f"−{lim['reduccion_p95_db']} dB en lo más fuerte; "
+                              f"distorsión {lim['distorsion_db']} dB")
+        if resumen.get("aviso_limitacion"):
+            aviso_ref_txt += f"\n  ⚠ {resumen['aviso_limitacion']}"
         self.txt_resultado.append(
             f"\n══ MASTER LISTO ({resumen.get('fuente', 'mezcla')}) ══{score_txt}\n"
             f"  LUFS final: {resumen['lufs_final']} (objetivo {resumen['target_lufs']})\n"

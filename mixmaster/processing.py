@@ -19,6 +19,7 @@ from scipy import signal
 
 from .app_paths import CONFIG_DIR
 from .automezcla import aplicar_pan, clasificar_rol
+from .stem_diagnostico import _cross_correlacion_maxima, _decimar_para_correlacion
 from .audio_analysis import espectro_ms, tramos_fuertes
 from .audio_analysis import (
     BANDAS_HZ, CRUCES_HZ, analisis_estereo, balance_bandas_db, cargar_audio,
@@ -107,6 +108,10 @@ CONFIG_MASTER_DEFAULT = {
         # antes de sumar; el rol sale del nombre (automezcla.clasificar_rol).
         "bus_bateria": True,     # compresión paralela + pegamento del bus
         "bajo_dividido": True,   # grave limpio y mono + medios saturados
+        # 2/10 (ítems 3 y 6): fase/polaridad entre micrófonos de la misma
+        # fuente, pasa-altos por rol y EQ espejo bajo/guitarras
+        "alinear_fase": True,
+        "filtros_por_rol": True,
     },
     "clipper": {
         # recorta solo los picos (transitorios de batería) antes del limitador:
@@ -354,11 +359,144 @@ def _bajo_dividido(audio: np.ndarray, sr: int, corte_hz: float = 200.0,
     return salida * (_rms(audio) / max(_rms(salida), 1e-12))
 
 
+def _desplazar(audio: np.ndarray, muestras: float) -> np.ndarray:
+    """Desplaza en el tiempo con precisión sub-muestra (positivo = retrasa,
+    negativo = adelanta; offline se puede adelantar). Parte entera por
+    corrimiento con ceros; parte fraccional con un sinc enventanado de 33
+    coeficientes (fase lineal, centrado: no agrega retardo propio)."""
+    entero = int(np.floor(muestras))
+    frac = muestras - entero
+    out = np.zeros_like(audio)
+    if entero >= 0:
+        out[entero:] = audio[: len(audio) - entero]
+    else:
+        out[: len(audio) + entero] = audio[-entero:]
+    if frac > 1e-3:
+        k = np.arange(-16, 17)
+        h = np.sinc(k - frac) * np.hanning(35)[1:-1]
+        h /= h.sum()
+        out = signal.lfilter(h, [1.0], np.concatenate([out, np.zeros((16, out.shape[1]))]),
+                             axis=0)[16:]
+    return out
+
+
+# Familias que pueden compartir fuente por bleed: los micrófonos de batería
+# entre sí, y dentro de cada rol (bajo DI + amplificador, guitarra DI + mic)
+_ANCLA_BATERIA = ("snare", "kick", "overhead")
+
+
+def _alinear_fase(pistas: list, roles: list, nombres: list, sr: int,
+                  umbral: float = 0.6, max_lag_ms: float = 30.0) -> list[str]:
+    """Corrige polaridad y tiempo entre micrófonos de la MISMA fuente
+    (ítem 3). Modifica `pistas` en el lugar y devuelve lo que hizo.
+
+    Por familia (batería, o cada rol) se elige un ancla (caja, si no bombo,
+    si no overhead; fuera de batería, el stem con más nivel). Cada miembro
+    se correlaciona con el ancla (GCC acotado a `max_lag_ms`, señal
+    decimada); si |correlación| ≥ `umbral` es la misma fuente: se invierte
+    si la correlación es negativa y se lleva al tiempo del ancla. El retardo
+    grueso se afina a la frecuencia completa con interpolación parabólica
+    sobre los 10 s más fuertes del ancla. Lo que no correlaciona no se toca.
+    """
+    familias: dict[str, list[int]] = {}
+    for i, rol in enumerate(roles):
+        clave = "bateria" if rol in _ROLES_BATERIA else rol
+        if clave != "generico":
+            familias.setdefault(clave, []).append(i)
+
+    hechos = []
+    for fam, idx in familias.items():
+        if len(idx) < 2:
+            continue
+        monos = {i: pistas[i].mean(axis=1) for i in idx}
+        ancla = None
+        if fam == "bateria":
+            for r in _ANCLA_BATERIA:
+                ancla = next((i for i in idx if roles[i] == r), None)
+                if ancla is not None:
+                    break
+        if ancla is None:
+            ancla = max(idx, key=lambda i: float(np.mean(monos[i] ** 2)))
+        a_dec, sr_dec = _decimar_para_correlacion(monos[ancla], sr)
+        factor = sr / sr_dec
+
+        # tramo de 10 s más fuerte del ancla, para afinar a resolución completa
+        largo = min(len(monos[ancla]), 10 * sr)
+        paso = max(1, sr // 2)
+        energias = [float(np.sum(monos[ancla][s: s + largo] ** 2))
+                    for s in range(0, max(1, len(monos[ancla]) - largo), paso)]
+        ini = int(np.argmax(energias)) * paso if energias else 0
+
+        for i in idx:
+            if i == ancla:
+                continue
+            m_dec, _ = _decimar_para_correlacion(monos[i], sr)
+            lag_ms, corr = _cross_correlacion_maxima(m_dec, a_dec, sr_dec, max_lag_ms)
+            if abs(corr) < umbral:
+                continue
+            signo = -1.0 if corr < 0 else 1.0
+            # afinado: correlación a frecuencia completa alrededor del lag grueso
+            grueso = int(round(lag_ms / 1000 * sr))
+            radio = int(np.ceil(factor)) + 1
+            ref = monos[ancla][ini: ini + largo]
+            m = monos[i] * signo
+            lags = np.arange(grueso - radio, grueso + radio + 1)
+            vals = []
+            for k in lags:
+                s0 = ini + k
+                if s0 < 0 or s0 + len(ref) > len(m):
+                    vals.append(-np.inf)
+                    continue
+                vals.append(float(np.dot(m[s0: s0 + len(ref)], ref)))
+            vals = np.array(vals)
+            j = int(np.argmax(vals))
+            fino = float(lags[j])
+            if 0 < j < len(vals) - 1 and np.isfinite(vals[j - 1]) and np.isfinite(vals[j + 1]):
+                den = vals[j - 1] - 2 * vals[j] + vals[j + 1]
+                if den < 0:
+                    fino += 0.5 * (vals[j - 1] - vals[j + 1]) / den
+            if signo < 0:
+                pistas[i] = -pistas[i]
+            if abs(fino) >= 0.25:
+                pistas[i] = _desplazar(pistas[i], -fino)
+            if signo < 0 or abs(fino) >= 0.25:
+                hechos.append(f"{nombres[i]} (respecto de {nombres[ancla]}): "
+                              f"{'polaridad invertida, ' if signo < 0 else ''}"
+                              f"{fino / sr * 1000:+.2f} ms (corr {abs(corr):.2f})")
+    return hechos
+
+
+# Pasa-altos por rol (Hz, 12 dB/oct): saca el grave que no aporta y deja
+# lugar a bombo y bajo. Valores de oficio para rock/metal, no medidos.
+_HPF_ROL = {
+    "guitarra": 70.0, "voz_principal": 90.0, "coros": 120.0, "overhead": 120.0,
+    "hats": 250.0, "snare": 70.0, "toms": 50.0, "teclas": 40.0, "vientos": 100.0,
+    "percusion_mayor": 60.0, "percusion_menor": 200.0, "bajo": 30.0,
+}
+# EQ espejo (Nolly Getgood, Periphery): el bajo sube ~80 Hz y las guitarras
+# bajan lo mismo ahí, para que cada uno tenga su lugar en el grave.
+_ESPEJO_HZ, _ESPEJO_DB, _ESPEJO_Q = 80.0, 1.5, 0.9
+
+
+def _filtros_por_rol(audio: np.ndarray, sr: int, rol: str, espejo: bool) -> np.ndarray:
+    """Pasa-altos según el rol y, si `espejo`, la EQ espejo bajo/guitarras."""
+    corte = _HPF_ROL.get(rol)
+    if corte:
+        sos = signal.butter(2, corte, "highpass", fs=sr, output="sos")
+        audio = signal.sosfilt(sos, audio, axis=0)
+    if espejo and rol in ("bajo", "guitarra"):
+        b, a = _peaking_biquad(_ESPEJO_HZ, _ESPEJO_DB if rol == "bajo" else -_ESPEJO_DB,
+                               _ESPEJO_Q, sr)
+        audio = signal.lfilter(b, a, audio, axis=0)
+    return audio
+
+
 def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
                 transient_cant: float = 0.3, progreso=None,
                 plan_mezcla: dict | None = None,
                 separar: tuple[str, ...] | None = None,
-                bus_bateria: bool = False, bajo_dividido: bool = False):
+                bus_bateria: bool = False, bajo_dividido: bool = False,
+                alinear_fase: bool = False, filtros_por_rol: bool = False):
     """Suma todos los stems de una carpeta en una mezcla virtual estéreo.
 
     Alinea longitudes al stem más largo y deja headroom (pico a -6 dBFS)
@@ -378,8 +516,9 @@ def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
     los stems cuyo nombre contiene alguna clave, con la MISMA ganancia de
     headroom que la mezcla, para poder procesarlo aparte y volver a sumarlo.
 
-    `bus_bateria` / `bajo_dividido` (30/9): procesado por rol antes de sumar
-    (ver `_bus_bateria` y `_bajo_dividido`). El rol sale del plan si hay, o
+    `bus_bateria` / `bajo_dividido` (30/9), `alinear_fase` / `filtros_por_rol`
+    (2/10): procesado por rol antes de sumar (ver `_bus_bateria`,
+    `_bajo_dividido`, `_alinear_fase` y `_filtros_por_rol`). El rol sale del plan si hay, o
     del nombre del archivo. Apagados por defecto; `masterizar` los prende
     desde `stems_master` del config.
     """
@@ -427,8 +566,9 @@ def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
                 audio = aplicar_pan(audio[:, 0] * ganancia, info["pan"])
         rol = ((plan_mezcla or {}).get("stems", {}).get(p.stem, {}).get("rol")
                or clasificar_rol(p.stem))
-        # "Bass Drum" contiene "bass": no es un bajo
-        if bajo_dividido and rol == "bajo" and not _es_percusion(p.name):
+        if rol == "bajo" and _es_percusion(p.name):
+            rol = "kick"  # "Bass Drum" contiene "bass": no es un bajo
+        if bajo_dividido and rol == "bajo":
             audio = _bajo_dividido(audio, sr)
             log.info("Bajo dividido (grave limpio + medios saturados): %s", p.name)
         pistas.append(audio)
@@ -438,6 +578,16 @@ def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
                         and any(c in p.name.lower() for c in claves_grupo))
     if len(set(srs)) > 1:
         raise ValueError(f"Los stems tienen sample rates distintos: {sorted(set(srs))}")
+
+    if alinear_fase:
+        hechos = _alinear_fase(pistas, roles, [p.stem for p in archivos], srs[0])
+        for h in hechos:
+            log.info("Fase: %s", h)
+        if hechos and progreso:
+            progreso("Fase alineada: " + "; ".join(hechos))
+    if filtros_por_rol:
+        espejo = "bajo" in roles and "guitarra" in roles
+        pistas = [_filtros_por_rol(p, srs[0], r, espejo) for p, r in zip(pistas, roles)]
 
     n = max(p.shape[0] for p in pistas)
     mezcla = np.zeros((n, 2))
@@ -908,6 +1058,51 @@ def _envolvente_lookahead(pico: np.ndarray, sr: int, lookahead_ms: float,
     return suave
 
 
+def _medir_limitacion(pre: np.ndarray, post: np.ndarray, sr: int) -> dict:
+    """Medidores de la etapa de volumen (ítem 14): cuánto bajó la ganancia,
+    cuánta distorsión agregó y si bombea con el grave.
+
+    `pre` es la señal antes de clipper + limitador, `post` el master. La
+    ganancia se mide en ventanas de 10 ms (relativa a su mediana, así no
+    cuenta la subida de nivel). Distorsión: lo que queda al quitarle a `post`
+    esa ganancia lenta (lo que no es un cambio de volumen es deformación de
+    la onda). Bombeo: si la ganancia en medios (300 Hz–5 kHz) baja cada vez
+    que sube el grave (<150 Hz), el bombo está "empujando" la mezcla.
+    Umbrales de aviso iniciales, a calibrar de oído.
+    """
+    n = min(len(pre), len(post))
+    a, b = pre[:n].mean(axis=1), post[:n].mean(axis=1)
+    v = max(1, int(sr * 0.01))
+    nb = n // v
+    if nb < 10:
+        return {}
+
+    def rms_b(x):
+        return np.sqrt(np.mean(x[: nb * v].reshape(nb, v) ** 2, axis=1) + 1e-12)
+
+    r_pre = rms_b(a)
+    activos = 20 * np.log10(r_pre) > 20 * np.log10(r_pre.max()) - 30
+    g_db = 20 * np.log10(rms_b(b) / r_pre)
+    red = np.median(g_db[activos]) - g_db
+    g_lin = np.interp(np.arange(n), np.arange(nb) * v + v / 2, 10 ** (g_db / 20))
+    residuo = b - a * g_lin
+    dist_db = 10 * np.log10(np.sum(residuo ** 2) / max(np.sum(b ** 2), 1e-12))
+
+    sos_g = signal.butter(2, 150, "lowpass", fs=sr, output="sos")
+    sos_m = signal.butter(2, [300, 5000], "bandpass", fs=sr, output="sos")
+    grave = 20 * np.log10(rms_b(signal.sosfilt(sos_g, a)))
+    g_medios = 20 * np.log10(rms_b(signal.sosfilt(sos_m, b)) / rms_b(signal.sosfilt(sos_m, a)))
+    corr = float(np.corrcoef(grave[activos], g_medios[activos])[0, 1]) if activos.sum() > 10 else 0.0
+    rango_medios = float(np.percentile(g_medios[activos], 95) - np.percentile(g_medios[activos], 5))
+    return {
+        "reduccion_media_db": round(float(np.mean(red[activos])), 1),
+        "reduccion_p95_db": round(float(np.percentile(red[activos], 95)), 1),
+        "distorsion_db": round(float(dist_db), 1),
+        "bombeo_corr": round(corr, 2),
+        "bombeo": bool(corr < -0.4 and rango_medios > 2.0),
+    }
+
+
 def _limitador(audio: np.ndarray, sr: int, cfg_lim: dict) -> np.ndarray:
     """Limitador de DOS ETAPAS con lookahead sobre TRUE peak (inter-sample) y
     rodilla suave — reduce distorsión audible al empujar fuerte, comparado
@@ -991,7 +1186,9 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
             progreso=progreso,
             separar=claves_eq or None,
             bus_bateria=bool(cfg_sm.get("bus_bateria", True)),
-            bajo_dividido=bool(cfg_sm.get("bajo_dividido", True)))
+            bajo_dividido=bool(cfg_sm.get("bajo_dividido", True)),
+            alinear_fase=bool(cfg_sm.get("alinear_fase", True)),
+            filtros_por_rol=bool(cfg_sm.get("filtros_por_rol", True)))
         if claves_eq:
             audio, sr, grupo_eq, stems_eq = resultado
             if stems_eq:
@@ -1285,6 +1482,7 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
     # última medición y nadie los compensaba — de ahí el sesgo sistemático de
     # la tanda del 2026-08-09 (18 de 20 por debajo, media -9.33 con target -9).
     # El limitador solo toca lo que pasa el techo: si no hay nada, es un no-op.
+    pre_volumen = audio.copy()  # para los medidores de limitación (ítem 14)
     avisar(f"Limitando picos — pasada de seguridad (techo {cfg_lim['ceiling_dbtp']:g} dBTP)…")
     audio = _limitador(audio, sr, cfg_lim)
 
@@ -1397,6 +1595,24 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
     if aviso_crest:
         log.warning(aviso_crest)
         avisar(f"⚠ {aviso_crest}")
+
+    limitacion, aviso_limitacion = {}, None
+    try:
+        limitacion = _medir_limitacion(pre_volumen, audio, sr)
+    except Exception:
+        log.exception("No se pudieron medir bombeo/distorsión")
+    del pre_volumen
+    partes = []
+    if limitacion.get("bombeo"):
+        partes.append("el limitador bombea con el grave (los medios bajan en cada "
+                      f"golpe, correlación {limitacion['bombeo_corr']:+.2f})")
+    if limitacion.get("distorsion_db", -99) > -30:
+        partes.append(f"la limitación agrega distorsión ({limitacion['distorsion_db']:.0f} dB "
+                      "respecto de la señal)")
+    if partes:
+        aviso_limitacion = ("Etapa de volumen: " + "; ".join(partes)
+                            + ". Probar un objetivo de LUFS más bajo.")
+        avisar(f"⚠ {aviso_limitacion}")
 
     score = None
     if perfil is not None:
@@ -1514,6 +1730,8 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         "aviso_referencia_calidad": aviso_calidad_ref,
         "true_peak_mp3_dbtp": tp_mp3,
         "aviso_codec": aviso_codec,
+        "limitacion": limitacion,
+        "aviso_limitacion": aviso_limitacion,
         "referencias": nombres_ref,
         "score": score,
     }
