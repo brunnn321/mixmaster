@@ -2082,6 +2082,16 @@ class MainWindow(QMainWindow):
             nombres = {"drums": "batería", "bass": "bajo", "vocals": "voz", "other": "resto"}
             aviso_ref_txt += "\n  Balance como la referencia: " + ", ".join(
                 f"{nombres.get(g, g)} {v['ajuste_db']:+.1f} dB" for g, v in bal.items())
+        consola = resumen.get("consola_optimizada") or {}
+        if consola:
+            nombres = {"drums": "batería", "bass": "bajo", "vocals": "voz", "other": "resto"}
+            aviso_ref_txt += "\n  Consola optimizada: " + ", ".join(
+                f"{nombres.get(g, g)} {v['ganancia_db']:+.1f} dB, EQ {v['eq_db']}"
+                for g, v in consola.items())
+        din = resumen.get("dinamica_grupos") or {}
+        if din:
+            aviso_ref_txt += "\n  Dinámica por grupo: " + ", ".join(
+                f"{g} −{v:.1f} dB de rango" for g, v in din.items())
         lim = resumen.get("limitacion") or {}
         if lim:
             aviso_ref_txt += (f"\n  Limitación: −{lim['reduccion_media_db']} dB media, "

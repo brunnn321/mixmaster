@@ -144,6 +144,18 @@ CONFIG_MASTER_DEFAULT = {
         # ítem 2: separa la referencia (Demucs) y lleva batería/bajo/voz/resto
         # a su balance. Sin torch/demucs instalados se salta solo.
         "balance_referencia": True,
+        # ítems 23 y 22: ganancia + EQ por grupo aprendidas contra la
+        # referencia separada, y dinámica de cada grupo como en la referencia
+        "consola_optimizada": True,
+        "dinamica_grupos": True,
+    },
+    # 2/10 (ítem 24): EQ perceptual estilo Gullfoss. "recuperar" realza lo
+    # que queda enmascarado por bandas vecinas; "domar" baja lo que domina.
+    # Con "EQ solo en guitarras" actúa solo sobre las guitarras.
+    "eq_perceptual": {
+        "activo": True,
+        "recuperar_db": 2.0,
+        "domar_db": 2.0,
     },
     # 2/10 (ítem 13): pegamento 2:1 + saturación suave, después del EQ
     "bus_master": {
@@ -618,6 +630,140 @@ def _igualar_balance(pistas: list, roles: list, sr: int, balance_ref: dict,
                 "ajuste_db": round(ajuste[g], 1)} for g in antes}
 
 
+def _ganancia_compresion(mono: np.ndarray, sr: int, ratio: float, umbral_db: float,
+                         attack_ms: float, release_ms: float) -> np.ndarray:
+    """La curva de ganancia de `_comprimir_banda` (mismo detector RMS de
+    fase cero), para aplicarla igual a varias pistas de un grupo."""
+    tau = max((attack_ms + release_ms) / 2 / 1000 * sr, 1.0)
+    alpha = float(np.exp(-1.0 / tau))
+    power = signal.filtfilt([1 - alpha], [1.0, -alpha], mono ** 2)
+    env_db = 10.0 * np.log10(np.maximum(power, 1e-12))
+    return 10 ** (-np.maximum(env_db - umbral_db, 0.0) * (1.0 - 1.0 / ratio) / 20.0)
+
+
+def _dinamica_por_grupo(pistas: list, roles: list, sr: int, rango_ref: dict,
+                        umbral_db: float = 1.0, ratio_max: float = 4.0) -> dict:
+    """Master por grupos (ítem 22): cada grupo (batería, bajo, voz, resto) se
+    comprime como un bus hasta moverse como ESE grupo en la referencia
+    separada (rango p95−p50 en 50 ms). Es dinámica, no EQ: respeta "EQ solo
+    en guitarras". La ganancia sale de la suma del grupo y se aplica igual a
+    todas sus pistas (no cambia el balance interno). Ratio por bisección,
+    nunca expande. Modifica `pistas`; devuelve {grupo: dB de rango quitados}."""
+    grupos = [_grupo_separacion(r) for r in roles]
+    n = max(p.shape[0] for p in pistas)
+    hecho = {}
+    for g in set(grupos):
+        r_ref = rango_ref.get(g)
+        if r_ref is None:
+            continue
+        idx = [i for i, gi in enumerate(grupos) if gi == g]
+        suma = np.zeros(n)
+        for i in idx:
+            suma[: pistas[i].shape[0]] += pistas[i].mean(axis=1)
+        r_mix, p50 = rango_corto_db(suma, sr)
+        if r_mix - r_ref <= umbral_db:
+            continue
+        lo, hi = 1.0, ratio_max
+        mejor, r_mejor = np.ones(n), r_mix
+        for _ in range(5):
+            ratio = (lo + hi) / 2
+            gan = _ganancia_compresion(suma, sr, ratio, p50, 15.0, 120.0)
+            r_post = rango_corto_db(suma * gan, sr)[0]
+            if abs(r_post - r_ref) < abs(r_mejor - r_ref):
+                mejor, r_mejor = gan, r_post
+            if r_post > r_ref + 0.3:
+                lo = ratio
+            else:
+                hi = ratio
+        makeup = np.sqrt(np.mean(suma ** 2) / max(np.mean((suma * mejor) ** 2), 1e-24))
+        for i in idx:
+            pistas[i] = pistas[i] * (mejor[: pistas[i].shape[0]] * makeup)[:, None]
+        hecho[g] = round(r_mix - r_mejor, 1)
+    return hecho
+
+
+def _curva_consola(freqs: np.ndarray, graves_db, medios_db, agudos_db, xp=np):
+    """EQ de 3 bandas de la consola optimizada: shelf de graves (120 Hz),
+    campana ancha (1 kHz, ±1 octava) y shelf de agudos (6 kHz), en dB.
+    `xp` permite evaluarla con numpy o con torch (para derivarla)."""
+    l2 = xp.log2(freqs)
+    sig = lambda x: 1 / (1 + xp.exp(-x))
+    return (graves_db * sig(-(l2 - np.log2(120.0)) * 2)
+            + medios_db * xp.exp(-0.5 * ((l2 - np.log2(1000.0)) / 1.0) ** 2)
+            + agudos_db * sig((l2 - np.log2(6000.0)) * 2))
+
+
+def _consola_optimizada(pistas: list, roles: list, sr: int, medidas_ref: dict,
+                        grupos_con_eq: set, pasos: int = 300) -> dict:
+    """Mezcla por optimización diferenciable (ítem 23), en la línea de las
+    consolas diferenciables (Steinmetz et al., ICASSP 2021; DeepAFx-ST, JAES
+    2022), en versión chica: por grupo se aprenden la ganancia (±3 dB) y una
+    EQ de 3 bandas (±4 dB) con descenso de gradiente (Adam, torch) para que
+    la FORMA del espectro de cada grupo y la del total se parezcan a las de
+    la referencia separada. Trabaja sobre espectros (los grupos suman en
+    potencia), así que no procesa audio en el bucle: tarda segundos.
+
+    Solo los grupos de `grupos_con_eq` reciben EQ (respeta "EQ solo en
+    guitarras"); el resto solo ganancia. No es una red entrenada: aprende
+    los parámetros para ESTE tema. Modifica `pistas`; devuelve los
+    parámetros por grupo."""
+    import torch
+
+    freqs_ref = np.asarray(medidas_ref.get("freqs") or [], dtype=float)
+    esp_ref = medidas_ref.get("espectro") or {}
+    grupos = [_grupo_separacion(r) for r in roles]
+    activos = [g for g in GRUPOS_SEP if g in grupos and esp_ref.get(g)]
+    if len(activos) < 2 or freqs_ref.size == 0:
+        return {}
+    n = max(p.shape[0] for p in pistas)
+    esp_mix = {}
+    for g in activos:
+        suma = np.zeros((n, 2))
+        for p, gi in zip(pistas, grupos):
+            if gi == g:
+                suma[: p.shape[0]] += p
+        f, e = espectro_suavizado(suma, sr, n_puntos=len(freqs_ref))
+        esp_mix[g] = e
+    util = freqs_ref <= F_MAX_MATCH_HZ
+    F = torch.tensor(freqs_ref[util])
+    M = {g: torch.tensor(esp_mix[g][util]) for g in activos}
+    R = {g: torch.tensor(np.asarray(esp_ref[g], dtype=float)[util]) for g in activos}
+    r_tot = 10 * torch.log10(sum(10 ** (R[g] / 10) for g in activos))
+
+    def forma(x):
+        return x - x.mean()
+
+    gan = {g: torch.zeros(1, requires_grad=True) for g in activos}
+    eq = {g: torch.zeros(3, requires_grad=(g in grupos_con_eq)) for g in activos}
+    params = [gan[g] for g in activos] + [eq[g] for g in activos if g in grupos_con_eq]
+    opt = torch.optim.Adam(params, lr=0.05)
+    for _ in range(pasos):
+        opt.zero_grad()
+        nuevos = {}
+        for g in activos:
+            e = 4 * torch.tanh(eq[g] / 4)
+            nuevos[g] = M[g] + 3 * torch.tanh(gan[g] / 3) + _curva_consola(F, e[0], e[1], e[2], torch)
+        tot = 10 * torch.log10(sum(10 ** (nuevos[g] / 10) for g in activos))
+        perdida = ((forma(tot) - forma(r_tot)) ** 2).mean()
+        perdida = perdida + 0.5 * sum(((forma(nuevos[g]) - forma(R[g])) ** 2).mean()
+                                      for g in activos if g in grupos_con_eq) / max(len(activos), 1)
+        perdida.backward()
+        opt.step()
+
+    resultado = {}
+    for g in activos:
+        g_db = float(3 * np.tanh(gan[g].item() / 3))
+        e = (4 * torch.tanh(eq[g] / 4)).detach().numpy() if g in grupos_con_eq else np.zeros(3)
+        curva = _curva_consola(freqs_ref, *e) + g_db
+        fir = _curva_fir_fina(freqs_ref, curva, sr)
+        for i, gi in enumerate(grupos):
+            if gi == g:
+                pistas[i] = _aplicar_fir(pistas[i], fir)
+        resultado[g] = {"ganancia_db": round(g_db, 1), "eq_db": [round(float(x), 1) for x in e]}
+    return resultado
+
+
+GRUPOS_SEP = ("drums", "bass", "vocals", "other")
 _ROLES_ACOMPANAMIENTO = ("guitarra", "teclas", "vientos")
 
 
@@ -711,7 +857,9 @@ def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
                 alinear_fase: bool = False, filtros_por_rol: bool = False,
                 cadena_voz: bool = False, estribillos: bool = False,
                 desenmascarar: bool = False, balance_ref: dict | None = None,
-                informe: dict | None = None):
+                informe: dict | None = None, medidas_ref: dict | None = None,
+                consola_ml: bool = False, dinamica_grupos: bool = False,
+                grupos_eq: set | None = None):
     """Suma todos los stems de una carpeta en una mezcla virtual estéreo.
 
     Alinea longitudes al stem más largo y deja headroom (pico a -6 dBFS)
@@ -737,7 +885,10 @@ def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
     `_filtros_por_rol`, `_cadena_voz` y `_levantar_estribillos`).
     `balance_ref` (de `separacion.balance_por_instrumento`): lleva el balance
     batería/bajo/voz/resto al de la referencia; `informe` (dict) recibe el
-    detalle en "balance_referencia". El rol sale del plan si hay, o
+    detalle en "balance_referencia". Con `medidas_ref` (de
+    `separacion.medidas_por_instrumento`): `consola_ml` aprende ganancia y EQ
+    por grupo (`_consola_optimizada`, EQ solo en `grupos_eq`) y
+    `dinamica_grupos` comprime cada grupo como en la referencia. El rol sale del plan si hay, o
     del nombre del archivo. Apagados por defecto; `masterizar` los prende
     desde `stems_master` del config.
     """
@@ -819,6 +970,25 @@ def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
         log.info(msg)
         if progreso:
             progreso(msg)
+    if medidas_ref and consola_ml:
+        try:
+            consola = _consola_optimizada(pistas, roles, srs[0], medidas_ref,
+                                          grupos_eq if grupos_eq is not None else set(GRUPOS_SEP))
+        except ImportError:
+            consola = {}
+            log.warning("Consola optimizada: torch no está instalado, se salta")
+        if informe is not None:
+            informe["consola_optimizada"] = consola
+        if consola and progreso:
+            progreso("Consola optimizada: " + ", ".join(
+                f"{g} {v['ganancia_db']:+.1f} dB" for g, v in consola.items()))
+    if medidas_ref and dinamica_grupos:
+        din = _dinamica_por_grupo(pistas, roles, srs[0], medidas_ref.get("rango") or {})
+        if informe is not None:
+            informe["dinamica_grupos"] = din
+        if din and progreso:
+            progreso("Dinámica por grupo como la referencia: " + ", ".join(
+                f"{g} −{v:.1f} dB de rango" for g, v in din.items()))
     if desenmascarar:
         red_voz = _desenmascarar_voz(pistas, roles, srs[0])
         if red_voz > 0:
@@ -1142,6 +1312,61 @@ def _resonancias_dinamicas(audio: np.ndarray, sr: int, f_lo: float, f_hi: float,
         y = np.vstack([y, np.zeros((n - y.shape[0], y.shape[1]))])
     activo = red[banda] > 0.1
     return y, float(red[banda][activo].mean()) if activo.any() else 0.0
+
+
+def _eq_perceptual(audio: np.ndarray, sr: int, recuperar_db: float = 2.0,
+                   domar_db: float = 2.0) -> tuple[np.ndarray, float]:
+    """EQ perceptual adaptativa (ítem 24), aproximación propia de la idea de
+    Gullfoss con un modelo clásico de enmascaramiento: bandas críticas de
+    Bark (Zwicker) y la función de dispersión de Schroeder et al. (JASA 1979).
+
+    En cada cuadro (STFT 2048/1024, ~23 ms; energía promediada ~190 ms):
+    - "Recuperar": una banda que sus vecinas tapan por 0–12 dB sube hasta
+      `recuperar_db` (está por perderse, todavía se puede rescatar; si la
+      tapan más, subirla no sirve).
+    - "Domar": una banda que sobresale más de 6 dB sobre sus vecinas (±2 Bark)
+      baja hasta `domar_db` (es la que enmascara a las demás).
+    La ganancia se suaviza en el tiempo (~50 ms). Ganancia enlazada L/R.
+    Devuelve (audio, cambio medio absoluto en dB)."""
+    nper, salto = 2048, 1024
+    n = audio.shape[0]
+    if n < nper * 4:
+        return audio, 0.0
+    f, _, Z = signal.stft(audio.T.astype(np.float32), fs=sr, nperseg=nper,
+                          noverlap=nper - salto, boundary="even")
+    bark = 13 * np.arctan(0.00076 * f) + 3.5 * np.arctan((f / 7500.0) ** 2)
+    banda = np.minimum(bark.astype(int), 24)
+    nb = int(banda.max()) + 1
+    from scipy.ndimage import uniform_filter1d
+    pot = uniform_filter1d((np.abs(Z) ** 2).mean(axis=0), size=8, axis=1, mode="nearest")
+    E = np.stack([pot[banda == b].sum(axis=0) for b in range(nb)]) + 1e-18  # (bandas, cuadros)
+    E_db = 10 * np.log10(E)
+
+    dz = np.arange(nb)[:, None] - np.arange(nb)[None, :]
+    sf_db = 15.81 + 7.5 * (dz + 0.474) - 17.5 * np.sqrt(1 + (dz + 0.474) ** 2)
+    W = 10 ** ((sf_db - 10.0) / 10)          # −10 dB: umbral de enmascaramiento
+    np.fill_diagonal(W, 0.0)
+    M_db = 10 * np.log10(W @ E + 1e-18)       # lo que las vecinas tapan en cada banda
+
+    deficit = M_db - E_db
+    subir = np.where((deficit > 0) & (deficit < 12), recuperar_db * np.clip(deficit / 6, 0, 1), 0.0)
+    # promedio de las vecinas en POTENCIA (en dB, una vecina fuerte rodeada de
+    # silencio quedaría escondida y la banda débil parecería dominar)
+    vecinas = 10 * np.log10(np.stack([np.mean(np.delete(E[max(0, b - 2): b + 3], min(b, 2), axis=0),
+                                              axis=0) for b in range(nb)]))
+    dominio = E_db - vecinas
+    bajar = domar_db * np.clip((dominio - 6) / 6, 0, 1)
+    activo = E_db > E_db.max() - 60           # no tocar silencio ni ruido de fondo
+    g_db = np.where(activo, subir - bajar, 0.0)
+
+    a = float(np.exp(-1.0 / max(0.05 * sr / salto, 1e-3)))
+    g_db = signal.filtfilt([1 - a], [1.0, -a], g_db, axis=1)
+    Z *= (10 ** (g_db[banda] / 20)).astype(np.float32)[None]
+    _, y = signal.istft(Z, fs=sr, nperseg=nper, noverlap=nper - salto, boundary=True)
+    y = y.T[:n].astype(np.float64)
+    if y.shape[0] < n:
+        y = np.vstack([y, np.zeros((n - y.shape[0], y.shape[1]))])
+    return y, float(np.mean(np.abs(g_db[:, activo.any(axis=0)]))) if activo.any() else 0.0
 
 
 def _abrir_mono(audio: np.ndarray, sr: int, umbral_mono: float = 0.95,
@@ -1639,12 +1864,16 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         avisar("Sumando stems en mezcla virtual…")
         cfg_sm = cfg.get("stems_master", {})
         claves_eq = tuple(cfg_sm.get("eq_solo_en") or ())
-        balance_ref = None
-        if path_referencia and cfg_sm.get("balance_referencia", True):
-            from .separacion import balance_por_instrumento
+        balance_ref, medidas_ref = None, None
+        usa_sep = any(cfg_sm.get(k, True) for k in
+                      ("balance_referencia", "consola_optimizada", "dinamica_grupos"))
+        if path_referencia and usa_sep:
+            from .separacion import medidas_por_instrumento
             ref0 = (path_referencia if isinstance(path_referencia, list) else [path_referencia])[0]
-            balance_ref = balance_por_instrumento(Path(ref0), progreso=avisar)
-            if balance_ref is None:
+            medidas_ref = medidas_por_instrumento(Path(ref0), progreso=avisar)
+            if medidas_ref and cfg_sm.get("balance_referencia", True):
+                balance_ref = medidas_ref["balance"]
+            if medidas_ref is None:
                 avisar("⚠ No se pudo medir el balance de la referencia por instrumento "
                        "(separador no instalado o falló): se usa la jerarquía por rol.")
         resultado = sumar_stems(
@@ -1660,7 +1889,11 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
             cadena_voz=bool(cfg_sm.get("cadena_voz", True)),
             estribillos=bool(cfg_sm.get("estribillos", True)),
             desenmascarar=bool(cfg_sm.get("desenmascarar", True)),
-            balance_ref=balance_ref, informe=informe_stems)
+            balance_ref=balance_ref, informe=informe_stems, medidas_ref=medidas_ref,
+            consola_ml=bool(cfg_sm.get("consola_optimizada", True)),
+            dinamica_grupos=bool(cfg_sm.get("dinamica_grupos", True)),
+            # con "EQ solo en guitarras", la consola solo ecualiza el grupo "other"
+            grupos_eq={"other"} if claves_eq else None)
         if claves_eq:
             audio, sr, grupo_eq, stems_eq = resultado
             if stems_eq:
@@ -1755,6 +1988,17 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         aplicar_eq(_dinamicas)
         avisar(f"Resonancias dinámicas: {info_rd.get('media_db', 0):.1f} dB de corte medio "
                f"en {cfg_rd.get('f_lo', 1000):g}–{cfg_rd.get('f_hi', 10000):g} Hz")
+
+    cfg_ep = cfg.get("eq_perceptual", {})
+    if cfg_ep.get("activo", False):
+        info_ep = {}
+
+        def _perceptual(x):
+            y, info_ep["db"] = _eq_perceptual(x, sr, float(cfg_ep.get("recuperar_db", 2.0)),
+                                              float(cfg_ep.get("domar_db", 2.0)))
+            return y
+        aplicar_eq(_perceptual)
+        avisar(f"EQ perceptual: {info_ep.get('db', 0):.1f} dB de ajuste medio (recuperar/domar)")
 
     cfg_mono = cfg.get("abrir_mono", {})
     if cfg_mono.get("activo", False):
@@ -2242,6 +2486,8 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         "genero": genero,
         "eq_solo_en": stems_eq if grupo_eq is not None else [],
         "balance_referencia": informe_stems.get("balance_referencia"),
+        "consola_optimizada": informe_stems.get("consola_optimizada"),
+        "dinamica_grupos": informe_stems.get("dinamica_grupos"),
         "modo_eq": modo_eq,
         "eq_side_db": correccion_side,
         "segunda_pasada_db": segunda_pasada,

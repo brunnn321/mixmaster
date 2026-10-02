@@ -91,7 +91,40 @@ al terminar cada tanda de 3, recién ahí preguntarle.
     comprime hasta moverse como la de la referencia (p95−p50 en 50 ms),
     ratio por bisección, nunca expande. `multibanda.modo: "crest"` vuelve
     al anterior.
-- Quedan: 22, 23, 24.
+- [x] **Tanda 8 (2/10) — ítems 22, 23 y 24**, tests en verde (25). Con
+  esto la lista elegida por Bruno quedó completa en código:
+  - 22 · Dinámica por grupo (`_dinamica_por_grupo`): batería/bajo/voz/resto
+    se comprimen como bus hasta moverse como ese grupo en la referencia
+    separada. Dinámica, no EQ.
+  - 23 · Consola optimizada (`_consola_optimizada`, torch): ganancia ±3 dB
+    + EQ de 3 bandas ±4 dB por grupo aprendidas con Adam sobre espectros
+    contra la referencia separada. Con "EQ solo en guitarras" solo
+    ecualiza el grupo "resto". No es una red entrenada.
+  - 24 · EQ perceptual (`_eq_perceptual`): Bark + dispersión de Schroeder;
+    recupera lo tapado 0–12 dB, doma lo que sobresale >6 dB, ±2 dB.
+  - `separacion.medidas_por_instrumento` (caché v2) guarda balance, rango y
+    espectro por grupo. test_smoke manda esa caché a su carpeta temporal.
+
+## 📋 PENDIENTE TOTAL (2/10/2026) — todo lo que falta, no solo calidad
+
+Bruno (2/10): "hay muchas más cosas que hacer que no me dijiste". Lista
+completa, para que no vuelva a quedar nada afuera:
+
+1. **Escuchar todo con stems reales** (tandas 1–8): nada se probó de oído.
+   Calibrar ahí los umbrales de bombeo/distorsión y si conviene apagar algo.
+2. **Propuesta realista v2**: falta tu visto bueno; después pasarla a la app.
+3. **Gráfico de 3 espectros en la app**: los datos ya se guardan (commit
+   WIP `d8d93d4`); la consola tiene cambios sin revisar.
+4. **Consola**: sacar el zoom de CSS y mostrar los avisos nuevos.
+5. **Interfaz MM-01 por defecto** si la apruebas (hoy sigue la clásica).
+6. **Mejorar los gráficos en general** ("1000x").
+7. **Prueba A/B del mentor**: matching al 50% vs 100% a igual volumen.
+8. **Tope de matching 6 dB**: confirmar de oído que no se pasa.
+9. **Modo voz**: probar con voz real (solo Bruno) y ver si la carpeta de
+   salida aparece detrás de la ventana.
+10. **Arena --quick**: quedó a medias (10 de 16 propuestas guardadas).
+11. **Viejos abiertos sin prioridad**: export de stems de mastering, más
+    audífonos de AutoEQ, test manual de velocidad de la caché.
 
 **PARA RETOMAR (Bruno se fue el 30/9):** seguir con la tanda 2 sin preguntar;
 preguntar recién al terminarla. Aparte quedó guardado (commit "WIP consola")

@@ -151,7 +151,7 @@ def main() -> int:
         # v0.7/v0.8 (resonancias, multibanda, mono-bass) que en tonos puros
         # sintéticos alterarían el balance; cada una tiene su propio test.
         cfg_solo_eq = cargar_config_master()
-        for k in ("resonancias", "multibanda", "mono_bass", "resonancias_dinamicas"):
+        for k in ("resonancias", "multibanda", "mono_bass", "resonancias_dinamicas", "eq_perceptual"):
             cfg_solo_eq.setdefault(k, {})["activo"] = False
         resumen = masterizar(
             wav_mix, wav_ref, -10.0,
@@ -436,6 +436,10 @@ def main() -> int:
         # --- master desde stems (suma virtual) ---
         mezcla_virtual, sr_v = sumar_stems(dir_out)
         check("suma de stems estéreo", mezcla_virtual.shape[1] == 2 and sr_v == SR)
+        # el separador de la referencia guarda caché: que quede en la carpeta
+        # temporal del test, no en config/
+        from mixmaster import separacion
+        separacion.CACHE = proyecto.root / "cache_separacion.json"
         res_stems = masterizar(
             None, wav_ref, -8.5,
             proyecto.root / "06_masters", proyecto.root / "07_entregables",

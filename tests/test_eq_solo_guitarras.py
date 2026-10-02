@@ -52,13 +52,14 @@ def _cfg_sin_dinamica(eq_solo_en):
     cfg = copy.deepcopy(cargar_config_master())
     for clave in ("multibanda", "transient_shaping", "densidad", "clipper",
                   "mono_bass", "dinamica_secciones", "resonancias_dinamicas",
-                  "abrir_mono", "bus_master"):
+                  "abrir_mono", "bus_master", "eq_perceptual"):
         cfg.setdefault(clave, {})["activo"] = False
     cfg["eq_correctivo"]["analizar_imagen_stereo"] = False
     cfg["eq_correctivo"]["max_correccion_db"] = 10.0
     cfg["stems_master"]["mejorar_percusion"] = False
     cfg["stems_master"]["eq_solo_en"] = eq_solo_en
-    cfg["stems_master"]["balance_referencia"] = False
+    for k in ("balance_referencia", "consola_optimizada", "dinamica_grupos"):
+        cfg["stems_master"][k] = False
     return cfg
 
 

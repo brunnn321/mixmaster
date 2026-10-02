@@ -18,7 +18,8 @@ import numpy as np
 from scipy import signal
 
 from .app_paths import CONFIG_DIR
-from .audio_analysis import _hash_archivo, cargar_audio, lufs_integrado
+from .audio_analysis import (_hash_archivo, cargar_audio, espectro_suavizado, lufs_integrado,
+                             rango_corto_db)
 from .logger import get_logger
 
 log = get_logger("mixmaster.separacion")
@@ -49,8 +50,17 @@ def balance_por_instrumento(path: Path, progreso=None) -> dict | None:
     """{grupo: LU respecto del total} para drums, bass, vocals, other. Un
     grupo casi en silencio (más de 30 LU abajo) vale None. Devuelve None si
     el separador no está instalado o falla."""
+    medidas = medidas_por_instrumento(path, progreso)
+    return medidas["balance"] if medidas else None
+
+
+def medidas_por_instrumento(path: Path, progreso=None) -> dict | None:
+    """Todo lo que se mide de cada grupo separado de la referencia:
+    {"balance": {grupo: LU vs total}, "rango": {grupo: dB p95−p50 en 50 ms},
+     "freqs": [...], "espectro": {grupo: [dB a 1/3 de octava]}}.
+    Los grupos casi en silencio quedan en None. None si no hay separador."""
     path = Path(path)
-    clave = f"{MODELO}:{_hash_archivo(path)}"
+    clave = f"{MODELO}:v2:{_hash_archivo(path)}"
     cache = _leer_cache()
     if clave in cache:
         return cache[clave]
@@ -83,15 +93,20 @@ def balance_por_instrumento(path: Path, progreso=None) -> dict | None:
         fuentes = (fuentes * desvio + media).numpy()
 
         total = lufs_integrado(audio, sr)
-        balance = {}
+        medidas = {"balance": {}, "rango": {}, "espectro": {}, "freqs": None}
         for nombre, fuente in zip(modelo.sources, fuentes):
-            l = lufs_integrado(fuente.T.astype(np.float64), sr)
-            balance[nombre] = (round(float(l - total), 1)
-                               if np.isfinite(l) and l - total > -30 else None)
-        cache[clave] = balance
+            f64 = fuente.T.astype(np.float64)
+            l = lufs_integrado(f64, sr)
+            vivo = bool(np.isfinite(l) and l - total > -30)
+            medidas["balance"][nombre] = round(float(l - total), 1) if vivo else None
+            medidas["rango"][nombre] = round(rango_corto_db(f64.mean(axis=1), sr)[0], 2) if vivo else None
+            freqs, esp = espectro_suavizado(f64, sr)
+            medidas["freqs"] = [round(float(x), 1) for x in freqs]
+            medidas["espectro"][nombre] = [round(float(x), 2) for x in esp] if vivo else None
+        cache[clave] = medidas
         CACHE.write_text(json.dumps(cache, indent=1), encoding="utf-8")
-        log.info("Balance de %s: %s", path.name, balance)
-        return balance
+        log.info("Balance de %s: %s", path.name, medidas["balance"])
+        return medidas
     except Exception:
         log.exception("Falló la separación de %s", path.name)
         return None
