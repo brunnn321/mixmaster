@@ -147,6 +147,8 @@ CONFIG_MASTER_DEFAULT = {
         # así el limitador trabaja poco y el master no suena "a tope"
         "activo": True,
         "umbral_dbfs": -0.5,
+        # 2/10 (ítem 10): recorta solo los golpes; lo sostenido va al limitador
+        "solo_transitorios": True,
     },
     # 2/10 (investigación de calidad, ítem 16): armónicos del grave para que
     # se oiga en parlantes chicos (tono residual: el oído reconstruye la
@@ -858,14 +860,47 @@ def _ajustar_imagen(audio: np.ndarray, sr: int, ancho_mix: dict, ancho_ref: dict
     return np.stack([mid + side, mid - side], axis=1), ajustes
 
 
-def _curva_fir_fina(freqs: np.ndarray, gan_db: np.ndarray, sr: int) -> np.ndarray:
-    """FIR de fase lineal desde una curva fina de ganancias (1/3 de octava)."""
+# Ítem 17: "mixta" = graves (< ~200 Hz) en fase mínima y el resto en fase
+# lineal. Un FIR de fase lineal que mueve graves genera pre-eco (energía
+# ANTES del golpe del bombo); en fase mínima no hay pre-eco. Arriba, la fase
+# lineal no corre la fase entre bandas y el pre-eco es corto e inaudible.
+FASE_EQ = "mixta"
+F_CRUCE_FASE_HZ = (150.0, 300.0)   # transición de mínima a lineal
+
+
+def _firwin2_curva(freqs: np.ndarray, gan_db: np.ndarray, sr: int, taps: int) -> np.ndarray:
     nyq = sr / 2
     f = np.concatenate(([0.0], freqs / nyq, [1.0]))
     g_lin = 10 ** (np.concatenate(([gan_db[0]], gan_db, [gan_db[-1]])) / 20)
     f = np.clip(f, 0.0, 1.0)
     f, idx = np.unique(f, return_index=True)
-    return signal.firwin2(FIR_TAPS, f, g_lin[idx])
+    return signal.firwin2(taps, f, g_lin[idx])
+
+
+def _curva_fir_fina(freqs: np.ndarray, gan_db: np.ndarray, sr: int,
+                    fase: str | None = None) -> np.ndarray:
+    """FIR desde una curva fina de ganancias (1/3 de octava).
+
+    `fase` "lineal": un solo FIR de fase lineal (lo de siempre). "mixta"
+    (por defecto, `FASE_EQ`): la curva se parte en la parte de graves (fase
+    mínima) y el resto (fase lineal) y se encadenan. El FIR resultante se
+    rellena con ceros al principio para que `len // 2` siga siendo su retardo
+    real: `_aplicar_fir` y `_aplicar_ms` lo usan sin cambios.
+    """
+    fase = fase or FASE_EQ
+    if fase != "mixta":
+        return _firwin2_curva(freqs, gan_db, sr, FIR_TAPS)
+    f_a, f_b = F_CRUCE_FASE_HZ
+    w = np.clip(np.log(np.maximum(freqs, 1.0) / f_a) / np.log(f_b / f_a), 0.0, 1.0)
+    graves_db = gan_db * (1 - w)
+    resto_db = gan_db - graves_db
+    # minimum_phase (homomórfico) devuelve la raíz de la magnitud: se diseña
+    # con el doble de dB para que el resultado tenga la magnitud pedida
+    h_min = signal.minimum_phase(_firwin2_curva(freqs, 2 * graves_db, sr, FIR_TAPS),
+                                 method="homomorphic", n_fft=2 ** 17)
+    h_lin = _firwin2_curva(freqs, resto_db, sr, FIR_TAPS)
+    h = np.convolve(h_min, h_lin)
+    return np.concatenate([np.zeros(len(h_min) - 1), h])
 
 
 def _aplicar_ms(audio: np.ndarray, fir_mid: np.ndarray, fir_side: np.ndarray) -> np.ndarray:
@@ -922,6 +957,31 @@ def _clipper(audio: np.ndarray, umbral_dbfs: float) -> np.ndarray:
             t + (1.0 - t) * np.tanh((np.abs(x[exceso]) - t) / (1.0 - t))
         )
     return x
+
+
+def _clipper_transitorios(audio: np.ndarray, sr: int, umbral_dbfs: float) -> np.ndarray:
+    """Clipper solo en los golpes (ítem 10): separa golpe y sostenido.
+
+    Recortar un transitorio de pocos ms no se oye (enmascaramiento temporal),
+    pero recortar una nota sostenida (bajo, acorde) sí: es distorsión. Con
+    dos envolventes (1 ms y 50 ms), donde la rápida pasa a la lenta hay un
+    golpe; ahí se usa la señal recortada (a 2x) y en lo sostenido la señal
+    entra intacta y la controla el limitador, que es más limpio para eso.
+    La máscara se suaviza ~2 ms para que el cambio no haga clic."""
+    mono = np.max(np.abs(audio), axis=1)
+    a_f = float(np.exp(-1.0 / max(0.001 * sr, 1.0)))
+    a_s = float(np.exp(-1.0 / max(0.050 * sr, 1.0)))
+    env_f = signal.filtfilt([1 - a_f], [1.0, -a_f], mono)
+    env_s = signal.filtfilt([1 - a_s], [1.0, -a_s], mono)
+    golpe = np.clip((env_f / (env_s + 1e-9) - 1.2) / 0.8, 0.0, 1.0)
+    # se ensancha 3 ms a cada lado antes de suavizar: si no, el suavizado
+    # baja la máscara justo en el pico del golpe, que es donde tiene que valer 1
+    from scipy.ndimage import maximum_filter1d
+    golpe = maximum_filter1d(golpe, size=max(1, int(0.006 * sr)))
+    a_m = float(np.exp(-1.0 / max(0.002 * sr, 1.0)))
+    golpe = np.clip(signal.filtfilt([1 - a_m], [1.0, -a_m], golpe), 0.0, 1.0)
+    recortado = _a_2x(_clipper, audio, umbral_dbfs)
+    return audio + golpe[:, None] * (recortado - audio)
 
 
 def _a_2x(funcion, audio: np.ndarray, *args) -> np.ndarray:
@@ -1830,7 +1890,11 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         esperado = lufs_actual + ganancia
         audio = audio * 10 ** (ganancia / 20)
         if cfg_clip.get("activo", True):
-            audio = _a_2x(_clipper, audio, float(cfg_clip.get("umbral_dbfs", -0.5)))
+            umbral_clip = float(cfg_clip.get("umbral_dbfs", -0.5))
+            if cfg_clip.get("solo_transitorios", True):
+                audio = _clipper_transitorios(audio, sr, umbral_clip)
+            else:
+                audio = _a_2x(_clipper, audio, umbral_clip)
         avisar(f"Limitando picos (techo {cfg_lim['ceiling_dbtp']:g} dBTP, pasada {intento + 1})…")
         audio = _limitador(audio, sr, cfg_lim)
         lufs_post = lufs_integrado(audio, sr)

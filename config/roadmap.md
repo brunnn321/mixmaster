@@ -74,7 +74,13 @@ al terminar cada tanda de 3, recién ahí preguntarle.
     12 ms y sin graves, correlación 0.7; la suma mono queda idéntica.
   - test_smoke y test_eq_solo_guitarras apagan estas etapas, igual que ya
     apagaban las otras que colorean (aíslan el EQ).
-- Quedan: 2, 9, 10, 17, 22, 23, 24.
+- [x] **Tanda 6 (2/10) — ítems 17 y 10**, tests en verde (23):
+  - 17 · EQ de matching en fase mixta (`_curva_fir_fina`, `FASE_EQ`):
+    graves < 150–300 Hz en fase mínima, resto lineal. Pre-eco −17 dB.
+  - 10 · Clipper solo en los golpes (`_clipper_transitorios`,
+    `clipper.solo_transitorios`): lo sostenido no se recorta, lo controla
+    el limitador. El limitador de 2 etapas ya separaba macro/rápido.
+- Quedan: 2, 9, 22, 23, 24.
 
 **PARA RETOMAR (Bruno se fue el 30/9):** seguir con la tanda 2 sin preguntar;
 preguntar recién al terminarla. Aparte quedó guardado (commit "WIP consola")
