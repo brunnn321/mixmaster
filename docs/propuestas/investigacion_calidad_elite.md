@@ -240,6 +240,41 @@ discos de referencia está en la batería y el grave, no en el limitador.
 
 ---
 
+## 3b. Hallazgos de internet (01/10/2026)
+
+Búsqueda incompleta: parte quedó bloqueada por permisos (ver al final).
+
+- **Separación de fuentes (mejora el ítem 2):** el estado del arte ya no es
+  HT Demucs sino **BS-RoFormer** (Band-Split RoPE Transformer), ganador del
+  Sound Demixing Challenge 2023, ~9.8 dB de SDR en MUSDB18HQ. Hay variantes
+  con código y pesos abiertos bajo licencia MIT. Usar ese para medir la
+  referencia.
+- **"Key spikes" de Will Putney (mejora el ítem 4):** en vez de que el gate
+  del tom escuche al propio micrófono (con bleed), se genera una señal llave
+  limpia, una nota por golpe, que abre el gate con precisión. Automatizable:
+  detectar golpes en el micrófono cercano, crear un tren de impulsos limpio y
+  usarlo como sidechain del gate.
+- **Putney, estructura de buses:** dos etapas de suma, antes y después de la
+  compresión de bus; el control de la "violencia" de una mezcla pesada se hace
+  con la ganancia entre buses. Batería híbrida: toma real + samples. Usa
+  muchos micrófonos de sala. Su criterio: no sobre-samplear ni esterilizar.
+- **EQ espejo bajo/guitarras de Nolly (mejora el ítem 6):** realce del bajo
+  en ~80 Hz con el corte equivalente en las guitarras en la misma frecuencia,
+  y cortes anchos en medios-graves en los dos. Automatizable como EQ
+  complementaria entre roles.
+- **Cómo trabaja soothe2 (especificación del ítem 11):** profundidad
+  (intensidad, hasta ~60 dB de notch), agudeza (ancho de cada corte),
+  selectividad (umbral: solo los picos más salientes respecto del espectro
+  suavizado), ataque dependiente de la frecuencia (más rápido en agudos),
+  release lento para no generar artefactos de fase, modo M/S con enlace,
+  sobremuestreo para resolver bien los graves y escucha "delta" de lo que
+  se quita.
+- **Gullfoss, idea nueva (ítem 24):** EQ perceptual adaptativa que cambia la
+  respuesta más de 300 veces por segundo con dos controles: "Recover" (realza
+  lo que está por quedar enmascarado) y "Tame" (baja lo que domina y
+  enmascara). Se puede aproximar con el modelo de enmascaramiento por bandas
+  Bark que la app ya tiene.
+
 ## 4. Fuentes verificables
 
 - ITU-R BS.1770 (medición de sonoridad y true peak) · EBU R128.
@@ -255,5 +290,15 @@ discos de referencia está en la batería y el grave, no en el limitador.
   Differentiable Signal Processing*, JAES, 2022.
 - De Man, Stables, Reiss, *Intelligent Music Production*, Focal Press, 2019.
 - Bob Katz, *Mastering Audio: The Art and the Science* (dither, sonoridad).
+- Lu et al., *Music Source Separation with Band-Split RoPE Transformer*,
+  arXiv 2309.02612 — https://arxiv.org/abs/2309.02612
+- Mix Online, *Getting Heavy with Will Putney* —
+  https://www.mixonline.com/recording/getting-heavy-with-will-putney
+- Nail The Mix, Will Putney — https://www.nailthemix.com/will-putney
+- Sound On Sound, *Masters of the Art of Mixing* (Nolly) —
+  https://www.soundonsound.com/techniques/masters-art-mixing
+- Manual de soothe2 — https://oeksound.com/manuals/soothe2/
+- Sound On Sound, reseña de Gullfoss —
+  https://www.soundonsound.com/reviews/soundtheory-gullfoss
 - Los valores de ataque, ratio y frecuencias marcados **[C]** o **[E]** son
   práctica de oficio: no se atribuyen a una fuente única.
