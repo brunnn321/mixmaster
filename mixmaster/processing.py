@@ -112,6 +112,15 @@ CONFIG_MASTER_DEFAULT = {
         # fuente, pasa-altos por rol y EQ espejo bajo/guitarras
         "alinear_fase": True,
         "filtros_por_rol": True,
+        # 2/10 (ítems 5 y 19): cadena de voz y estribillos que levantan
+        "cadena_voz": True,
+        "estribillos": True,
+    },
+    # 2/10 (ítem 13): pegamento 2:1 + saturación suave, después del EQ
+    "bus_master": {
+        "activo": True,
+        "saturacion": "cinta",   # "cinta" (simétrica) o "valvula" (armónicos pares)
+        "drive": 1.3,
     },
     "clipper": {
         # recorta solo los picos (transitorios de batería) antes del limitador:
@@ -491,12 +500,84 @@ def _filtros_por_rol(audio: np.ndarray, sr: int, rol: str, espejo: bool) -> np.n
     return audio
 
 
+def _cadena_voz(audio: np.ndarray, sr: int) -> np.ndarray:
+    """Cadena de voz (ítem 5): rider, dos compresores en serie y de-esser.
+
+    1. Rider: nivela la voz en ventanas de 400 ms hacia su propia mediana
+       (±6 dB, solo donde canta: en los silencios no sube el bleed).
+    2. Compresor rápido 4:1, ataque 1 ms (estilo 1176): caza los picos.
+    3. Compresor lento 3:1, ataque 10 ms, release 300 ms (estilo óptico):
+       da cuerpo parejo. Dos de ~3 dB suenan más naturales que uno de 6.
+    4. De-esser: comprime solo la banda de 5–9 kHz.
+    Vuelve al RMS de entrada: el nivel del plan no cambia.
+    """
+    rms_in = _rms(audio)
+    if rms_in < 1e-9:
+        return audio
+    n = audio.shape[0]
+    mono = audio.mean(axis=1)
+    v = int(0.4 * sr)
+    nb = n // v
+    if nb >= 4:
+        r_db = 20 * np.log10(np.sqrt(np.mean(mono[: nb * v].reshape(nb, v) ** 2, axis=1)) + 1e-12)
+        activos = r_db > r_db.max() - 30
+        g = np.where(activos, np.clip(np.median(r_db[activos]) - r_db, -6.0, 6.0), 0.0)
+        g = np.convolve(g, np.ones(3) / 3, mode="same")
+        audio = audio * (10 ** (np.interp(np.arange(n), np.arange(nb) * v + v / 2, g) / 20))[:, None]
+    audio, _ = _compresor_bus(audio, sr, ratio=4.0, attack_ms=1.0, release_ms=60.0,
+                              percentil=90.0, margen_db=3.0)
+    audio, _ = _compresor_bus(audio, sr, ratio=3.0, attack_ms=10.0, release_ms=300.0,
+                              percentil=70.0, margen_db=0.0)
+    sos = signal.butter(4, [5000.0, min(9000.0, sr * 0.45)], "bandpass", fs=sr, output="sos")
+    banda = signal.sosfiltfilt(sos, audio, axis=0)
+    banda_c, _ = _compresor_bus(banda, sr, ratio=4.0, attack_ms=1.0, release_ms=60.0,
+                                percentil=90.0, margen_db=3.0)
+    audio = audio - banda + banda_c
+    return audio * (rms_in / max(_rms(audio), 1e-12))
+
+
+# Capas de arreglo que suben en los estribillos (ítem 19); batería, bajo y
+# voz quedan como están
+_ROLES_CAPA = ("guitarra", "teclas", "coros", "vientos")
+
+
+def _levantar_estribillos(total: np.ndarray, capas: np.ndarray, sr: int,
+                          subida_db: float = 1.0, ancho: float = 0.15) -> tuple[np.ndarray, float]:
+    """Partes fuertes del tema (estribillos): las capas suben `subida_db` y
+    se abren un `ancho` en estéreo (ítem 19).
+
+    Secciones por energía: sonoridad en bloques de 0.5 s suavizada ~4 s; es
+    "fuerte" lo que pasa la mediana del tema + 1.5 dB. Transiciones de ~1 s.
+    Si el tema no tiene contraste (todo parejo), no cambia nada. Devuelve
+    (lo que hay que sumarle a la mezcla, fracción del tema marcada fuerte).
+    """
+    n = total.shape[0]
+    v = int(0.5 * sr)
+    nb = n // v
+    if nb < 16 or _rms(capas) < 1e-9:
+        return np.zeros_like(capas), 0.0
+    mono = total.mean(axis=1)
+    r_db = 20 * np.log10(np.sqrt(np.mean(mono[: nb * v].reshape(nb, v) ** 2, axis=1)) + 1e-12)
+    # relleno con el borde, no con ceros: 0 dB sería "muy fuerte" en los extremos
+    s = np.convolve(np.pad(r_db, (4, 3), mode="edge"), np.ones(8) / 8, mode="valid")
+    activos = s > s.max() - 30
+    mascara = (s > np.median(s[activos]) + 1.5).astype(float)
+    mascara = np.convolve(mascara, np.ones(2) / 2, mode="same")
+    m = np.interp(np.arange(n), np.arange(nb) * v + v / 2, mascara)
+    g = 10 ** (subida_db * m / 20)
+    mid = (capas[:, 0] + capas[:, 1]) / 2
+    side = (capas[:, 0] - capas[:, 1]) / 2 * (1 + ancho * m)
+    nuevo = np.stack([(mid + side) * g, (mid - side) * g], axis=1)
+    return nuevo - capas, float(np.mean(mascara > 0.5))
+
+
 def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
                 transient_cant: float = 0.3, progreso=None,
                 plan_mezcla: dict | None = None,
                 separar: tuple[str, ...] | None = None,
                 bus_bateria: bool = False, bajo_dividido: bool = False,
-                alinear_fase: bool = False, filtros_por_rol: bool = False):
+                alinear_fase: bool = False, filtros_por_rol: bool = False,
+                cadena_voz: bool = False, estribillos: bool = False):
     """Suma todos los stems de una carpeta en una mezcla virtual estéreo.
 
     Alinea longitudes al stem más largo y deja headroom (pico a -6 dBFS)
@@ -517,8 +598,9 @@ def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
     headroom que la mezcla, para poder procesarlo aparte y volver a sumarlo.
 
     `bus_bateria` / `bajo_dividido` (30/9), `alinear_fase` / `filtros_por_rol`
-    (2/10): procesado por rol antes de sumar (ver `_bus_bateria`,
-    `_bajo_dividido`, `_alinear_fase` y `_filtros_por_rol`). El rol sale del plan si hay, o
+    (2/10), `cadena_voz` / `estribillos` (2/10): procesado por rol antes de
+    sumar (ver `_bus_bateria`, `_bajo_dividido`, `_alinear_fase`,
+    `_filtros_por_rol`, `_cadena_voz` y `_levantar_estribillos`). El rol sale del plan si hay, o
     del nombre del archivo. Apagados por defecto; `masterizar` los prende
     desde `stems_master` del config.
     """
@@ -571,6 +653,9 @@ def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
         if bajo_dividido and rol == "bajo":
             audio = _bajo_dividido(audio, sr)
             log.info("Bajo dividido (grave limpio + medios saturados): %s", p.name)
+        if cadena_voz and rol in ("voz_principal", "coros"):
+            audio = _cadena_voz(audio, sr)
+            log.info("Cadena de voz (rider + 2 compresores + de-esser): %s", p.name)
         pistas.append(audio)
         roles.append(rol)
         srs.append(sr)
@@ -604,6 +689,19 @@ def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
         if progreso:
             progreso(msg)
         mezcla += bus
+
+    if estribillos:
+        capas = np.zeros((n, 2))
+        for p, r in zip(pistas, roles):
+            if r in _ROLES_CAPA:
+                capas[: p.shape[0]] += p
+        delta, frac = _levantar_estribillos(mezcla, capas, srs[0])
+        if frac > 0:
+            mezcla += delta
+            msg = f"Estribillos: las capas suben 1 dB y se abren en el {frac:.0%} del tema"
+            log.info(msg)
+            if progreso:
+                progreso(msg)
 
     pico = float(np.max(np.abs(mezcla)))
     k = (10 ** (-6.0 / 20)) / pico if pico > 1e-9 else 1.0
@@ -755,6 +853,40 @@ def _a_2x(funcion, audio: np.ndarray, *args) -> np.ndarray:
     esos armónicos se descartan (ítem 18 de la investigación de calidad)."""
     up = signal.resample_poly(audio, 2, 1, axis=0)
     return signal.resample_poly(funcion(up, *args), 1, 2, axis=0)[: audio.shape[0]]
+
+
+def _saturar(x: np.ndarray, drive: float, tipo: str) -> np.ndarray:
+    """Curva de saturación sobre señal normalizada a pico 1 (conserva el pico).
+    "cinta": tanh simétrica (armónicos impares, redondea picos).
+    "valvula": tanh con sesgo (agrega armónicos pares, más cálida)."""
+    if tipo == "valvula":
+        s = 0.15
+        y = np.tanh(drive * (x + s)) - np.tanh(drive * s)
+        c = max(abs(np.tanh(drive * (1 + s)) - np.tanh(drive * s)),
+                abs(np.tanh(drive * (-1 + s)) - np.tanh(drive * s)))
+        return y / c
+    return np.tanh(drive * x) / np.tanh(drive)
+
+
+def _bus_master(audio: np.ndarray, sr: int, tipo: str = "cinta",
+                drive: float = 1.3) -> tuple[np.ndarray, float]:
+    """Pegamento + saturación del bus (ítem 13).
+
+    Compresión 2:1, ataque 30 ms, release 200 ms (estilo bus de consola SSL):
+    1–2 dB sobre lo más fuerte, deja pasar el golpe. Después saturación suave
+    a 2x (sin aliasing). Vuelve al RMS de entrada y saca la continua que
+    agrega la curva de válvula. Devuelve (audio, reducción media en dB)."""
+    rms_in = _rms(audio)
+    if rms_in < 1e-9:
+        return audio, 0.0
+    audio, red = _compresor_bus(audio, sr, ratio=2.0, attack_ms=30.0, release_ms=200.0,
+                                percentil=90.0, margen_db=3.0)
+    pico = float(np.max(np.abs(audio)))
+    audio = _a_2x(lambda x: _saturar(x / pico, drive, tipo) * pico, audio)
+    if tipo == "valvula":
+        sos = signal.butter(2, 10.0, "highpass", fs=sr, output="sos")
+        audio = signal.sosfiltfilt(sos, audio, axis=0)
+    return audio * (rms_in / max(_rms(audio), 1e-12)), red
 
 
 def _exciter_graves(audio: np.ndarray, sr: int, f_lo: float, f_hi: float,
@@ -1188,7 +1320,9 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
             bus_bateria=bool(cfg_sm.get("bus_bateria", True)),
             bajo_dividido=bool(cfg_sm.get("bajo_dividido", True)),
             alinear_fase=bool(cfg_sm.get("alinear_fase", True)),
-            filtros_por_rol=bool(cfg_sm.get("filtros_por_rol", True)))
+            filtros_por_rol=bool(cfg_sm.get("filtros_por_rol", True)),
+            cadena_voz=bool(cfg_sm.get("cadena_voz", True)),
+            estribillos=bool(cfg_sm.get("estribillos", True)))
         if claves_eq:
             audio, sr, grupo_eq, stems_eq = resultado
             if stems_eq:
@@ -1440,6 +1574,15 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
             audio = _transient_shape(
                 audio, sr, transient_cant,
                 float(cfg_tr.get("fast_ms", 5.0)), float(cfg_tr.get("slow_ms", 80.0)))
+
+    # Bus (ítem 13) DESPUÉS del EQ: es no lineal, y si se aplicara antes, el
+    # "mezcla - grupo + EQ(grupo)" del EQ solo en guitarras restaría unas
+    # guitarras crudas de una mezcla ya comprimida y saturada.
+    cfg_bus = cfg.get("bus_master", {})
+    if cfg_bus.get("activo", False):
+        tipo = str(cfg_bus.get("saturacion", "cinta"))
+        audio, red_bus = _bus_master(audio, sr, tipo, float(cfg_bus.get("drive", 1.3)))
+        avisar(f"Bus: pegamento 2:1 ({red_bus:.1f} dB) + saturación {tipo}")
 
     # Contorno dinámico ANTES de densidad/limitado (para preservar macro-dinámica)
     cfg_din = cfg.get("dinamica_secciones", {})

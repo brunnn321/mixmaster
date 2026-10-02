@@ -53,7 +53,17 @@ al terminar cada tanda de 3, recién ahí preguntarle.
   - 14 · Medidores de reducción, distorsión y bombeo de la etapa de volumen
     (`_medir_limitacion`, `resumen["limitacion"]`). Umbrales iniciales.
   - Se apagan en `stems_master.alinear_fase` / `filtros_por_rol`.
-- [ ] Tanda 4 (propuesta): 5 voz, 13 saturación + bus suave, 19 estribillos.
+- [x] **Tanda 4 (2/10) — ítems 5, 13 y 19**, tests en verde (21):
+  - 5 · Cadena de voz para voz principal y coros (`_cadena_voz`): rider
+    ±6 dB, compresor rápido 4:1 + lento 3:1, de-esser 5–9 kHz.
+  - 13 · Bus del master (`_bus_master`, `bus_master` en config): 2:1 con
+    ataque 30 ms + saturación "cinta" o "valvula" a 2x, después del EQ.
+  - 19 · Estribillos (`_levantar_estribillos`): guitarras/teclas/coros/
+    vientos suben 1 dB y se abren 15% donde el tema pasa su mediana + 1.5 dB.
+  - Se apagan en `stems_master.cadena_voz` / `estribillos`, `bus_master.activo`.
+- [ ] Tanda 5 (propuesta): 6 parte 2 (desenmascarado dinámico), 11
+  (resonancias tipo soothe), 21 (abrir fuentes mono).
+- Quedan después: 2, 9, 10, 17, 22, 23, 24.
 
 **PARA RETOMAR (Bruno se fue el 30/9):** seguir con la tanda 2 sin preguntar;
 preguntar recién al terminarla. Aparte quedó guardado (commit "WIP consola")
