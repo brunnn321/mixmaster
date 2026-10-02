@@ -51,7 +51,8 @@ def _nivel_db(audio, f):
 def _cfg_sin_dinamica(eq_solo_en):
     cfg = copy.deepcopy(cargar_config_master())
     for clave in ("multibanda", "transient_shaping", "densidad", "clipper",
-                  "mono_bass", "dinamica_secciones"):
+                  "mono_bass", "dinamica_secciones", "resonancias_dinamicas",
+                  "abrir_mono", "bus_master"):
         cfg.setdefault(clave, {})["activo"] = False
     cfg["eq_correctivo"]["analizar_imagen_stereo"] = False
     cfg["eq_correctivo"]["max_correccion_db"] = 10.0

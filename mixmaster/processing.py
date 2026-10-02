@@ -78,6 +78,25 @@ CONFIG_MASTER_DEFAULT = {
         "q": 6.0,
         "max_n": 4,
     },
+    # 2/10 (ítem 11): supresión dinámica de resonancias, estilo soothe. Corta
+    # solo los picos que sobresalen del espectro suavizado y solo mientras
+    # aparecen. Con "EQ solo en guitarras" actúa solo sobre las guitarras.
+    "resonancias_dinamicas": {
+        "activo": True,
+        "f_lo": 1000.0,
+        "f_hi": 10000.0,
+        "selectividad_db": 6.0,   # cuánto debe sobresalir un pico para tocarlo
+        "profundidad": 0.3,       # fracción del exceso que se corta
+        "max_db": 3.0,
+        "release_ms": 100.0,
+    },
+    # 2/10 (ítem 21): una mezcla casi mono se abre con un side sintético
+    # (retardo + pasa-altos) que se cancela al sumar a mono
+    "abrir_mono": {
+        "activo": True,
+        "correlacion_mono": 0.95,     # por encima de esto se considera mono
+        "correlacion_objetivo": 0.7,
+    },
     "transient_shaping": {
         # realza los ataques (pegada) antes del limitador. cantidad 0..1
         # (0.25 = suave). fast/slow_ms = envolventes de detección del ataque
@@ -115,6 +134,7 @@ CONFIG_MASTER_DEFAULT = {
         # 2/10 (ítems 5 y 19): cadena de voz y estribillos que levantan
         "cadena_voz": True,
         "estribillos": True,
+        "desenmascarar": True,   # ítem 6 parte 2: la voz se abre paso en 1–4 kHz
     },
     # 2/10 (ítem 13): pegamento 2:1 + saturación suave, después del EQ
     "bus_master": {
@@ -536,6 +556,56 @@ def _cadena_voz(audio: np.ndarray, sr: int) -> np.ndarray:
     return audio * (rms_in / max(_rms(audio), 1e-12))
 
 
+_ROLES_ACOMPANAMIENTO = ("guitarra", "teclas", "vientos")
+
+
+def _desenmascarar_voz(pistas: list, roles: list, sr: int, f_lo: float = 1000.0,
+                       f_hi: float = 4000.0, tope_db: float = 3.0) -> float:
+    """Desenmascarado dinámico (ítem 6, parte 2), estilo trackspacer: la
+    banda de inteligibilidad de la voz (1–4 kHz) de guitarras, teclas y
+    vientos baja hasta `tope_db` SOLO mientras la voz canta y el
+    acompañamiento compite con ella ahí (está a menos de 6 dB de la voz en
+    esa banda). Fuera de esa banda y cuando la voz calla, nada cambia.
+    Ataque ~10 ms, release 150 ms. Modifica `pistas` en el lugar y devuelve
+    la reducción media mientras canta."""
+    idx_voz = [i for i, r in enumerate(roles) if r == "voz_principal"]
+    idx_acomp = [i for i, r in enumerate(roles) if r in _ROLES_ACOMPANAMIENTO]
+    if not idx_voz or not idx_acomp:
+        return 0.0
+    n = max(p.shape[0] for p in pistas)
+    v = max(1, int(0.01 * sr))
+    nb = n // v
+    if nb < 10:
+        return 0.0
+    sos = signal.butter(4, [f_lo, f_hi], "bandpass", fs=sr, output="sos")
+
+    def env_db(x):
+        x = np.pad(x, (0, max(0, nb * v - len(x))))[: nb * v]
+        return 20 * np.log10(np.sqrt(np.mean(x.reshape(nb, v) ** 2, axis=1)) + 1e-12)
+
+    voz = np.zeros(n)
+    for i in idx_voz:
+        voz[: pistas[i].shape[0]] += pistas[i].mean(axis=1)
+    ev = env_db(signal.sosfiltfilt(sos, voz))
+    canta = ev > ev.max() - 25
+    a_re = float(np.exp(-1.0 / max(0.15 / 0.01, 1e-3)))
+    medias = []
+    for i in idx_acomp:
+        x = pistas[i]
+        banda = signal.sosfiltfilt(sos, x, axis=0)
+        compite = canta & (env_db(banda.mean(axis=1)) > ev - 6)
+        red = np.where(compite, tope_db, 0.0)
+        g = 0.0
+        for t in range(nb):
+            g = max(red[t], a_re * g)
+            red[t] = g
+        gan = 10 ** (-np.interp(np.arange(x.shape[0]), np.arange(nb) * v + v / 2, red) / 20)
+        pistas[i] = x - banda + banda * gan[:, None]
+        if canta.any():
+            medias.append(float(red[canta].mean()))
+    return float(np.mean(medias)) if medias else 0.0
+
+
 # Capas de arreglo que suben en los estribillos (ítem 19); batería, bajo y
 # voz quedan como están
 _ROLES_CAPA = ("guitarra", "teclas", "coros", "vientos")
@@ -577,7 +647,8 @@ def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
                 separar: tuple[str, ...] | None = None,
                 bus_bateria: bool = False, bajo_dividido: bool = False,
                 alinear_fase: bool = False, filtros_por_rol: bool = False,
-                cadena_voz: bool = False, estribillos: bool = False):
+                cadena_voz: bool = False, estribillos: bool = False,
+                desenmascarar: bool = False):
     """Suma todos los stems de una carpeta en una mezcla virtual estéreo.
 
     Alinea longitudes al stem más largo y deja headroom (pico a -6 dBFS)
@@ -673,6 +744,13 @@ def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
     if filtros_por_rol:
         espejo = "bajo" in roles and "guitarra" in roles
         pistas = [_filtros_por_rol(p, srs[0], r, espejo) for p, r in zip(pistas, roles)]
+    if desenmascarar:
+        red_voz = _desenmascarar_voz(pistas, roles, srs[0])
+        if red_voz > 0:
+            msg = f"Desenmascarado: el acompañamiento deja lugar a la voz ({red_voz:.1f} dB en 1–4 kHz)"
+            log.info(msg)
+            if progreso:
+                progreso(msg)
 
     n = max(p.shape[0] for p in pistas)
     mezcla = np.zeros((n, 2))
@@ -887,6 +965,79 @@ def _bus_master(audio: np.ndarray, sr: int, tipo: str = "cinta",
         sos = signal.butter(2, 10.0, "highpass", fs=sr, output="sos")
         audio = signal.sosfiltfilt(sos, audio, axis=0)
     return audio * (rms_in / max(_rms(audio), 1e-12)), red
+
+
+def _resonancias_dinamicas(audio: np.ndarray, sr: int, f_lo: float, f_hi: float,
+                           selectividad_db: float, profundidad: float, max_db: float,
+                           release_ms: float) -> tuple[np.ndarray, float]:
+    """Supresión dinámica de resonancias (ítem 11), mismo principio que
+    soothe: en cada cuadro del espectro (STFT 2048, salto 1024) se compara la
+    magnitud con su versión suavizada a 1/3 de octava; lo que sobresale más
+    de `selectividad_db` se baja `profundidad` veces el exceso (tope
+    `max_db`), solo entre `f_lo` y `f_hi`. El corte entra en un cuadro y se
+    suelta con `release_ms`, por bin. Ganancia enlazada L/R (no mueve la
+    imagen). Devuelve (audio, corte medio en dB donde actuó)."""
+    nper, salto = 2048, 1024
+    n = audio.shape[0]
+    if n < nper * 4:
+        return audio, 0.0
+    f, _, Z = signal.stft(audio.T.astype(np.float32), fs=sr, nperseg=nper,
+                          noverlap=nper - salto, boundary="even")
+    # potencia promediada en ~8 cuadros (~190 ms): una resonancia se sostiene,
+    # el ruido fluctúa al azar cuadro a cuadro y no debe confundirse con picos
+    from scipy.ndimage import uniform_filter1d
+    pot = uniform_filter1d((np.abs(Z) ** 2).mean(axis=0), size=8, axis=1, mode="nearest")
+    mag_db = 10 * np.log10(pot + 1e-18)                              # (bins, cuadros)
+    k = np.arange(len(f))
+    lo = np.clip(np.floor(k / 2 ** (1 / 6)).astype(int), 0, len(f) - 1)
+    hi = np.clip(np.ceil(k * 2 ** (1 / 6)).astype(int) + 1, 1, len(f))
+    cs = np.concatenate([np.zeros((1, mag_db.shape[1])), np.cumsum(mag_db, axis=0)])
+    suave = (cs[hi] - cs[lo]) / (hi - lo)[:, None]
+    exceso = mag_db - suave - selectividad_db
+    banda = (f >= f_lo) & (f <= f_hi)
+    red = np.zeros_like(mag_db)
+    red[banda] = np.clip(profundidad * exceso[banda], 0.0, max_db)
+    a_re = float(np.exp(-1.0 / max(release_ms / 1000 * sr / salto, 1e-3)))
+    g = np.zeros(mag_db.shape[0])
+    for t in range(red.shape[1]):
+        g = np.maximum(red[:, t], a_re * g)
+        red[:, t] = g
+    Z *= (10 ** (-red / 20)).astype(np.float32)[None]
+    _, y = signal.istft(Z, fs=sr, nperseg=nper, noverlap=nper - salto, boundary=True)
+    y = y.T[:n].astype(np.float64)
+    if y.shape[0] < n:
+        y = np.vstack([y, np.zeros((n - y.shape[0], y.shape[1]))])
+    activo = red[banda] > 0.1
+    return y, float(red[banda][activo].mean()) if activo.any() else 0.0
+
+
+def _abrir_mono(audio: np.ndarray, sr: int, umbral_mono: float = 0.95,
+                objetivo: float = 0.7) -> tuple[np.ndarray, float | None]:
+    """Abre una mezcla casi mono (ítem 21). Side sintético = mid retrasado
+    12 ms y sin graves (pasa-altos 300 Hz, el grave sigue mono). L = M + S,
+    R = M − S: al sumar a mono S se cancela, así que la suma mono queda
+    idéntica. El nivel de S se fija para llegar a la correlación `objetivo`.
+    Si la mezcla ya tiene estéreo, no hace nada. Devuelve (audio, correlación
+    original si se abrió, o None)."""
+    l, r = audio[:, 0], audio[:, 1]
+    den = np.sqrt(np.sum(l ** 2) * np.sum(r ** 2))
+    if den < 1e-12:
+        return audio, None
+    corr = float(np.sum(l * r) / den)
+    if corr < umbral_mono:
+        return audio, None
+    mid = (l + r) / 2
+    retardo = int(0.012 * sr)
+    s = np.concatenate([np.zeros(retardo), mid[:-retardo]])
+    sos = signal.butter(2, 300.0, "highpass", fs=sr, output="sos")
+    s = signal.sosfiltfilt(sos, s)
+    e_m, e_s = float(np.sum(mid ** 2)), float(np.sum(s ** 2))
+    if e_s < 1e-12:
+        return audio, None
+    # corr(L,R) = (Em − Es·g²) / (Em + Es·g²) → g para llegar al objetivo
+    g = np.sqrt((1 - objetivo) / (1 + objetivo) * e_m / e_s)
+    side = (l - r) / 2 + g * s
+    return np.stack([mid + side, mid - side], axis=1), corr
 
 
 def _exciter_graves(audio: np.ndarray, sr: int, f_lo: float, f_hi: float,
@@ -1322,7 +1473,8 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
             alinear_fase=bool(cfg_sm.get("alinear_fase", True)),
             filtros_por_rol=bool(cfg_sm.get("filtros_por_rol", True)),
             cadena_voz=bool(cfg_sm.get("cadena_voz", True)),
-            estribillos=bool(cfg_sm.get("estribillos", True)))
+            estribillos=bool(cfg_sm.get("estribillos", True)),
+            desenmascarar=bool(cfg_sm.get("desenmascarar", True)))
         if claves_eq:
             audio, sr, grupo_eq, stems_eq = resultado
             if stems_eq:
@@ -1403,6 +1555,28 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
                 return y
             aplicar_eq(_notches)
             resonancias_db = info_notches.get("db", [])
+
+    cfg_rd = cfg.get("resonancias_dinamicas", {})
+    if cfg_rd.get("activo", False):
+        info_rd = {}
+
+        def _dinamicas(x):
+            y, info_rd["media_db"] = _resonancias_dinamicas(
+                x, sr, float(cfg_rd.get("f_lo", 1000.0)), float(cfg_rd.get("f_hi", 10000.0)),
+                float(cfg_rd.get("selectividad_db", 6.0)), float(cfg_rd.get("profundidad", 0.3)),
+                float(cfg_rd.get("max_db", 3.0)), float(cfg_rd.get("release_ms", 100.0)))
+            return y
+        aplicar_eq(_dinamicas)
+        avisar(f"Resonancias dinámicas: {info_rd.get('media_db', 0):.1f} dB de corte medio "
+               f"en {cfg_rd.get('f_lo', 1000):g}–{cfg_rd.get('f_hi', 10000):g} Hz")
+
+    cfg_mono = cfg.get("abrir_mono", {})
+    if cfg_mono.get("activo", False):
+        audio, corr_mono = _abrir_mono(audio, sr, float(cfg_mono.get("correlacion_mono", 0.95)),
+                                       float(cfg_mono.get("correlacion_objetivo", 0.7)))
+        if corr_mono is not None:
+            avisar(f"Mezcla casi mono (correlación {corr_mono:.2f}): se abre en estéreo "
+                   "sin cambiar la suma mono")
 
     # Exciter solo SIN referencia. Medido en test_smoke (mezcla = referencia):
     # con referencia, los armónicos caen en la banda "low", el matching la

@@ -61,9 +61,20 @@ al terminar cada tanda de 3, recién ahí preguntarle.
   - 19 · Estribillos (`_levantar_estribillos`): guitarras/teclas/coros/
     vientos suben 1 dB y se abren 15% donde el tema pasa su mediana + 1.5 dB.
   - Se apagan en `stems_master.cadena_voz` / `estribillos`, `bus_master.activo`.
-- [ ] Tanda 5 (propuesta): 6 parte 2 (desenmascarado dinámico), 11
-  (resonancias tipo soothe), 21 (abrir fuentes mono).
-- Quedan después: 2, 9, 10, 17, 22, 23, 24.
+- **Forma de trabajo corregida (Bruno, 2/10):** avanzar 2 o 3 pasos chicos y
+  preguntar si sigue. Ni frenar de más ni seguir sin parar.
+- [x] **Tanda 5 (2/10) — ítems 6 parte 2, 11 y 21**, tests en verde (22):
+  - 6b · Desenmascarado (`_desenmascarar_voz`): guitarras/teclas/vientos
+    bajan hasta 3 dB en 1–4 kHz solo mientras la voz canta y compite.
+  - 11 · Resonancias dinámicas tipo soothe (`_resonancias_dinamicas`):
+    STFT, picos que pasan 6 dB el espectro a 1/3 oct (promediado ~190 ms),
+    corte 0.3× hasta 3 dB en 1–10 kHz. Con "EQ solo en guitarras" va solo a
+    guitarras. Con 3 dB / 0.5 / 6 dB se comía notas sostenidas (medido).
+  - 21 · Abrir mezclas casi mono (`_abrir_mono`): side sintético retrasado
+    12 ms y sin graves, correlación 0.7; la suma mono queda idéntica.
+  - test_smoke y test_eq_solo_guitarras apagan estas etapas, igual que ya
+    apagaban las otras que colorean (aíslan el EQ).
+- Quedan: 2, 9, 10, 17, 22, 23, 24.
 
 **PARA RETOMAR (Bruno se fue el 30/9):** seguir con la tanda 2 sin preguntar;
 preguntar recién al terminarla. Aparte quedó guardado (commit "WIP consola")

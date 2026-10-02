@@ -151,7 +151,7 @@ def main() -> int:
         # v0.7/v0.8 (resonancias, multibanda, mono-bass) que en tonos puros
         # sintéticos alterarían el balance; cada una tiene su propio test.
         cfg_solo_eq = cargar_config_master()
-        for k in ("resonancias", "multibanda", "mono_bass"):
+        for k in ("resonancias", "multibanda", "mono_bass", "resonancias_dinamicas"):
             cfg_solo_eq.setdefault(k, {})["activo"] = False
         resumen = masterizar(
             wav_mix, wav_ref, -10.0,
