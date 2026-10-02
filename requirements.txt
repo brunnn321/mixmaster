@@ -6,3 +6,8 @@ soundfile>=0.12.0
 PySide6>=6.5.0
 requests>=2.31.0
 python-dotenv>=1.0.0
+# opcional (ítem 2): separar la referencia por instrumento. Sin esto la app
+# funciona igual y usa la jerarquía por rol. CPU: pip install torch torchaudio
+# --index-url https://download.pytorch.org/whl/cpu && pip install demucs
+torch>=2.9
+demucs>=4.0

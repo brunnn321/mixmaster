@@ -80,7 +80,18 @@ al terminar cada tanda de 3, recién ahí preguntarle.
   - 10 · Clipper solo en los golpes (`_clipper_transitorios`,
     `clipper.solo_transitorios`): lo sostenido no se recorta, lo controla
     el limitador. El limitador de 2 etapas ya separaba macro/rápido.
-- Quedan: 2, 9, 22, 23, 24.
+- [x] **Tanda 7 (2/10) — ítems 2 y 9**, tests en verde (24):
+  - 2 · `mixmaster/separacion.py`: HT Demucs (torch CPU + demucs instalados
+    en el .venv) separa la referencia y mide batería/bajo/voz/resto en LU;
+    caché por huella en `config/cache_balance_referencias.json` (ignorado
+    por git). Al masterizar por stems, `_igualar_balance` lleva cada grupo
+    al balance de la referencia (±6 dB, 2 vueltas). ~0.6x la duración del
+    tema la primera vez. `stems_master.balance_referencia` lo apaga.
+  - 9 · Multibanda modo "rango" (`_multibanda_rango`): cada banda se
+    comprime hasta moverse como la de la referencia (p95−p50 en 50 ms),
+    ratio por bisección, nunca expande. `multibanda.modo: "crest"` vuelve
+    al anterior.
+- Quedan: 22, 23, 24.
 
 **PARA RETOMAR (Bruno se fue el 30/9):** seguir con la tanda 2 sin preguntar;
 preguntar recién al terminarla. Aparte quedó guardado (commit "WIP consola")

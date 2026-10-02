@@ -2077,6 +2077,11 @@ class MainWindow(QMainWindow):
             aviso_ref_txt += f"\n  ⚠ {resumen['aviso_codec']}"
         elif tp_mp3 is not None:
             aviso_ref_txt += f"\n  MP3 decodificado: {tp_mp3:+.2f} dBTP (sin riesgo en streaming)"
+        bal = resumen.get("balance_referencia") or {}
+        if bal:
+            nombres = {"drums": "batería", "bass": "bajo", "vocals": "voz", "other": "resto"}
+            aviso_ref_txt += "\n  Balance como la referencia: " + ", ".join(
+                f"{nombres.get(g, g)} {v['ajuste_db']:+.1f} dB" for g, v in bal.items())
         lim = resumen.get("limitacion") or {}
         if lim:
             aviso_ref_txt += (f"\n  Limitación: −{lim['reduccion_media_db']} dB media, "

@@ -5,3 +5,4 @@ logs/
 proyectos/
 crash.log
 config/cache_referencias.json
+config/cache_balance_referencias.json

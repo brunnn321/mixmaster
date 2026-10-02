@@ -58,6 +58,7 @@ def _cfg_sin_dinamica(eq_solo_en):
     cfg["eq_correctivo"]["max_correccion_db"] = 10.0
     cfg["stems_master"]["mejorar_percusion"] = False
     cfg["stems_master"]["eq_solo_en"] = eq_solo_en
+    cfg["stems_master"]["balance_referencia"] = False
     return cfg
 
 

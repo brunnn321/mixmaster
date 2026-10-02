@@ -366,6 +366,27 @@ def crest_por_banda(audio: np.ndarray, sr: int) -> dict[str, float]:
     return resultado
 
 
+def rango_corto_db(mono: np.ndarray, sr: int, ventana_ms: float = 50.0) -> tuple[float, float]:
+    """Cómo se mueve una señal: nivel en ventanas de 50 ms y la distancia
+    entre su percentil 95 y su mediana (dB), solo donde hay señal (hasta 40
+    dB debajo del máximo). A diferencia del crest (pico/RMS de todo el tema),
+    un solo pico no lo cambia. Devuelve (rango_db, mediana_db)."""
+    v = max(1, int(sr * ventana_ms / 1000))
+    nb = len(mono) // v
+    if nb < 4:
+        return 0.0, -120.0
+    niv = 20 * np.log10(np.sqrt(np.mean(mono[: nb * v].reshape(nb, v) ** 2, axis=1)) + 1e-12)
+    act = niv > niv.max() - 40
+    p50 = float(np.percentile(niv[act], 50))
+    return float(np.percentile(niv[act], 95)) - p50, p50
+
+
+def rango_corto_por_banda(audio: np.ndarray, sr: int) -> dict[str, float]:
+    """`rango_corto_db` por banda, con el mismo split que el multibanda."""
+    return {nombre: round(rango_corto_db(banda, sr)[0], 2)
+            for nombre, banda in split_bandas_mono(audio.mean(axis=1), sr).items()}
+
+
 def analisis_estereo(audio: np.ndarray, sr: int) -> dict:
     """Correlación L/R global, ancho por banda y compatibilidad mono."""
     if audio.shape[1] < 2:

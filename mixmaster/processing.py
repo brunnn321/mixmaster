@@ -24,7 +24,8 @@ from .audio_analysis import espectro_ms, tramos_fuertes
 from .audio_analysis import (
     BANDAS_HZ, CRUCES_HZ, analisis_estereo, balance_bandas_db, cargar_audio,
     crest_factor_db, crest_por_banda, db, declip_ligero, detectar_resonancias,
-    espectro_suavizado, lufs_integrado, perfil_referencias, recortar_silencio_extremos,
+    espectro_suavizado, lufs_integrado, perfil_referencias, rango_corto_db,
+    rango_corto_por_banda, recortar_silencio_extremos,
     true_peak_db,
 )
 from .logger import get_logger
@@ -68,6 +69,11 @@ CONFIG_MASTER_DEFAULT = {
         "attack_ms": 15.0,
         "release_ms": 120.0,
         "cantidad": 0.6,
+        # 2/10 (ítem 9): "rango" iguala cómo se mueve cada banda (p95−p50 en
+        # 50 ms) contra la referencia; "crest" es el modo anterior
+        "modo": "rango",
+        "umbral_rango_db": 1.0,
+        "ratio_max_rango": 4.0,
     },
     "resonancias": {
         # notch suave de picos estrechos anómalos (Q alto). umbral_db = cuánto
@@ -135,6 +141,9 @@ CONFIG_MASTER_DEFAULT = {
         "cadena_voz": True,
         "estribillos": True,
         "desenmascarar": True,   # ítem 6 parte 2: la voz se abre paso en 1–4 kHz
+        # ítem 2: separa la referencia (Demucs) y lleva batería/bajo/voz/resto
+        # a su balance. Sin torch/demucs instalados se salta solo.
+        "balance_referencia": True,
     },
     # 2/10 (ítem 13): pegamento 2:1 + saturación suave, después del EQ
     "bus_master": {
@@ -558,6 +567,57 @@ def _cadena_voz(audio: np.ndarray, sr: int) -> np.ndarray:
     return audio * (rms_in / max(_rms(audio), 1e-12))
 
 
+def _grupo_separacion(rol: str) -> str:
+    """Rol de la auto-mezcla → grupo del separador (drums/bass/vocals/other)."""
+    if rol in _ROLES_BATERIA or rol in ("percusion_mayor", "percusion_menor"):
+        return "drums"
+    if rol == "bajo":
+        return "bass"
+    if rol in ("voz_principal", "coros"):
+        return "vocals"
+    return "other"
+
+
+def _igualar_balance(pistas: list, roles: list, sr: int, balance_ref: dict,
+                     tope_db: float = 6.0) -> dict:
+    """Lleva el balance batería/bajo/voz/resto de los stems al de la
+    referencia separada (ítem 2). Cada grupo se mide en LU respecto del
+    total, igual que en la referencia, y se corrige con ganancia (±`tope_db`).
+    Dos vueltas: al mover un grupo cambia el total. Modifica `pistas` en el
+    lugar. Devuelve {grupo: {"ref", "antes", "despues", "ajuste_db"}}."""
+    grupos = [_grupo_separacion(r) for r in roles]
+    n = max(p.shape[0] for p in pistas)
+
+    def medir():
+        total = np.zeros((n, 2))
+        sumas = {}
+        for p, g in zip(pistas, grupos):
+            total[: p.shape[0]] += p
+            sumas.setdefault(g, np.zeros((n, 2)))[: p.shape[0]] += p
+        l_tot = lufs_integrado(total, sr)
+        return {g: lufs_integrado(s, sr) - l_tot for g, s in sumas.items()}
+
+    antes = medir()
+    ajuste = {g: 0.0 for g in antes}
+    actual = antes
+    for _ in range(2):
+        for g, rel in actual.items():
+            obj = balance_ref.get(g)
+            if obj is None or not np.isfinite(rel):
+                continue
+            nuevo = float(np.clip(ajuste[g] + (obj - rel), -tope_db, tope_db))
+            k = 10 ** ((nuevo - ajuste[g]) / 20)
+            for i, gi in enumerate(grupos):
+                if gi == g:
+                    pistas[i] = pistas[i] * k
+            ajuste[g] = nuevo
+        actual = medir()
+    return {g: {"ref": balance_ref.get(g),
+                "antes": round(float(antes[g]), 1) if np.isfinite(antes[g]) else None,
+                "despues": round(float(actual[g]), 1) if np.isfinite(actual[g]) else None,
+                "ajuste_db": round(ajuste[g], 1)} for g in antes}
+
+
 _ROLES_ACOMPANAMIENTO = ("guitarra", "teclas", "vientos")
 
 
@@ -650,7 +710,8 @@ def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
                 bus_bateria: bool = False, bajo_dividido: bool = False,
                 alinear_fase: bool = False, filtros_por_rol: bool = False,
                 cadena_voz: bool = False, estribillos: bool = False,
-                desenmascarar: bool = False):
+                desenmascarar: bool = False, balance_ref: dict | None = None,
+                informe: dict | None = None):
     """Suma todos los stems de una carpeta en una mezcla virtual estéreo.
 
     Alinea longitudes al stem más largo y deja headroom (pico a -6 dBFS)
@@ -673,7 +734,10 @@ def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
     `bus_bateria` / `bajo_dividido` (30/9), `alinear_fase` / `filtros_por_rol`
     (2/10), `cadena_voz` / `estribillos` (2/10): procesado por rol antes de
     sumar (ver `_bus_bateria`, `_bajo_dividido`, `_alinear_fase`,
-    `_filtros_por_rol`, `_cadena_voz` y `_levantar_estribillos`). El rol sale del plan si hay, o
+    `_filtros_por_rol`, `_cadena_voz` y `_levantar_estribillos`).
+    `balance_ref` (de `separacion.balance_por_instrumento`): lleva el balance
+    batería/bajo/voz/resto al de la referencia; `informe` (dict) recibe el
+    detalle en "balance_referencia". El rol sale del plan si hay, o
     del nombre del archivo. Apagados por defecto; `masterizar` los prende
     desde `stems_master` del config.
     """
@@ -746,6 +810,15 @@ def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
     if filtros_por_rol:
         espejo = "bajo" in roles and "guitarra" in roles
         pistas = [_filtros_por_rol(p, srs[0], r, espejo) for p, r in zip(pistas, roles)]
+    if balance_ref:
+        bal = _igualar_balance(pistas, roles, srs[0], balance_ref)
+        if informe is not None:
+            informe["balance_referencia"] = bal
+        msg = "Balance como la referencia: " + ", ".join(
+            f"{g} {v['ajuste_db']:+.1f} dB" for g, v in bal.items() if v["ajuste_db"])
+        log.info(msg)
+        if progreso:
+            progreso(msg)
     if desenmascarar:
         red_voz = _desenmascarar_voz(pistas, roles, srs[0])
         if red_voz > 0:
@@ -1314,6 +1387,49 @@ def _comprimir_banda(banda: np.ndarray, sr: int, ratio: float, umbral_db: float,
     return banda * gan[:, np.newaxis]
 
 
+def _multibanda_rango(audio: np.ndarray, sr: int, rango_ref: dict, cfg_mb: dict
+                      ) -> tuple[np.ndarray, dict]:
+    """Matching de dinámica por banda (ítem 9): cada banda se comprime hasta
+    que se MUEVE como la de la referencia (rango corto p95−p50 en ventanas de
+    50 ms, ver `rango_corto_db`), no solo hasta un crest global.
+
+    Umbral en la mediana de la banda; el ratio se busca por bisección (5
+    pasos, tope `ratio_max_rango`) hasta quedar a ≤0.3 dB del rango de la
+    referencia. Solo comprime bandas más dinámicas que la ref (nunca
+    expande). Makeup al RMS original de la banda. Devuelve (audio,
+    {banda: dB de rango quitados})."""
+    umbral = float(cfg_mb.get("umbral_rango_db", 1.0))
+    ratio_max = float(cfg_mb.get("ratio_max_rango", 4.0))
+    attack = float(cfg_mb.get("attack_ms", 15.0))
+    release = float(cfg_mb.get("release_ms", 120.0))
+
+    salida = np.zeros_like(audio)
+    aplicado = {}
+    for nombre, banda in _split_bandas(audio, sr).items():
+        r_mix, p50 = rango_corto_db(banda.mean(axis=1), sr)
+        r_ref = rango_ref.get(nombre)
+        rms = float(np.sqrt(np.mean(banda ** 2)))
+        if r_ref is None or rms <= 0 or r_mix - r_ref <= umbral:
+            salida += banda
+            continue
+        lo, hi = 1.0, ratio_max
+        mejor, r_mejor = banda, r_mix
+        for _ in range(5):
+            ratio = (lo + hi) / 2
+            comp = _comprimir_banda(banda, sr, ratio, p50, attack, release)
+            r_post = rango_corto_db(comp.mean(axis=1), sr)[0]
+            if abs(r_post - r_ref) < abs(r_mejor - r_ref):
+                mejor, r_mejor = comp, r_post
+            if r_post > r_ref + 0.3:
+                lo = ratio
+            else:
+                hi = ratio
+        rms_post = float(np.sqrt(np.mean(mejor ** 2)))
+        salida += mejor * (rms / rms_post if rms_post > 0 else 1.0)
+        aplicado[nombre] = round(r_mix - r_mejor, 1)
+    return salida, aplicado
+
+
 def _multibanda(audio: np.ndarray, sr: int, crest_ref: dict, cfg_mb: dict
                 ) -> tuple[np.ndarray, dict]:
     """Compresión multibanda guiada por el crest-por-banda de la referencia.
@@ -1518,10 +1634,19 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
     cfg_lim = cfg["limitador"]
 
     grupo_eq, stems_eq = None, []
+    informe_stems = {}
     if carpeta_stems:
         avisar("Sumando stems en mezcla virtual…")
         cfg_sm = cfg.get("stems_master", {})
         claves_eq = tuple(cfg_sm.get("eq_solo_en") or ())
+        balance_ref = None
+        if path_referencia and cfg_sm.get("balance_referencia", True):
+            from .separacion import balance_por_instrumento
+            ref0 = (path_referencia if isinstance(path_referencia, list) else [path_referencia])[0]
+            balance_ref = balance_por_instrumento(Path(ref0), progreso=avisar)
+            if balance_ref is None:
+                avisar("⚠ No se pudo medir el balance de la referencia por instrumento "
+                       "(separador no instalado o falló): se usa la jerarquía por rol.")
         resultado = sumar_stems(
             Path(carpeta_stems),
             mejorar_percusion=cfg_sm.get("mejorar_percusion", True),
@@ -1534,7 +1659,8 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
             filtros_por_rol=bool(cfg_sm.get("filtros_por_rol", True)),
             cadena_voz=bool(cfg_sm.get("cadena_voz", True)),
             estribillos=bool(cfg_sm.get("estribillos", True)),
-            desenmascarar=bool(cfg_sm.get("desenmascarar", True)))
+            desenmascarar=bool(cfg_sm.get("desenmascarar", True)),
+            balance_ref=balance_ref, informe=informe_stems)
         if claves_eq:
             audio, sr, grupo_eq, stems_eq = resultado
             if stems_eq:
@@ -1782,8 +1908,19 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
     cfg_multi = cfg.get("multibanda", {})
     if perfil is not None and cfg_multi.get("activo", True):
         avisar("Compresión multibanda guiada por la referencia…")
-        audio, multibanda_db = _multibanda(
-            audio, sr, perfil.get("crest_por_banda", {}), cfg_multi)
+        rango_ref = None
+        if cfg_multi.get("modo", "rango") == "rango" and path_referencia:
+            try:
+                refs_mb = path_referencia if isinstance(path_referencia, list) else [path_referencia]
+                medidas = [rango_corto_por_banda(*cargar_audio(Path(r))) for r in refs_mb]
+                rango_ref = {b: float(np.mean([m[b] for m in medidas])) for b in medidas[0]}
+            except Exception:
+                log.exception("No se pudo medir la dinámica por banda de la referencia")
+        if rango_ref:
+            audio, multibanda_db = _multibanda_rango(audio, sr, rango_ref, cfg_multi)
+        else:
+            audio, multibanda_db = _multibanda(
+                audio, sr, perfil.get("crest_por_banda", {}), cfg_multi)
         if multibanda_db:
             avisar(f"Multibanda (dB de reducción por banda): {multibanda_db}")
 
@@ -2104,6 +2241,7 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         "fuente": "stems" if carpeta_stems else "mezcla",
         "genero": genero,
         "eq_solo_en": stems_eq if grupo_eq is not None else [],
+        "balance_referencia": informe_stems.get("balance_referencia"),
         "modo_eq": modo_eq,
         "eq_side_db": correccion_side,
         "segunda_pasada_db": segunda_pasada,
