@@ -2072,6 +2072,11 @@ class MainWindow(QMainWindow):
         aviso_crest_txt = f"\n  ⚠ {aviso_crest}" if aviso_crest else ""
         aviso_ref = resumen.get("aviso_referencia_no_calza")
         aviso_ref_txt = f"\n  ⚠ {aviso_ref}" if aviso_ref else ""
+        tp_mp3 = resumen.get("true_peak_mp3_dbtp")
+        if resumen.get("aviso_codec"):
+            aviso_ref_txt += f"\n  ⚠ {resumen['aviso_codec']}"
+        elif tp_mp3 is not None:
+            aviso_ref_txt += f"\n  MP3 decodificado: {tp_mp3:+.2f} dBTP (sin riesgo en streaming)"
         self.txt_resultado.append(
             f"\n══ MASTER LISTO ({resumen.get('fuente', 'mezcla')}) ══{score_txt}\n"
             f"  LUFS final: {resumen['lufs_final']} (objetivo {resumen['target_lufs']})\n"

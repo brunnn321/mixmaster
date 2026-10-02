@@ -34,8 +34,15 @@ al terminar cada tanda de 3, recién ahí preguntarle.
   - Se apagan en `config/master.json` → `stems_master.bus_bateria` /
     `bajo_dividido`. **Falta escucharlo con stems reales** (solo probado con
     señal sintética).
-- [ ] Tanda 2: siguientes livianos → 12 (códec), 16 (exciter de graves),
-  18 (procesar a 2x).
+- [x] **Tanda 2 (2/10) — ítems 12, 16 y 18**, tests en verde (19 archivos):
+  - 12 · El MP3 se decodifica y se mide su true peak; aviso si pasa −0.1 dBTP
+    (`resumen["true_peak_mp3_dbtp"]`, `aviso_codec`, visible en el reporte).
+  - 16 · Exciter de graves (armónicos 2º–4º de 40–100 Hz, solo en mid),
+    **solo cuando no hay referencia**: con referencia el matching recorta
+    esos armónicos y se lleva la fundamental (medido: low −1.8 dB).
+  - 18 · Clipper y saturación de densidad a 2x (aliasing −52 dB medido).
+- [ ] Tanda 3 (propuesta): 3 fase/polaridad automática, 4 gate de batería
+  con "key spikes", 6 pasa-altos por rol + EQ espejo bajo/guitarras.
 
 **PARA RETOMAR (Bruno se fue el 30/9):** seguir con la tanda 2 sin preguntar;
 preguntar recién al terminarla. Aparte quedó guardado (commit "WIP consola")

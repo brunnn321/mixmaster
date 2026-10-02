@@ -114,6 +114,14 @@ CONFIG_MASTER_DEFAULT = {
         "activo": True,
         "umbral_dbfs": -0.5,
     },
+    # 2/10 (investigación de calidad, ítem 16): armónicos del grave para que
+    # se oiga en parlantes chicos (tono residual: el oído reconstruye la
+    # fundamental a partir de sus armónicos). Solo en el centro (mid).
+    "exciter_graves": {
+        "activo": True,
+        "banda_hz": [40.0, 100.0],
+        "cantidad": 0.25,   # RMS de los armónicos / RMS de la banda (~ -12 dB)
+    },
     "densidad": {
         "activo": True,
         # si el limitador tendría que recortar más de esto, se añade
@@ -590,6 +598,43 @@ def _clipper(audio: np.ndarray, umbral_dbfs: float) -> np.ndarray:
     return x
 
 
+def _a_2x(funcion, audio: np.ndarray, *args) -> np.ndarray:
+    """Aplica una no linealidad (clipper, saturación) a 2x la frecuencia de
+    muestreo: los armónicos que crea por encima de Nyquist se reflejarían
+    como ruido inarmónico (aliasing); al subir primero y filtrar al bajar,
+    esos armónicos se descartan (ítem 18 de la investigación de calidad)."""
+    up = signal.resample_poly(audio, 2, 1, axis=0)
+    return signal.resample_poly(funcion(up, *args), 1, 2, axis=0)[: audio.shape[0]]
+
+
+def _exciter_graves(audio: np.ndarray, sr: int, f_lo: float, f_hi: float,
+                    cantidad: float) -> np.ndarray:
+    """Suma armónicos (2º a 4º) del grave en el centro de la imagen.
+
+    La banda f_lo–f_hi se satura con tanh y se recorta a 2·f_lo–4·f_hi, así
+    queda solo lo nuevo (los armónicos) sin tocar la fundamental. Se suma en
+    mid para no abrir el grave. `cantidad` fija el RMS de los armónicos
+    respecto del RMS de la banda original.
+    """
+    if cantidad <= 0:
+        return audio
+    mid = audio.mean(axis=1)
+    sos_banda = signal.butter(4, [f_lo, f_hi], "bandpass", fs=sr, output="sos")
+    banda = signal.sosfiltfilt(sos_banda, mid)
+    rms_banda = float(np.sqrt(np.mean(banda ** 2)))
+    if rms_banda < 1e-9:
+        return audio
+    sat = np.tanh(3.0 * banda / (np.max(np.abs(banda)) + 1e-12))
+    sos_arm = signal.butter(4, [2 * f_lo, min(4 * f_hi, sr * 0.45)], "bandpass",
+                            fs=sr, output="sos")
+    armonicos = signal.sosfiltfilt(sos_arm, sat)
+    rms_arm = float(np.sqrt(np.mean(armonicos ** 2)))
+    if rms_arm < 1e-12:
+        return audio
+    armonicos *= cantidad * rms_banda / rms_arm
+    return audio + armonicos[:, np.newaxis]
+
+
 def _score_ab(audio: np.ndarray, sr: int, perfil: dict) -> dict:
     """Similitud del master vs el perfil de referencias (0–100 por aspecto).
 
@@ -1028,6 +1073,16 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
             aplicar_eq(_notches)
             resonancias_db = info_notches.get("db", [])
 
+    # Exciter solo SIN referencia. Medido en test_smoke (mezcla = referencia):
+    # con referencia, los armónicos caen en la banda "low", el matching la
+    # recorta para compensar y se lleva puesta la fundamental (low −1.8 dB,
+    # el master se aleja de la referencia). Con referencia manda el matching.
+    cfg_exc = cfg.get("exciter_graves", {})
+    if cfg_exc.get("activo", False) and not path_referencia:
+        f_lo, f_hi = (float(f) for f in cfg_exc.get("banda_hz", (40.0, 100.0)))
+        audio = _exciter_graves(audio, sr, f_lo, f_hi, float(cfg_exc.get("cantidad", 0.25)))
+        avisar(f"Exciter de graves: armónicos de {f_lo:g}–{f_hi:g} Hz para parlantes chicos")
+
     correccion, ajuste_ancho, correccion_side = {}, {}, {}
     aviso_eq_grande = aviso_calidad_ref = None
     segunda_pasada = {}
@@ -1210,7 +1265,7 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
             frac = min(1.0, (reduccion_estimada - umbral_den) / rango)
             drive = 1.1 + (drive_max - 1.1) * frac  # 1.1 (suave) → drive_max (extremo)
             avisar(f"Añadiendo densidad (drive {drive:.2f}, empuje {reduccion_estimada:.1f} dB)…")
-            audio = _soft_clip(audio, drive)
+            audio = _a_2x(_soft_clip, audio, drive)
             densidad_aplicada = True
             lufs_actual = lufs_integrado(audio, sr)
 
@@ -1260,7 +1315,7 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         esperado = lufs_actual + ganancia
         audio = audio * 10 ** (ganancia / 20)
         if cfg_clip.get("activo", True):
-            audio = _clipper(audio, float(cfg_clip.get("umbral_dbfs", -0.5)))
+            audio = _a_2x(_clipper, audio, float(cfg_clip.get("umbral_dbfs", -0.5)))
         avisar(f"Limitando picos (techo {cfg_lim['ceiling_dbtp']:g} dBTP, pasada {intento + 1})…")
         audio = _limitador(audio, sr, cfg_lim)
         lufs_post = lufs_integrado(audio, sr)
@@ -1373,6 +1428,20 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         audio_mp3 = signal.resample_poly(audio, sr_mp3 // g, sr // g, axis=0)
         sf.write(str(out_mp3), audio_mp3, sr_mp3)
 
+    # Vista previa de códec (ítem 12): el MP3 decodificado puede tener picos
+    # más altos que el WAV (el códec deforma la onda). Se mide lo que de
+    # verdad va a sonar en un reproductor.
+    tp_mp3, aviso_codec = None, None
+    try:
+        dec, sr_dec = sf.read(str(out_mp3), always_2d=True)
+        tp_mp3 = round(float(true_peak_db(dec, sr_dec)), 2)
+        if tp_mp3 > -0.1:
+            aviso_codec = (f"El MP3 decodificado llega a {tp_mp3:+.2f} dBTP: puede distorsionar "
+                           "en Spotify/YouTube. Bajar el techo del limitador (p. ej. -1.5 dBTP).")
+            avisar(f"⚠ {aviso_codec}")
+    except Exception:
+        log.exception("No se pudo medir el MP3 decodificado")
+
     # espectro del master final (alta resolución) para la gráfica pre/post
     freqs_out, esp_out = espectro_suavizado(audio, sr, n_puntos=200)
 
@@ -1443,6 +1512,8 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         "segunda_pasada_db": segunda_pasada,
         "aviso_eq_grande": aviso_eq_grande,
         "aviso_referencia_calidad": aviso_calidad_ref,
+        "true_peak_mp3_dbtp": tp_mp3,
+        "aviso_codec": aviso_codec,
         "referencias": nombres_ref,
         "score": score,
     }
