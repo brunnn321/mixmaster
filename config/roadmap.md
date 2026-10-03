@@ -105,6 +105,16 @@ al terminar cada tanda de 3, recién ahí preguntarle.
   - `separacion.medidas_por_instrumento` (caché v2) guarda balance, rango y
     espectro por grupo. test_smoke manda esa caché a su carpeta temporal.
 
+**RESULTADO REAL (2/10 noche) — PRIORIDAD ABIERTA:** CRISIntro 2 vs
+Alphaville, −9 LUFS, ya con las tandas 1–8: global 56 (igual que el 26/9),
+pero **tonal 70→50 y dinámica 85→68**; imagen 0→54 (abrir mono). Al 50% de
+matching: global 46 (tonal 34). Los medidores avisan **bombeo con el grave
+(corr −0.58) y distorsión −20 dB**; multibanda en modo rango comprime ~5 dB
+en sub/mid/high_mid. Sospechosos: multibanda "rango" (demasiado), EQ
+perceptual/resonancias dinámicas sobre la mezcla entera. Retomar: apagar
+etapas de a una y medir cuál baja tonal y dinámica. Masters en el scratchpad
+de la sesión (`ab/m100`, `ab/m50`). Suite de tests en verde.
+
 **PARA RETOMAR (2/10 noche, Bruno apagó la PC):** agregado
 `eq_correctivo.intensidad` (0..1) para el A/B del mentor y los avisos
 `aviso_codec` / `aviso_limitacion` en la consola. Quedó CORTADO a mitad:
