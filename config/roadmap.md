@@ -105,6 +105,15 @@ al terminar cada tanda de 3, recién ahí preguntarle.
   - `separacion.medidas_por_instrumento` (caché v2) guarda balance, rango y
     espectro por grupo. test_smoke manda esa caché a su carpeta temporal.
 
+**PARA RETOMAR (2/10 noche, Bruno apagó la PC):** agregado
+`eq_correctivo.intensidad` (0..1) para el A/B del mentor y los avisos
+`aviso_codec` / `aviso_limitacion` en la consola. Quedó CORTADO a mitad:
+el master real de CRISIntro 2 vs Alphaville al 100% y al 50% (script en el
+scratchpad de la sesión, `ab_matching.py`) y la suite de tests de este
+último cambio. Retomar: correr la suite y generar los dos masters.
+Los ítems 3 y 4 de la lista de abajo ya están en el `consola.html` del WIP
+(3 espectros, sin zoom de CSS), sin probar en la app.
+
 ## 📋 PENDIENTE TOTAL (2/10/2026) — todo lo que falta, no solo calidad
 
 Bruno (2/10): "hay muchas más cosas que hacer que no me dijiste". Lista

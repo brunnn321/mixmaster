@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <title>MixMaster — MM-01</title>
-<!-- Interfaz MM-01, versión realista (propuesta v2 del 26/9/2026, aprobada
-     por Bruno). Conectada al motor real por QWebChannel (ui/consola_web.py).
+<!-- Interfaz MM-01, versión realista (propuesta v2 del 26/9/2026, TODAVÍA
+     sin el visto bueno de Bruno). Conectada al motor real por QWebChannel (ui/consola_web.py).
      Escala con --u: todo se dibuja en unidades de diseño a 1920 px de ancho
      y se agranda o achica con la ventana (nítido en 4K, sin zoom de CSS,
      que rompía las coordenadas del mouse). -->
@@ -722,7 +722,8 @@ const MM = {
     const e = r.espectro_master || {freqs: [], db: []};
     if (e.freqs.length) dibujarEspectros(e.freqs, {mezcla: r.espectro_mezcla, referencia: r.espectro_referencia, master: e.db});
     // avisos en pantalla
-    const avisos = [r.aviso_crest_fuera_zona, r.aviso_referencia_no_calza, r.aviso_eq_grande, r.aviso_referencia_calidad].filter(Boolean);
+    const avisos = [r.aviso_crest_fuera_zona, r.aviso_referencia_no_calza, r.aviso_eq_grande, r.aviso_referencia_calidad,
+                    r.aviso_codec, r.aviso_limitacion].filter(Boolean);
     document.getElementById("avisos-crt").innerHTML = avisos.map(a => `▲ ${a}`).join("<br>");
     // perillas con la cadena usada
     const tope = r.eq_tope_db || 0;

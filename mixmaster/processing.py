@@ -48,6 +48,9 @@ CONFIG_MASTER_DEFAULT = {
         # matching tonal casi no se nota" en 3 temas. Pendiente confirmar de
         # oído en la próxima tanda real que 6.0 no se pase de rosca.
         "max_correccion_db": 6.0,
+        # 0..1: cuánto de la corrección mid/side se aplica (prueba A/B del
+        # mentor: 0.5 vs 1.0 a igual volumen)
+        "intensidad": 1.0,
         "analizar_imagen_stereo": True,
         "max_ajuste_ancho_db": 1.0,
     },
@@ -2075,6 +2078,9 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
             # fase (mentor, 26/9: >6 dB ya es arreglar la mezcla)
             tope_side = min(tope, float(cfg_eq.get("max_correccion_side_db", 6.0)))
             ds = _suavizar(np.clip(d_side, -tope_side, tope_side))
+            # intensidad del matching (A/B del mentor: 50% vs 100%)
+            intensidad = float(cfg_eq.get("intensidad", 1.0))
+            dm, ds = dm * intensidad, ds * intensidad
             fir_m = _curva_fir_fina(freqs, dm, sr)
             fir_s = _curva_fir_fina(freqs, ds, sr)
             aplicar_eq(lambda x: _aplicar_ms(x, fir_m, fir_s))
