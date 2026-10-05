@@ -74,7 +74,7 @@ CONFIG_MASTER_DEFAULT = {
         "cantidad": 0.6,
         # 2/10 (ítem 9): "rango" iguala cómo se mueve cada banda (p95−p50 en
         # 50 ms) contra la referencia; "crest" es el modo anterior
-        "modo": "rango",
+        "modo": "crest",   # "rango" comprimía 5-7 dB por banda y bajó la dinámica (prueba 5/10)
         "umbral_rango_db": 1.0,
         "ratio_max_rango": 4.0,
     },
@@ -2159,7 +2159,7 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
     if perfil is not None and cfg_multi.get("activo", True):
         avisar("Compresión multibanda guiada por la referencia…")
         rango_ref = None
-        if cfg_multi.get("modo", "rango") == "rango" and path_referencia:
+        if cfg_multi.get("modo", "crest") == "rango" and path_referencia:
             try:
                 refs_mb = path_referencia if isinstance(path_referencia, list) else [path_referencia]
                 medidas = [rango_corto_por_banda(*cargar_audio(Path(r))) for r in refs_mb]

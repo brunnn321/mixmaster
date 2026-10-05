@@ -105,6 +105,14 @@ al terminar cada tanda de 3, recién ahí preguntarle.
   - `separacion.medidas_por_instrumento` (caché v2) guarda balance, rango y
     espectro por grupo. test_smoke manda esa caché a su carpeta temporal.
 
+**PRUEBA POR ETAPAS (5/10)** — disco E: desconectado, se usó "Sol buena
+version de guitarras" vs Waterslide (60 s): todo lo nuevo 84 global (tonal
+79, dinámica 84) = sin lo nuevo 84 (tonal 79, dinámica 87). La única etapa
+que movió el score: **multibanda modo "rango"** (comprimía 5–7 dB por banda;
+dinámica 87→84). Volvió a `modo: "crest"` por defecto. Las demás etapas no
+cambian el score en este tema. Falta repetir con CRISIntro (tonal 70→50) al
+conectar E:.
+
 **RESULTADO REAL (2/10 noche) — PRIORIDAD ABIERTA:** CRISIntro 2 vs
 Alphaville, −9 LUFS, ya con las tandas 1–8: global 56 (igual que el 26/9),
 pero **tonal 70→50 y dinámica 85→68**; imagen 0→54 (abrir mono). Al 50% de
