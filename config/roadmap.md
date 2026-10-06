@@ -142,7 +142,7 @@ Orden por dificultad, de a uno:
 - [x] 1. WAV 32 bits flotante (copia `_32f.wav` junto al de 24; `exportar.wav_32_float`)
 - [x] 2. Perillas de revisión: panel "Revisión" en el paso 3 (brillo, grave, volumen, matching; rehace como V01R1, R2…). `masterizar(revision=…)`
 - [x] 3. Limitador multibanda (`_limitador_multibanda`, `limitador.multibanda`): 4 bandas, la reducción va a la banda que manda el pico. Señal de prueba: la guitarra baja 0.5 dB con el bombo (antes 3.9). En "Sol" (60 s) el score no cambia (84 vs 85) y el medidor de bombeo sigue marcando −0.55 con cualquier limitador y sin clipper: el medidor probablemente lee el contenido de medios del propio bombo; calibrarlo de oído. Suma ~30 s por master.
-- [ ] 4. Desenmascarado entre todas las pistas
+- [x] 4. Desenmascarado por jerarquía en las 7 bandas (`_desenmascarar_jerarquia`, reemplaza a `_desenmascarar_voz` en sumar_stems). Test propio en verde; suite completa SIN correr. Falta audio serio para comparar: preguntarle a Bruno qué temas usar (no usar Sol ni CRISIntro).
 - [ ] 5. Control del grave en el tiempo
 - [ ] 6. Limpieza de ruido de stems
 - [ ] 7. EQ y compresión por sección

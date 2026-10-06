@@ -20,13 +20,13 @@ from scipy import signal
 
 from .app_paths import CONFIG_DIR
 from .automezcla import aplicar_pan, clasificar_rol
-from .stem_diagnostico import _cross_correlacion_maxima, _decimar_para_correlacion
+from .stem_diagnostico import _PRIORIDAD_BANDA, _cross_correlacion_maxima, _decimar_para_correlacion
 from .audio_analysis import espectro_ms, tramos_fuertes
 from .audio_analysis import (
     BANDAS_HZ, CRUCES_HZ, analisis_estereo, balance_bandas_db, cargar_audio,
     crest_factor_db, crest_por_banda, db, declip_ligero, detectar_resonancias,
     espectro_suavizado, lufs_integrado, perfil_referencias, rango_corto_db,
-    rango_corto_por_banda, recortar_silencio_extremos,
+    rango_corto_por_banda, recortar_silencio_extremos, split_bandas_mono,
     true_peak_db,
 )
 from .logger import get_logger
@@ -825,6 +825,83 @@ def _desenmascarar_voz(pistas: list, roles: list, sr: int, f_lo: float = 1000.0,
     return float(np.mean(medias)) if medias else 0.0
 
 
+def _tipo_prioridad(rol: str) -> str:
+    """Rol de la auto-mezcla → tipo de la tabla `_PRIORIDAD_BANDA`."""
+    if rol in _ROLES_BATERIA or rol in ("percusion_mayor", "percusion_menor"):
+        return "bateria"
+    if rol == "bajo":
+        return "bajo"
+    if rol in ("voz_principal", "coros"):
+        return "voz"
+    if rol == "guitarra":
+        return "guitarra"
+    return "generico"
+
+
+def _desenmascarar_jerarquia(pistas: list, roles: list, sr: int) -> dict:
+    """Desenmascarado entre TODAS las pistas, en las 7 bandas (ítem 4 de las
+    herramientas top, idea del modo grupo de sonible smart:EQ: adelante /
+    medio / atrás).
+
+    En cada banda manda el tipo que la tabla `_PRIORIDAD_BANDA` pone primero
+    (bajo en el sub, batería en low y en los agudos, voz en los medios…).
+    Una pista baja en esa banda SOLO mientras alguna de más prioridad suena
+    y ella compite (está a menos de 6 dB): 2 dB si es la siguiente en la
+    jerarquía, 3 dB si está más atrás. Release 150 ms. Pistas del mismo tipo
+    no se tocan entre sí. Modifica `pistas`; devuelve {banda: dB medio}."""
+    tipos = [_tipo_prioridad(r) for r in roles]
+    if len(set(tipos)) < 2:
+        return {}
+    n = max(p.shape[0] for p in pistas)
+    v = max(1, int(0.01 * sr))
+    nb = n // v
+    if nb < 10:
+        return {}
+    nombres_b = list(BANDAS_HZ.keys())
+
+    def env_pot(x):
+        x = np.pad(x, (0, max(0, nb * v - len(x))))[: nb * v]
+        return np.mean(x.reshape(nb, v) ** 2, axis=1) + 1e-20
+
+    envs = [{b: env_pot(s) for b, s in split_bandas_mono(p.mean(axis=1), sr).items()}
+            for p in pistas]
+    a_re = float(np.exp(-1.0 / 15.0))   # 150 ms en bloques de 10 ms
+    medias = {}
+    for i, p in enumerate(pistas):
+        ganancias = {}
+        for b in nombres_b:
+            orden = _PRIORIDAD_BANDA[b]
+            rango = orden.index(tipos[i])
+            superiores = [j for j, t in enumerate(tipos) if orden.index(t) < rango]
+            if not superiores:
+                continue
+            arriba = sum(envs[j][b] for j in superiores)
+            arriba_db = 10 * np.log10(arriba)
+            mejor = min(orden.index(tipos[j]) for j in superiores)
+            tope = 2.0 if rango - mejor == 1 else 3.0
+            suena = arriba_db > arriba_db.max() - 25
+            compite = suena & (10 * np.log10(envs[i][b]) > arriba_db - 6)
+            red = np.where(compite, tope, 0.0)
+            if not red.any():
+                continue
+            g = 0.0
+            for t in range(nb):
+                g = max(red[t], a_re * g)
+                red[t] = g
+            ganancias[b] = red
+            medias.setdefault(b, []).append(float(red[suena].mean()) if suena.any() else 0.0)
+        if not ganancias:
+            continue
+        x_idx = np.arange(nb) * v + v / 2
+        salida = np.zeros_like(p)
+        for b, banda in _split_bandas(p, sr).items():
+            if b in ganancias:
+                banda = banda * (10 ** (-np.interp(np.arange(p.shape[0]), x_idx, ganancias[b]) / 20))[:, None]
+            salida += banda
+        pistas[i] = salida
+    return {b: round(float(np.mean(m)), 1) for b, m in medias.items()}
+
+
 # Capas de arreglo que suben en los estribillos (ítem 19); batería, bajo y
 # voz quedan como están
 _ROLES_CAPA = ("guitarra", "teclas", "coros", "vientos")
@@ -1001,9 +1078,14 @@ def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
             progreso("Dinámica por grupo como la referencia: " + ", ".join(
                 f"{g} −{v:.1f} dB de rango" for g, v in din.items()))
     if desenmascarar:
-        red_voz = _desenmascarar_voz(pistas, roles, srs[0])
-        if red_voz > 0:
-            msg = f"Desenmascarado: el acompañamiento deja lugar a la voz ({red_voz:.1f} dB en 1–4 kHz)"
+        # por jerarquía en las 7 bandas (incluye que la voz se abra paso en
+        # los medios, que antes hacía `_desenmascarar_voz` solo en 1–4 kHz)
+        red = _desenmascarar_jerarquia(pistas, roles, srs[0])
+        if informe is not None:
+            informe["desenmascarado"] = red
+        if red:
+            msg = "Desenmascarado por jerarquía (dB medios): " + ", ".join(
+                f"{b} −{v:g}" for b, v in red.items())
             log.info(msg)
             if progreso:
                 progreso(msg)
