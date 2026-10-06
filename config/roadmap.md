@@ -140,7 +140,7 @@ que era solo una prueba; no seguir con ese audio.
 instrumentos ("¿separar para volver a unir? no tiene sentido").
 Orden por dificultad, de a uno:
 - [x] 1. WAV 32 bits flotante (copia `_32f.wav` junto al de 24; `exportar.wav_32_float`)
-- [ ] 2. Perillas de revisión ("más brillo", "menos fuerte", "más grave")
+- [x] 2. Perillas de revisión: panel "Revisión" en el paso 3 (brillo, grave, volumen, matching; rehace como V01R1, R2…). `masterizar(revision=…)`
 - [ ] 3. Limitador multibanda
 - [ ] 4. Desenmascarado entre todas las pistas
 - [ ] 5. Control del grave en el tiempo

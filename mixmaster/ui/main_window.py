@@ -316,11 +316,11 @@ class MasterWorker(QThread):
     fallo = Signal(str)
 
     def __init__(self, mezcla, referencia, target, dir_masters, dir_entregables,
-                 version, carpeta_stems=None, genero=None):
+                 version, carpeta_stems=None, genero=None, revision=None):
         super().__init__()
         self.mezcla, self.referencia, self.target = mezcla, referencia, target
         self.dir_masters, self.dir_entregables, self.version = dir_masters, dir_entregables, version
-        self.carpeta_stems, self.genero = carpeta_stems, genero
+        self.carpeta_stems, self.genero, self.revision = carpeta_stems, genero, revision
 
     def run(self):
         """Corre el pipeline de master y emite el resumen o el error."""
@@ -330,6 +330,7 @@ class MasterWorker(QThread):
                 self.dir_masters, self.dir_entregables,
                 version=self.version, carpeta_stems=self.carpeta_stems,
                 progreso=self.progreso.emit, genero=self.genero,
+                revision=self.revision,
             )
             self.terminado.emit(resumen)
         except Exception as e:
@@ -758,6 +759,35 @@ class MainWindow(QMainWindow):
         lay_m50x.addLayout(fila_seek)
 
         lay3.addWidget(self.panel_m50x)
+
+        # Perillas de revisión (como LANDR): después de escuchar, pedir un
+        # cambio concreto y rehacer el master con eso
+        self.panel_revision = QFrame()
+        self.panel_revision.setStyleSheet(
+            "QFrame { border: 1px solid #5a6b8c; border-radius: 8px; padding: 4px; }")
+        self.panel_revision.setVisible(False)
+        lay_rev = QVBoxLayout(self.panel_revision)
+        lbl_rev = QLabel("🎚 Revisión: ¿qué le cambiarías al master?")
+        lbl_rev.setStyleSheet("border: none; font-weight: bold;")
+        lay_rev.addWidget(lbl_rev)
+        fila_rev = QHBoxLayout()
+        for texto, clave, paso in (("+ brillo", "brillo_db", 1.0), ("− brillo", "brillo_db", -1.0),
+                                   ("+ grave", "grave_db", 1.0), ("− grave", "grave_db", -1.0),
+                                   ("+ fuerte", "volumen_lu", 1.0), ("− fuerte", "volumen_lu", -1.0),
+                                   ("− matching", "matching", -0.25), ("+ matching", "matching", 0.25)):
+            b = QPushButton(texto)
+            b.clicked.connect(lambda _=False, c=clave, p=paso: self._revision_ajustar(c, p))
+            fila_rev.addWidget(b)
+        lay_rev.addLayout(fila_rev)
+        fila_rev2 = QHBoxLayout()
+        self.lbl_revision = QLabel("")
+        self.lbl_revision.setStyleSheet("border: none;")
+        self.btn_rehacer = QPushButton("Rehacer master con estos cambios")
+        self.btn_rehacer.clicked.connect(self._revision_rehacer)
+        fila_rev2.addWidget(self.lbl_revision, stretch=1)
+        fila_rev2.addWidget(self.btn_rehacer)
+        lay_rev.addLayout(fila_rev2)
+        lay3.addWidget(self.panel_revision)
 
         # Contenedor del panel A/B ciego embebido (se llena al pedirlo desde el menú)
         self.panel_ab_ciego_contenedor = QVBoxLayout()
@@ -2022,18 +2052,50 @@ class MainWindow(QMainWindow):
                 "(sin EQ correctivo ni imagen). Puedes elegirlas en el PASO 2.")
 
         version = self.diagnostico["version"] if self.diagnostico else "V01"
+        # se guarda para poder rehacerlo con las perillas de revisión
+        self._ultimo_master = {"target": target, "version": version, "carpeta_stems": carpeta_stems}
+        self._revision = {"brillo_db": 0.0, "grave_db": 0.0, "volumen_lu": 0.0, "matching": 1.0}
+        self._n_revision = 0
+        self._lanzar_master(target, version, carpeta_stems)
+
+    def _lanzar_master(self, target, version, carpeta_stems, revision=None):
+        """Arranca el MasterWorker (master nuevo o revisión de uno anterior)."""
         self.btn_master.setEnabled(False)
+        if hasattr(self, "panel_revision"):
+            self.panel_revision.setEnabled(False)
         self._barra_activa(True)
         self._status("Masterizando…")
         self._master_worker = MasterWorker(
             self.wav_activo, self.referencia, target,
             self.proyecto.dir_masters, self.proyecto.dir_entregables,
-            version, carpeta_stems, self.settings.genero_activo())
+            version, carpeta_stems, self.settings.genero_activo(), revision)
         self._master_worker.setParent(self)
         self._master_worker.progreso.connect(self._progreso)
         self._master_worker.terminado.connect(self._master_ok)
         self._master_worker.fallo.connect(self._master_error)
         self._master_worker.start()
+
+    def _revision_ajustar(self, clave: str, paso: float):
+        """Suma un paso a una perilla de revisión (tope ±6 dB/LU, matching 0..1)."""
+        v = self._revision[clave] + paso
+        self._revision[clave] = min(1.0, max(0.0, v)) if clave == "matching" else max(-6.0, min(6.0, v))
+        self._revision_mostrar()
+
+    def _revision_mostrar(self):
+        r = self._revision
+        self.lbl_revision.setText(
+            f"Brillo {r['brillo_db']:+g} dB · Grave {r['grave_db']:+g} dB · "
+            f"Volumen {r['volumen_lu']:+g} LU · Matching {r['matching']:.0%}")
+
+    def _revision_rehacer(self):
+        """Rehace el último master con las perillas; queda como versión nueva
+        (R1, R2…) para compararla con la anterior."""
+        u = getattr(self, "_ultimo_master", None)
+        if not u:
+            return
+        self._n_revision += 1
+        rev = {k: v for k, v in self._revision.items() if (k != "matching" and v) or (k == "matching" and v < 1.0)}
+        self._lanzar_master(u["target"], f"{u['version']}R{self._n_revision}", u["carpeta_stems"], rev)
 
     def _master_ok(self, resumen: dict):
         """Muestra el resultado y abre la carpeta de salida."""
@@ -2118,6 +2180,10 @@ class MainWindow(QMainWindow):
             log.exception("No se pudo abrir la carpeta de salida")
         self._mostrar_graficas(resumen)
         self._generar_m50x(resumen)
+        if hasattr(self, "_revision"):
+            self.panel_revision.setVisible(True)
+            self.panel_revision.setEnabled(True)
+            self._revision_mostrar()
         self._preguntar_aprobado(resumen)
 
     def _mostrar_graficas(self, resumen: dict):
@@ -2246,6 +2312,8 @@ class MainWindow(QMainWindow):
         self._barra_activa(False)
         self._refrescar_estado()
         self._status("Masterizado fallido (ver app.log).")
+        if hasattr(self, "panel_revision"):
+            self.panel_revision.setEnabled(True)
         QMessageBox.critical(self, "Error", f"No se pudo masterizar:\n{msg}")
 
     def _voz_error(self, msg: str):

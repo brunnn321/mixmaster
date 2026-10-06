@@ -10,6 +10,7 @@ Todo es configurable en config/master.json (editable, no hardcodeado).
 Filosofía del perfil: la referencia orienta, nunca se clona.
 """
 
+import copy
 import json
 from pathlib import Path
 
@@ -1844,7 +1845,7 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
                target_lufs: float, dir_masters: Path, dir_entregables: Path,
                version: str = "V01", carpeta_stems: Path | None = None,
                progreso=None, cfg: dict | None = None,
-               genero: str | None = None) -> dict:
+               genero: str | None = None, revision: dict | None = None) -> dict:
     """Pipeline de masterizado. Entrada: mezcla estéreo O carpeta de stems.
 
     `cfg` opcional permite pasar una configuración a medida (A/B, tests);
@@ -1861,6 +1862,17 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         cfg = cargar_config_master(genero)
         if genero:
             avisar(f"Preset de género: {genero}")
+    # Perillas de revisión (como las "Revisions" de LANDR): después de oír un
+    # master se pide "más brillo / más grave / más fuerte / menos matching" y
+    # se rehace. brillo/grave en dB (shelf 5 kHz / 120 Hz, después del
+    # matching), volumen en LU (corre el objetivo), matching 0..1.
+    revision = {k: float(v) for k, v in (revision or {}).items() if v}
+    if revision:
+        cfg = copy.deepcopy(cfg)
+        target_lufs = target_lufs + revision.get("volumen_lu", 0.0)
+        if "matching" in revision:
+            cfg["eq_correctivo"]["intensidad"] = min(1.0, max(0.0, revision["matching"]))
+        avisar(f"Revisión pedida: {revision}")
     cfg_eq = cfg["eq_correctivo"]
     cfg_den = cfg["densidad"]
     cfg_lim = cfg["limitador"]
@@ -2203,6 +2215,15 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
     # Bus (ítem 13) DESPUÉS del EQ: es no lineal, y si se aplicara antes, el
     # "mezcla - grupo + EQ(grupo)" del EQ solo en guitarras restaría unas
     # guitarras crudas de una mezcla ya comprimida y saturada.
+    if revision.get("brillo_db") or revision.get("grave_db"):
+        f_curva = np.geomspace(20.0, min(20000.0, sr * 0.45), 64)
+        curva = _curva_consola(f_curva, revision.get("grave_db", 0.0), 0.0, 0.0)
+        # shelf de agudos en 5 kHz (el de la consola está en 6 kHz)
+        curva = curva + revision.get("brillo_db", 0.0) / (1 + np.exp(-(np.log2(f_curva) - np.log2(5000.0)) * 2))
+        audio = _aplicar_fir(audio, _curva_fir_fina(f_curva, curva, sr))
+        avisar(f"Revisión: brillo {revision.get('brillo_db', 0):+g} dB, "
+               f"grave {revision.get('grave_db', 0):+g} dB")
+
     cfg_bus = cfg.get("bus_master", {})
     if cfg_bus.get("activo", False):
         tipo = str(cfg_bus.get("saturacion", "cinta"))
@@ -2493,6 +2514,7 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         "transient_shaping": round(transient_cant, 2) if transient_cant else None,
         "dinamica_macro": dinamica_aplicada,
         "densidad_aplicada": densidad_aplicada,
+        "revision": revision,
         # False = el material no llegó al loudness pedido sin machacarse;
         # la UI puede avisar en vez de entregar un master aplastado en silencio.
         "convergio_target": convergio,
