@@ -199,6 +199,9 @@ CONFIG_MASTER_DEFAULT = {
         "ceiling_dbtp": -1.0,
         "release_ms": 50,
         "lookahead_ms": 5,
+        # 6/10: limitador multibanda (4 bandas) antes del de banda completa:
+        # el bombo deja de hacer bajar a guitarras y voz
+        "multibanda": True,
     },
 }
 
@@ -1795,6 +1798,77 @@ def _medir_limitacion(pre: np.ndarray, post: np.ndarray, sr: int) -> dict:
     }
 
 
+CRUCES_LIMITADOR_HZ = (120.0, 1000.0, 6000.0)
+RELEASE_BANDA_MS = (90.0, 50.0, 35.0, 20.0)   # graves sueltan más lento (menos distorsión)
+
+
+def _limitador_multibanda(audio: np.ndarray, sr: int, cfg_lim: dict) -> np.ndarray:
+    """Limitador multibanda (ítem 3 de las herramientas top), en la línea de
+    Ozone IRC 5 y Waves L3: 4 bandas, cada una con su propia envolvente.
+
+    Cuando la suma pasa el techo, la reducción se reparte según cuánto aporta
+    cada banda al pico en ese momento: si el pico lo hace el bombo, baja
+    sobre todo la banda de graves y las guitarras y la voz casi no se mueven
+    (eso es lo que en un limitador de banda completa se oye como bombeo).
+    Bandas por resta (fase cero, suman exacto el original). Lookahead de
+    `lookahead_ms`, ataque inmediato, release por banda (`RELEASE_BANDA_MS`).
+    Trabaja en bloques de 32 muestras. Después tiene que ir `_limitador`, que
+    garantiza el techo de true peak (acá se mide el pico de muestra)."""
+    ceiling = 10 ** (float(cfg_lim.get("ceiling_dbtp", -1.0)) / 20)
+    objetivo = ceiling * 10 ** (-0.5 / 20)
+    bandas, resto = [], audio
+    for fc in CRUCES_LIMITADOR_HZ:
+        sos = signal.butter(4, min(fc, sr * 0.45), "lowpass", fs=sr, output="sos")
+        b = signal.sosfiltfilt(sos, resto, axis=0)
+        bandas.append(b)
+        resto = resto - b
+    bandas.append(resto)
+
+    n = audio.shape[0]
+    bloque = 32
+    nb = -(-n // bloque)
+
+    def picos(x):
+        m = np.max(np.abs(x), axis=1)
+        return np.pad(m, (0, nb * bloque - n)).reshape(nb, bloque).max(axis=1)
+
+    from scipy.ndimage import maximum_filter1d
+    look = max(1, int(float(cfg_lim.get("lookahead_ms", 5)) / 1000 * sr / bloque))
+    p_tot = maximum_filter1d(picos(audio), size=2 * look + 1)
+    p_b = np.stack([maximum_filter1d(picos(b), size=2 * look + 1) for b in bandas])
+    suma_b = p_b.sum(axis=0) + 1e-12
+    # peso = participación al cubo: la reducción se concentra en la banda que
+    # manda el pico (con participación lineal, en una mezcla real con
+    # guitarras fuertes los medios bajaban casi igual que en banda completa)
+    peso = (p_b / suma_b) ** 3
+    # cuánto hay que quitar: α tal que Σ p_b·(1 − α·peso_b) = objetivo (cota
+    # conservadora: los picos de las bandas se suman en fase)
+    exceso = np.maximum(np.minimum(p_tot, suma_b) - objetivo, 0.0)
+    alfa = exceso / np.maximum((p_b * peso).sum(axis=0), 1e-12) * (p_tot / suma_b)
+    gan = np.clip(1.0 - alfa[None] * peso, 0.05, 1.0)
+
+    fs_b = sr / bloque
+    salida = np.zeros_like(audio)
+    x_idx = np.arange(nb) * bloque + bloque / 2
+    for i, b in enumerate(bandas):
+        a = float(np.exp(-1.0 / max(RELEASE_BANDA_MS[i] / 1000 * fs_b, 1e-3)))
+        g = 1.0
+        suave = np.empty(nb)
+        for t in range(nb):
+            g = min(gan[i, t], a * g + (1 - a) * gan[i, t])
+            suave[t] = g
+        salida += b * np.interp(np.arange(n), x_idx, suave)[:, None]
+    return salida
+
+
+def _limitar(audio: np.ndarray, sr: int, cfg_lim: dict) -> np.ndarray:
+    """Etapa de volumen: multibanda primero (si `cfg_lim["multibanda"]`), y
+    siempre el limitador de 2 etapas al final como garantía del techo."""
+    if cfg_lim.get("multibanda", True):
+        audio = _limitador_multibanda(audio, sr, cfg_lim)
+    return _limitador(audio, sr, cfg_lim)
+
+
 def _limitador(audio: np.ndarray, sr: int, cfg_lim: dict) -> np.ndarray:
     """Limitador de DOS ETAPAS con lookahead sobre TRUE peak (inter-sample) y
     rodilla suave — reduce distorsión audible al empujar fuerte, comparado
@@ -2273,7 +2347,7 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
     # El limitador solo toca lo que pasa el techo: si no hay nada, es un no-op.
     pre_volumen = audio.copy()  # para los medidores de limitación (ítem 14)
     avisar(f"Limitando picos — pasada de seguridad (techo {cfg_lim['ceiling_dbtp']:g} dBTP)…")
-    audio = _limitador(audio, sr, cfg_lim)
+    audio = _limitar(audio, sr, cfg_lim)
 
     avisar(f"Normalizando a {target_lufs} LUFS (con convergencia)…")
     # 6 pasadas (antes 4): el limitador de 2 etapas reduce algo más de nivel
@@ -2308,7 +2382,7 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
             else:
                 audio = _a_2x(_clipper, audio, umbral_clip)
         avisar(f"Limitando picos (techo {cfg_lim['ceiling_dbtp']:g} dBTP, pasada {intento + 1})…")
-        audio = _limitador(audio, sr, cfg_lim)
+        audio = _limitar(audio, sr, cfg_lim)
         lufs_post = lufs_integrado(audio, sr)
         if np.isfinite(lufs_post):
             # tope de 2 LU: si se comió más que eso no fue el limitador
@@ -2343,7 +2417,7 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         audio = _preservar_dinamica_macro(
             audio, contorno_pre, sr, dinamica_cant,
             float(cfg_din.get("ventana_s", 1.0)), float(cfg_din.get("max_db", 2.0)))
-        audio = _limitador(audio, sr, cfg_lim)   # seguridad
+        audio = _limitar(audio, sr, cfg_lim)   # seguridad
         dinamica_aplicada = True
 
     # Segunda pasada de matching (Consejo + mentor, 26/9): el clipper, la
@@ -2362,10 +2436,10 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         for b, (f_lo, f_hi) in BANDAS_HZ.items():
             sel = (freqs2 >= f_lo) & (freqs2 < f_hi)
             segunda_pasada[b] = round(float(rm[sel].mean()), 1) if sel.any() else 0.0
-        audio = _limitador(audio, sr, cfg_lim)
+        audio = _limitar(audio, sr, cfg_lim)
         l2 = lufs_integrado(audio, sr)
         if np.isfinite(l2) and abs(target_lufs - l2) > tol_lufs:
-            audio = _limitador(audio * 10 ** ((target_lufs - l2) / 20), sr, cfg_lim)
+            audio = _limitar(audio * 10 ** ((target_lufs - l2) / 20), sr, cfg_lim)
 
     lufs_final = lufs_integrado(audio, sr)
     tp_final = true_peak_db(audio, sr)
