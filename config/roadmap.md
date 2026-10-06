@@ -132,6 +132,11 @@ scratchpad de la sesión, `ab_matching.py`) y la suite de tests de este
 Los ítems 3 y 4 de la lista de abajo ya están en el `consola.html` del WIP
 (3 espectros, sin zoom de CSS), sin probar en la app.
 
+**6/10:** investigación de herramientas top (Ozone 12, LANDR, MasteringBOX,
+Moises, sonible, RoEx, UAD, Waves, Suno, Tunee): 12 ideas en
+`docs/propuestas/investigacion_herramientas_top.md`. Esperando que Bruno
+elija. CRISIntro: Bruno dijo que era solo una prueba; no seguir con ese audio.
+
 ## 📋 PENDIENTE TOTAL (2/10/2026) — todo lo que falta, no solo calidad
 
 Bruno (2/10): "hay muchas más cosas que hacer que no me dijiste". Lista
