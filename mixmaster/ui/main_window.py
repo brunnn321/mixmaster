@@ -2106,7 +2106,9 @@ class MainWindow(QMainWindow):
             f"Crest: {resumen.get('crest_final', '?')} dB{eq_txt}{ancho_txt}{mbanda_txt}{reso_txt}{tr_txt}{den_txt}{mb_txt}"
             f"{recorte_txt}{aviso_crest_txt}{aviso_ref_txt}\n"
             f"  WAV: {resumen['wav']}\n"
-            f"  MP3 para subir: {resumen['mp3']}")
+            + (f"  WAV 32 bits flotante (para reprocesar): {resumen['wav_32f']}\n"
+               if resumen.get("wav_32f") else "")
+            + f"  MP3 para subir: {resumen['mp3']}")
         self._refrescar_estado()
         self._status(f"Master listo → {Path(resumen['mp3']).name}")
         try:

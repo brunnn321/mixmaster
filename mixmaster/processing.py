@@ -190,6 +190,10 @@ CONFIG_MASTER_DEFAULT = {
         "drive": 1.5,
         "rango_proporcional_db": 6.0,
     },
+    # 6/10: además del WAV de 24 bits, una copia en 32 bits flotante
+    "exportar": {
+        "wav_32_float": True,
+    },
     "limitador": {
         "ceiling_dbtp": -1.0,
         "release_ms": 50,
@@ -2399,6 +2403,13 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
 
     avisar("Exportando WAV 24-bit y MP3…")
     sf.write(str(out_wav), audio, sr, subtype="PCM_24")
+    # Copia en 32 bits flotante (como MasteringBOX 2.0): sin redondeo a 24
+    # bits, para reprocesar en un DAW. El de 24 bits sigue siendo el de
+    # entrega: varias distribuidoras no aceptan WAV en coma flotante.
+    out_wav_32f = None
+    if cfg.get("exportar", {}).get("wav_32_float", True):
+        out_wav_32f = dir_masters / f"{base_nombre}_32f.wav"
+        sf.write(str(out_wav_32f), audio.astype(np.float32), sr, subtype="FLOAT")
 
     # MP3 (MPEG-1/2/2.5) solo soporta ciertos sample rates. Si el original no
     # es uno de ellos (ej. 96000, 88200), se resamplea SOLO para el MP3 — el
@@ -2457,6 +2468,7 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
 
     resumen = {
         "wav": str(out_wav),
+        "wav_32f": str(out_wav_32f) if out_wav_32f else None,
         "mp3": str(out_mp3),
         "lufs_final": round(float(lufs_final), 1),
         "true_peak_final": round(tp_final, 1),

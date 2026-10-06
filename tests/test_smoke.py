@@ -159,6 +159,8 @@ def main() -> int:
             version="V01", cfg=cfg_solo_eq)
         check("master WAV creado", Path(resumen["wav"]).exists())
         check("master MP3 creado", Path(resumen["mp3"]).exists())
+        check("copia WAV 32 bits flotante creada",
+              bool(resumen.get("wav_32f")) and sf.info(resumen["wav_32f"]).subtype == "FLOAT")
         check("loudness en objetivo", abs(resumen["lufs_final"] - (-10.0)) < 1.0,
               f"lufs={resumen['lufs_final']}")
         check("true peak bajo techo", resumen["true_peak_final"] <= -0.8,

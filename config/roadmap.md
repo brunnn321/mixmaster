@@ -134,8 +134,21 @@ Los ítems 3 y 4 de la lista de abajo ya están en el `consola.html` del WIP
 
 **6/10:** investigación de herramientas top (Ozone 12, LANDR, MasteringBOX,
 Moises, sonible, RoEx, UAD, Waves, Suno, Tunee): 12 ideas en
-`docs/propuestas/investigacion_herramientas_top.md`. Esperando que Bruno
-elija. CRISIntro: Bruno dijo que era solo una prueba; no seguir con ese audio.
+`docs/propuestas/investigacion_herramientas_top.md`. CRISIntro: Bruno dijo
+que era solo una prueba; no seguir con ese audio.
+**Descartados por Bruno:** separar mezclas estéreo y separador de 6
+instrumentos ("¿separar para volver a unir? no tiene sentido").
+Orden por dificultad, de a uno:
+- [x] 1. WAV 32 bits flotante (copia `_32f.wav` junto al de 24; `exportar.wav_32_float`)
+- [ ] 2. Perillas de revisión ("más brillo", "menos fuerte", "más grave")
+- [ ] 3. Limitador multibanda
+- [ ] 4. Desenmascarado entre todas las pistas
+- [ ] 5. Control del grave en el tiempo
+- [ ] 6. Limpieza de ruido de stems
+- [ ] 7. EQ y compresión por sección
+- [ ] 8. Detección de estilo sin referencia
+- [ ] 9. Des-limitador
+- [ ] 10. Modelos de equipos reales
 
 ## 📋 PENDIENTE TOTAL (2/10/2026) — todo lo que falta, no solo calidad
 
