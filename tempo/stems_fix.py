@@ -1,6 +1,6 @@
 """Pone los stems de Moises a tempo fijo y genera un click exacto (método v0.4 de REGISTRO_app_tempo.md).
 
-Uso: python stems_fix.py "<carpeta stems Moises>" "<carpeta salida>" [BPM] [--forzar-estirar] [--fase=0..3]
+Uso: python stems_fix.py "<carpeta stems Moises o tema>" "<carpeta salida>" [BPM] [--forzar-estirar] [--fase=0..3] [--afinar-440]
 
 --fase fija en qué tiempo cae el "1" (lo usa el botón "mover el 1" de Tempo Genius).
 
@@ -275,7 +275,48 @@ def procesar(x, plan):
     y = desplazar(x, plan["s_ini"])
     if plan["mapa"] is not None:
         y = estirar(y, plan["mapa"], len(y) + plan["extra"])
+    if plan.get("afinar", 1.0) != 1.0:
+        y = afinar(y, plan["afinar"])
     return desplazar(y, plan["s_fin"])
+
+
+def afinar(x, escala):
+    """Cambia la afinación sin tocar el tiempo (por ejemplo 441 → 440 Hz)."""
+    import pylibrb as rb
+    O = rb.Option
+    a = np.ascontiguousarray(x.T, dtype=np.float32)
+    st = rb.RubberBandStretcher(SR, a.shape[0], O.PROCESS_OFFLINE | O.ENGINE_FINER, 1.0, escala)
+    st.set_expected_input_duration(a.shape[1])
+    st.study(a, final=True)
+    st.process(a, final=True)
+    out = []
+    while (n := st.available()) > 0:
+        out.append(st.retrieve(n))
+    y = np.concatenate(out, axis=1).T
+    if len(y) < len(x):
+        y = np.concatenate([y, np.zeros((len(x) - len(y), y.shape[1]), y.dtype)])
+    return y[:len(x)]
+
+
+def downbeat_modelo(mezcla, tiempos, a, z):
+    """Fase del "1" según Beat This! (modelo entrenado). None si no está instalado o no decide."""
+    try:
+        from beat_this.inference import Audio2Beats
+    except ImportError:
+        return None, None
+    _, downs = Audio2Beats(checkpoint_path="final0", device="cpu", dbn=False)(mezcla.mean(axis=1), SR)
+    votos = np.zeros(4)
+    for d in downs:
+        i = int(np.argmin(np.abs(tiempos - d)))
+        if a <= i <= z and abs(tiempos[i] - d) < 0.1:
+            votos[i % 4] += 1
+    if votos.sum() < 8:
+        return None, votos.tolist()
+    return int(np.argmax(votos)), votos.tolist()
+
+
+def mmss(t):
+    return f"{int(t // 60)}:{int(t % 60):02d}"
 
 
 def armar_mapa(origen, destino, n_entrada):
@@ -344,6 +385,7 @@ def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     forzar = "--forzar-estirar" in sys.argv
     fase_forzada = next((int(x.split("=")[1]) % 4 for x in sys.argv if x.startswith("--fase=")), None)
+    afinar_440 = "--afinar-440" in sys.argv
     if len(args) < 2:
         raise SystemExit(__doc__)
     entrada, salida = Path(args[0]), Path(args[1])
@@ -384,8 +426,10 @@ def main():
 
     # inicio de la música (para dejar como máximo un compás de click antes)
     inicio = None
+    mezcla_in = None
     for k in musicales:
         x = cargar(stems[k]) if k != n_drums else drums
+        mezcla_in = x.copy() if mezcla_in is None else sum_stems([mezcla_in, x])
         e = suavizar(np.abs(x.mean(axis=1)), 50)
         on = np.flatnonzero(e > 0.02 * e.max())
         if len(on):
@@ -397,6 +441,13 @@ def main():
     tiempos, confiable, off_global = medir_tiempos(env, guia)
     a, z = tramo_a_tempo(tiempos, bpm)
     fase, fase_info = fase_downbeat(drums, tiempos, a, z)
+    print("  buscando el 1 con el modelo entrenado…")
+    fase_mod, votos = downbeat_modelo(mezcla_in, tiempos, a, z)
+    del mezcla_in
+    fase_info["heuristica"], fase_info["modelo_votos"] = fase, votos
+    if fase_mod is not None:
+        fase_info["modelo"] = fase_mod
+        fase = fase_mod
     if fase_forzada is not None:
         fase_info["detectada"], fase = fase, fase_forzada
     P = 60.0 / bpm
@@ -464,6 +515,15 @@ def main():
         error, plan, d_out = min(pasadas, key=lambda p: p[0])
         log["pasadas_peor_seccion_ms"] = [round(p[0], 1) for p in pasadas]
 
+    mh = re.search(r"(\d{3})hz", nombre)
+    hz = int(mh.group(1)) if mh else 440
+    log["afinacion_hz"] = hz
+    if afinar_440 and hz != 440:
+        plan["afinar"] = 440.0 / hz
+        d_out = afinar(d_out, plan["afinar"])
+        log["afinado_a_440_cents"] = round(1200 * np.log2(440.0 / hz), 1)
+        print(f"  afinando {hz} → 440 Hz ({log['afinado_a_440_cents']} cents)")
+
     # chequeo final independiente: batería de salida contra el click de salida
     env_o = envolvente(d_out)
     off_final, _ = ataque_erp(env_o, destino[a:z + 1])
@@ -476,6 +536,34 @@ def main():
     log["chequeo_final_ms"] = None if off_final is None else round(off_final * 1000, 1)
     log["verificacion_secciones_32_ms"] = verif
     print(f"  verificación por secciones de 32 tiempos (ms): {verif}")
+
+    # avisos para el reporte
+    avisos = []
+    i = 0
+    while i < len(confiable):
+        if not confiable[i]:
+            j = i
+            while j < len(confiable) and not confiable[j]:
+                j += 1
+            if j - i >= 8:
+                avisos.append(f"sin batería en {mmss(tiempos[i])}–{mmss(tiempos[j - 1])}: ahí el click se extrapola")
+            i = j
+        else:
+            i += 1
+    if a > 0:
+        avisos.append(f"inicio libre hasta {mmss(tiempos[a])}: el click sigue a la música")
+    if z < len(tiempos) - 1:
+        avisos.append(f"final libre desde {mmss(tiempos[z])}: el click sigue a la música")
+    if fase_info.get("modelo") is not None and fase_info["modelo"] != fase_info["heuristica"]:
+        avisos.append("el modelo y la heurística no coinciden en el 1: confirmar de oído")
+    elif fase_info.get("modelo") is None:
+        avisos.append("el 1 se adivinó con la heurística: confirmar de oído")
+    for k, v in enumerate(verif):
+        if v is not None and abs(v) > 8:
+            avisos.append(f"sección desde {mmss(destino[a + 32 * k])} corrida {v:+.1f} ms")
+    log["avisos"] = avisos
+    for av in avisos:
+        print(f"  aviso: {av}")
 
     # click: tiempos de salida + cuenta previa hacia atrás hasta 0
     previos = []

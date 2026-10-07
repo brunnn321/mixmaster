@@ -16,7 +16,7 @@ import soundfile as sf
 from PySide6.QtCore import QProcess, QProcessEnvironment, Qt, QUrl
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import (
-    QDialog, QDoubleSpinBox, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
+    QCheckBox, QDialog, QDoubleSpinBox, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
     QPlainTextEdit, QPushButton, QVBoxLayout,
 )
 
@@ -71,6 +71,9 @@ class TempoDialog(QDialog):
         self.spin_bpm.setDecimals(2)
         self.spin_bpm.setValue(120)
         fila_bpm.addWidget(self.spin_bpm)
+        self.chk_440 = QCheckBox("Afinar a 440 Hz")
+        self.chk_440.setToolTip("Si el tema está en 441 o 442 Hz (lo dice el nombre de Moises), lo lleva a 440.")
+        fila_bpm.addWidget(self.chk_440)
         self.lbl_salida = QLabel("")
         self.lbl_salida.setStyleSheet("color: #8a9bb5;")
         fila_bpm.addWidget(self.lbl_salida, 1)
@@ -161,6 +164,8 @@ class TempoDialog(QDialog):
         args = ["-u", str(SCRIPT), self.txt_carpeta.text(), str(self._salida), f"{self.spin_bpm.value():g}"]
         if fase is not None:
             args.append(f"--fase={fase}")
+        if self.chk_440.isChecked():
+            args.append("--afinar-440")
         self.txt_log.clear()
         self.lbl_resumen.setText("Procesando…")
         for b in (self.btn_procesar, self.btn_play, self.btn_antes, self.btn_despues, self.btn_abrir):
@@ -194,9 +199,9 @@ class TempoDialog(QDialog):
         secs = [abs(v) for v in info.get("verificacion_secciones_32_ms", []) if v is not None]
         partes = [f"Modo {info['modo']}", f"ajuste {info['bpm_ajuste']} BPM",
                   f"peor sección {max(secs):.1f} ms" if secs else "sin secciones con batería"]
-        if info.get("final_libre"):
-            partes.append(f"final libre desde {info['tramo_a_tempo']['hasta_s']:.0f} s")
-        self.lbl_resumen.setText(" · ".join(partes) + "\nEscucha el comienzo: el tono agudo del click debe caer en el 1.")
+        avisos = "".join(f"\n⚠ {a}" for a in info.get("avisos", []))
+        self.lbl_resumen.setText(" · ".join(partes) + avisos
+                                 + "\nEscucha el comienzo: el tono agudo del click debe caer en el 1.")
         self._preparar_escucha()
         self.btn_abrir.setEnabled(True)
 
