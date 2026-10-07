@@ -185,6 +185,54 @@ def peor(secs):
     return max(vals) if vals else 0.0
 
 
+# ---------- sin stems ----------
+
+def sum_stems(xs):
+    n = max(len(x) for x in xs)
+    total = np.zeros((n, max(x.shape[1] for x in xs)), np.float32)
+    for x in xs:
+        total[:len(x), :x.shape[1]] += x
+    return total
+
+
+def separar_bateria(x):
+    """Separa la batería con HT Demucs (mismo uso que mixmaster/separacion.py, copiado para no depender)."""
+    import torch
+    from demucs.apply import apply_model
+    from demucs.pretrained import get_model
+    modelo = get_model("htdemucs")
+    modelo.eval()
+    if x.shape[1] == 1:
+        x = np.repeat(x, 2, axis=1)
+    if modelo.samplerate != SR:
+        x = resample_poly(x, modelo.samplerate, SR, axis=0)
+    wav = torch.tensor(x.T, dtype=torch.float32)
+    ref = wav.mean(0)
+    media, desvio = ref.mean(), ref.std() + 1e-8
+    with torch.no_grad():
+        fuentes = apply_model(modelo, ((wav - media) / desvio)[None], device="cpu",
+                              split=True, overlap=0.25, progress=False)[0]
+    drums = (fuentes[modelo.sources.index("drums")] * desvio + media).numpy().T
+    if modelo.samplerate != SR:
+        drums = resample_poly(drums, SR, modelo.samplerate, axis=0)
+    return drums.astype(np.float32)
+
+
+def clicks_detector(drums, bpm):
+    """Guía aproximada de los tiempos cuando no hay metrónomo de Moises (la corrige después el ERP)."""
+    import librosa
+    onset = librosa.onset.onset_strength(y=drums.mean(axis=1), sr=SR, hop_length=256)
+    _, beats = librosa.beat.beat_track(onset_envelope=onset, sr=SR, hop_length=256, start_bpm=bpm,
+                                       tightness=400, units="time")
+    P = 60.0 / bpm
+    paso = np.median(np.diff(beats))
+    if paso < 0.75 * P:
+        beats = beats[::2]
+    elif paso > 1.5 * P:
+        beats = np.sort(np.concatenate([beats, (beats[:-1] + beats[1:]) / 2]))
+    return beats
+
+
 # ---------- estirar ----------
 
 def estirar(x, mapa, largo):
@@ -239,6 +287,40 @@ def armar_mapa(origen, destino, n_entrada):
     return mapa
 
 
+# ---------- mapa de tempo MIDI ----------
+
+def _vlq(n):
+    out = [n & 0x7F]
+    n >>= 7
+    while n:
+        out.insert(0, (n & 0x7F) | 0x80)
+        n >>= 7
+    return bytes(out)
+
+
+def escribir_midi(path, tiempos, indices, idx_uno, tick_uno, ppq=960):
+    """Mapa de tempo (.mid) que sigue al click, también en los tramos libres; el "1" cae en inicio de compás."""
+    ticks = (np.asarray(indices) - idx_uno) * ppq + tick_uno
+    if ticks[0] < 0:
+        ticks += int(np.ceil(-ticks[0] / (4 * ppq))) * 4 * ppq
+    if ticks[0] == 0 and tiempos[0] > 0.001:
+        ticks += 4 * ppq
+    eventos = []   # (tick, microsegundos por negra)
+    if ticks[0] > 0:
+        eventos.append((0, tiempos[0] / (ticks[0] / ppq) * 1e6))
+    for k in range(len(tiempos) - 1):
+        eventos.append((int(ticks[k]), (tiempos[k + 1] - tiempos[k]) * 1e6))
+    pista = bytearray(b"\x00\xff\x58\x04\x04\x02\x18\x08")   # 4/4
+    ultimo = 0
+    for tick, us in eventos:
+        us = int(round(min(max(us, 1), 0xFFFFFF)))
+        pista += _vlq(tick - ultimo) + b"\xff\x51\x03" + us.to_bytes(3, "big")
+        ultimo = tick
+    pista += b"\x00\xff\x2f\x00"
+    cab = b"MThd" + (6).to_bytes(4, "big") + (0).to_bytes(2, "big") + (1).to_bytes(2, "big") + ppq.to_bytes(2, "big")
+    Path(path).write_bytes(cab + b"MTrk" + len(pista).to_bytes(4, "big") + bytes(pista))
+
+
 # ---------- click ----------
 
 def generar_click(tiempos, acentos, largo):
@@ -265,31 +347,40 @@ def main():
     if len(args) < 2:
         raise SystemExit(__doc__)
     entrada, salida = Path(args[0]), Path(args[1])
-    m = RE_BPM.search(entrada.name)
+    nombre = entrada.stem if entrada.is_file() else entrada.name
+    m = RE_BPM.search(nombre)
     bpm = float(args[2]) if len(args) > 2 else (float(m.group(1)) if m else None)
     if bpm is None:
         raise SystemExit("No se encontró el BPM en el nombre de la carpeta; pásalo como tercer argumento.")
-    mt = RE_TEMA.match(entrada.name)
-    tema = mt.group(1).strip() if mt else entrada.name
+    mt = RE_TEMA.match(nombre)
+    tema = mt.group(1).strip() if mt else nombre
 
     stems = {}
-    for f in sorted(entrada.iterdir()):
+    for f in ([entrada] if entrada.is_file() else sorted(entrada.iterdir())):
         if f.suffix.lower() not in (".mp3", ".wav", ".flac", ".m4a", ".ogg", ".aiff", ".aif"):
             continue
         ms = RE_STEM.search(f.stem)
         stems[ms.group(1) if ms else f.stem] = f
     n_drums = next((k for k in stems if k.lower() in DRUMS), None)
     n_click = next((k for k in stems if k.lower() in CLICKS), None)
-    if not n_drums or not n_click:
-        raise SystemExit(f"Faltan stems de batería o metrónomo. Encontrados: {list(stems)}")
     musicales = [k for k in stems if k != n_click]
+    if not musicales:
+        raise SystemExit("No hay audio en la entrada.")
     print(f"{tema} | {bpm} BPM | stems: {', '.join(musicales)}")
 
-    drums = cargar(stems[n_drums])
+    if n_drums:
+        drums = cargar(stems[n_drums])
+    else:
+        print("  sin stem de batería: se separa con Demucs (unos minutos)…")
+        drums = separar_bateria(sum_stems([cargar(stems[k]) for k in musicales]))
     env = envolvente(drums)
-    clicks = detectar_clicks(cargar(stems[n_click]))
+    if n_click:
+        clicks = detectar_clicks(cargar(stems[n_click]))
+    else:
+        print("  sin metrónomo de Moises: la guía sale de un detector de pulsos")
+        clicks = clicks_detector(drums, bpm)
     if len(clicks) < 32:
-        raise SystemExit("El metrónomo de Moises tiene muy pocos clicks.")
+        raise SystemExit("La guía de tiempos tiene muy pocos clicks.")
 
     # inicio de la música (para dejar como máximo un compás de click antes)
     inicio = None
@@ -402,7 +493,8 @@ def main():
     mezcla = None
     for k in musicales:
         y = d_out if k == n_drums else procesar(cargar(stems[k]), plan)
-        sf.write(str(salida / f"{base} - {k}.flac"), y, SR, subtype="PCM_24")
+        if len(musicales) > 1:
+            sf.write(str(salida / f"{base} - {k}.flac"), y, SR, subtype="PCM_24")
         if mezcla is None:
             mezcla = y.astype(np.float32).copy()
         else:
@@ -416,6 +508,7 @@ def main():
         log["mezcla_bajada_db"] = round(20 * np.log10(0.999 / pico), 2)
     sf.write(str(salida / f"{base} - MEZCLA.flac"), mezcla, SR, subtype="PCM_24")
     sf.write(str(salida / f"{base} - CLICK.flac"), generar_click(click_t, acentos, len(mezcla)), SR, subtype="PCM_24")
+    escribir_midi(salida / f"{base} - TEMPO.mid", click_t, indices, jd, K * 4 * 960)
     log["desplazamiento_s"] = round(s_ini + plan["s_fin"], 4)
     (salida / "log.json").write_text(json.dumps(log, ensure_ascii=False, indent=2, default=float), encoding="utf-8")
     print(f"Listo: {salida}")

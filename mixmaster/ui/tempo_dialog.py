@@ -54,8 +54,14 @@ class TempoDialog(QDialog):
         self.txt_carpeta.setPlaceholderText("Carpeta de stems de Moises (con metrónomo)")
         btn_carpeta = QPushButton("📁 Elegir carpeta…")
         btn_carpeta.clicked.connect(self._elegir_carpeta)
+        btn_tema = QPushButton("🎵 Tema sin stems…")
+        btn_tema.setToolTip("Un solo archivo (la mezcla): la batería se separa con Demucs.
+"
+                            "Pon el BPM a mano si no está en el nombre.")
+        btn_tema.clicked.connect(self._elegir_tema)
         fila_carpeta.addWidget(self.txt_carpeta, 1)
         fila_carpeta.addWidget(btn_carpeta)
+        fila_carpeta.addWidget(btn_tema)
         lay.addLayout(fila_carpeta)
 
         fila_bpm = QHBoxLayout()
@@ -113,20 +119,25 @@ class TempoDialog(QDialog):
         if carpeta:
             self._usar_carpeta(Path(carpeta))
 
+    def _elegir_tema(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Tema sin stems", "", "Audio (*.mp3 *.wav *.flac *.m4a *.ogg *.aiff *.aif)")
+        if path:
+            self._usar_carpeta(Path(path))
+
     def dragEnterEvent(self, event):
-        if event.mimeData().hasUrls() and any(Path(u.toLocalFile()).is_dir()
-                                              for u in event.mimeData().urls()):
+        if event.mimeData().hasUrls() and any(u.isLocalFile() for u in event.mimeData().urls()):
             event.acceptProposedAction()
 
     def dropEvent(self, event):
         for u in event.mimeData().urls():
-            if Path(u.toLocalFile()).is_dir():
+            if u.isLocalFile():
                 self._usar_carpeta(Path(u.toLocalFile()))
                 break
 
     def _usar_carpeta(self, carpeta: Path):
         self.txt_carpeta.setText(str(carpeta))
-        m = RE_BPM.search(carpeta.name)
+        m = RE_BPM.search(carpeta.stem if carpeta.is_file() else carpeta.name)
         if m:
             self.spin_bpm.setValue(float(m.group(1)))
         self._fase = None
@@ -134,15 +145,16 @@ class TempoDialog(QDialog):
 
     def _carpeta_salida(self) -> Path:
         carpeta = Path(self.txt_carpeta.text())
-        m = RE_TEMA.match(carpeta.name)
-        tema = m.group(1).strip() if m else carpeta.name
+        nombre = carpeta.stem if carpeta.is_file() else carpeta.name
+        m = RE_TEMA.match(nombre)
+        tema = m.group(1).strip() if m else nombre
         return carpeta.parent / "A TEMPO" / f"{tema} - {self.spin_bpm.value():g} BPM"
 
     # ---------- proceso ----------
 
     def _procesar(self, fase=None):
         if not self.txt_carpeta.text():
-            self.lbl_resumen.setText("Elige primero la carpeta de stems.")
+            self.lbl_resumen.setText("Elige primero la carpeta de stems o el tema.")
             return
         self._soltar_audio()
         self._salida = self._carpeta_salida()
