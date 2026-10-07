@@ -1,6 +1,8 @@
 """Pone los stems de Moises a tempo fijo y genera un click exacto (método v0.4 de REGISTRO_app_tempo.md).
 
-Uso: python stems_fix.py "<carpeta stems Moises>" "<carpeta salida>" [BPM] [--forzar-estirar]
+Uso: python stems_fix.py "<carpeta stems Moises>" "<carpeta salida>" [BPM] [--forzar-estirar] [--fase=0..3]
+
+--fase fija en qué tiempo cae el "1" (lo usa el botón "mover el 1" de Tempo Genius).
 
 No depende de MixMaster. Necesita numpy, scipy, soundfile (lee MP3) y pylibrb (solo en modo estirar).
 """
@@ -259,6 +261,7 @@ def generar_click(tiempos, acentos, largo):
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     forzar = "--forzar-estirar" in sys.argv
+    fase_forzada = next((int(x.split("=")[1]) % 4 for x in sys.argv if x.startswith("--fase=")), None)
     if len(args) < 2:
         raise SystemExit(__doc__)
     entrada, salida = Path(args[0]), Path(args[1])
@@ -303,6 +306,8 @@ def main():
     tiempos, confiable, off_global = medir_tiempos(env, guia)
     a, z = tramo_a_tempo(tiempos, bpm)
     fase, fase_info = fase_downbeat(drums, tiempos, a, z)
+    if fase_forzada is not None:
+        fase_info["detectada"], fase = fase, fase_forzada
     P = 60.0 / bpm
     compas = 4 * P
 

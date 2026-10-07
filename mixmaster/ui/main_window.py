@@ -603,6 +603,11 @@ class MainWindow(QMainWindow):
             "Convierte audio (m4a, wma, mp3, flac…) a WAV o MP3.\n"
             "Para cuando te mandan una toma en un formato que Studio One no reconoce.")
         acc_convertidor.triggered.connect(self._abrir_convertidor)
+        acc_tempo = QAction("⏱ Tempo Genius", self)
+        acc_tempo.setToolTip(
+            "Pone los stems de Moises a tempo fijo y genera un click exacto,\n"
+            "listo para arrastrar al compás 1 de Studio One.")
+        acc_tempo.triggered.connect(self._abrir_tempo)
         acc_arbol = QAction("🌳 Árbol de géneros", self)
         acc_arbol.setToolTip(
             "Genealogía de 92 géneros en 3D: de dónde viene cada uno y con qué\n"
@@ -610,7 +615,7 @@ class MainWindow(QMainWindow):
         acc_arbol.triggered.connect(self._abrir_arbol_generos)
         m_herr.addActions(
             [acc_hist, acc_masters, acc_notas, acc_null, acc_ab_ciego, acc_convertidor,
-             acc_arbol])
+             acc_tempo, acc_arbol])
 
     def _crear_ui(self):
         """Layout: proyecto → guía → paso actual → navegación → resultados."""
@@ -1344,6 +1349,11 @@ class MainWindow(QMainWindow):
         """Abre el convertidor de audio (no depende de un proyecto abierto)."""
         from .convertidor_dialog import ConvertidorDialog
         ConvertidorDialog(self).exec()
+
+    def _abrir_tempo(self):
+        """Abre Tempo Genius (no depende de un proyecto abierto)."""
+        from .tempo_dialog import TempoDialog
+        TempoDialog(self).exec()
 
     def _abrir_ab_ciego(self):
         """Compara a ciegas los 2 masters más recientes — panel embebido en PASO 3."""
