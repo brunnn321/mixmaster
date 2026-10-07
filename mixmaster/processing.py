@@ -152,6 +152,9 @@ CONFIG_MASTER_DEFAULT = {
         # referencia separada, y dinámica de cada grupo como en la referencia
         "consola_optimizada": True,
         "dinamica_grupos": True,
+        # 7/10 (herramienta top 7): el sub del bajo cede cuando pega el bombo.
+        # Apagado hasta que Bruno lo escuche.
+        "control_grave": False,
     },
     # 2/10 (ítem 24): EQ perceptual estilo Gullfoss. "recuperar" realza lo
     # que queda enmascarado por bandas vecinas; "domar" baja lo que domina.
@@ -937,6 +940,53 @@ def _levantar_estribillos(total: np.ndarray, capas: np.ndarray, sr: int,
     return nuevo - capas, float(np.mean(mascara > 0.5))
 
 
+def _control_grave(pistas: list, roles: list, sr: int, corte_hz: float = 120.0,
+                   max_db: float = 4.0) -> dict:
+    """Bombo y bajo no se pisan en el sub (6/10, herramienta top 7, como Bass Control).
+
+    El grave del bajo (< `corte_hz`) baja hasta `max_db` mientras pega el bombo,
+    con ataque de 5 ms y liberación de 80 ms; arriba del corte el bajo no se
+    toca. La reducción sigue el nivel del bombo en el sub (más golpe, más
+    baja). Modifica `pistas` en el lugar. Sin bombo o sin bajo no hace nada.
+    """
+    i_kick = [i for i, r in enumerate(roles) if r == "kick"]
+    i_bajo = [i for i, r in enumerate(roles) if r == "bajo"]
+    if not i_kick or not i_bajo:
+        return {}
+    sos = signal.butter(4, corte_hz, "lowpass", fs=sr, output="sos")
+    n = max(pistas[i].shape[0] for i in i_kick)
+    kick = np.zeros(n)
+    for i in i_kick:
+        kick[: pistas[i].shape[0]] += pistas[i].mean(axis=1)
+    kick_sub = np.abs(signal.sosfiltfilt(sos, kick))
+
+    # envolvente por cuadros de 1 ms
+    hop = max(1, sr // 1000)
+    cuadros = len(kick_sub) // hop
+    env = kick_sub[: cuadros * hop].reshape(cuadros, hop).max(axis=1)
+    ref = np.percentile(env[env > 0], 95) if np.any(env > 0) else 0.0
+    if ref <= 0:
+        return {}
+    objetivo = -max_db * np.clip(env / ref, 0.0, 1.0)
+    a_atq, a_lib = np.exp(-1.0 / 5.0), np.exp(-1.0 / 80.0)
+    gr = np.empty_like(objetivo)
+    g = 0.0
+    for k, o in enumerate(objetivo):
+        a = a_atq if o < g else a_lib
+        g = a * g + (1 - a) * o
+        gr[k] = g
+    t_cuadro = (np.arange(cuadros) + 0.5) * hop
+    for i in i_bajo:
+        x = pistas[i]
+        bajo_sub = signal.sosfiltfilt(sos, x, axis=0)
+        gr_m = np.interp(np.arange(x.shape[0]), t_cuadro, gr, right=0.0)
+        ganancia = 10 ** (gr_m / 20)
+        pistas[i] = x - bajo_sub + bajo_sub * ganancia[:, None]
+    activo = gr[gr < -0.1]
+    return {"reduccion_media_db": round(float(activo.mean()), 2) if len(activo) else 0.0,
+            "reduccion_max_db": round(float(gr.min()), 2)}
+
+
 def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
                 transient_cant: float = 0.3, progreso=None,
                 plan_mezcla: dict | None = None,
@@ -947,7 +997,7 @@ def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
                 desenmascarar: bool = False, balance_ref: dict | None = None,
                 informe: dict | None = None, medidas_ref: dict | None = None,
                 consola_ml: bool = False, dinamica_grupos: bool = False,
-                grupos_eq: set | None = None):
+                grupos_eq: set | None = None, control_grave: bool = False):
     """Suma todos los stems de una carpeta en una mezcla virtual estéreo.
 
     Alinea longitudes al stem más largo y deja headroom (pico a -6 dBFS)
@@ -1086,6 +1136,17 @@ def sumar_stems(carpeta: Path, mejorar_percusion: bool = True,
         if red:
             msg = "Desenmascarado por jerarquía (dB medios): " + ", ".join(
                 f"{b} −{v:g}" for b, v in red.items())
+            log.info(msg)
+            if progreso:
+                progreso(msg)
+
+    if control_grave:
+        cg = _control_grave(pistas, roles, srs[0])
+        if informe is not None:
+            informe["control_grave"] = cg
+        if cg:
+            msg = (f"Control del grave: el sub del bajo baja {cg['reduccion_media_db']} dB "
+                   f"en promedio cuando pega el bombo (máx. {cg['reduccion_max_db']})")
             log.info(msg)
             if progreso:
                 progreso(msg)
@@ -2067,6 +2128,7 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
             balance_ref=balance_ref, informe=informe_stems, medidas_ref=medidas_ref,
             consola_ml=bool(cfg_sm.get("consola_optimizada", True)),
             dinamica_grupos=bool(cfg_sm.get("dinamica_grupos", True)),
+            control_grave=bool(cfg_sm.get("control_grave", False)),
             # con "EQ solo en guitarras", la consola solo ecualiza el grupo "other"
             grupos_eq={"other"} if claves_eq else None)
         if claves_eq:
