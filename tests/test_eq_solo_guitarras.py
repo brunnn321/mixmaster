@@ -58,7 +58,9 @@ def _cfg_sin_dinamica(eq_solo_en):
     cfg["eq_correctivo"]["max_correccion_db"] = 10.0
     cfg["stems_master"]["mejorar_percusion"] = False
     cfg["stems_master"]["eq_solo_en"] = eq_solo_en
-    for k in ("balance_referencia", "consola_optimizada", "dinamica_grupos"):
+    # el desenmascarado por jerarquía baja pistas en medios a propósito: se apaga
+    # para aislar el EQ, igual que las demás etapas que colorean
+    for k in ("balance_referencia", "consola_optimizada", "dinamica_grupos", "desenmascarar"):
         cfg["stems_master"][k] = False
     return cfg
 
