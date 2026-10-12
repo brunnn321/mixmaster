@@ -164,6 +164,13 @@ CONFIG_MASTER_DEFAULT = {
         "recuperar_db": 2.0,
         "domar_db": 2.0,
     },
+    # 12/10 (herramienta top 8): EQ y compresión que cambian por sección
+    # (estrofa/estribillo). Apagado hasta que Bruno lo escuche.
+    "eq_por_seccion": {
+        "activo": False,
+        "max_eq_db": 2.0,
+        "max_comp_db": 1.5,
+    },
     # 2/10 (ítem 13): pegamento 2:1 + saturación suave, después del EQ
     "bus_master": {
         "activo": True,
@@ -1724,6 +1731,47 @@ def _aplicar_notches(audio: np.ndarray, sr: int, resonancias: list,
     return out, aplicados
 
 
+def _eq_comp_por_seccion(audio: np.ndarray, sr: int, max_eq_db: float = 2.0,
+                         max_comp_db: float = 1.5, cuadro_s: float = 2.0,
+                         suavizado_s: float = 6.0) -> tuple[np.ndarray, dict]:
+    """EQ y compresión que cambian por sección (12/10, herramienta top 8, como LANDR Synapse).
+
+    Mide las 7 bandas en cuadros de `cuadro_s`. EQ: cada banda se acerca a
+    la mitad de camino del balance mediano del tema (tope ±`max_eq_db`), así
+    un estribillo cargado de medios graves no suena distinto de la estrofa.
+    Compresión: la banda que pasa su percentil 75 baja 0.5 dB por dB de
+    exceso (tope `max_comp_db`), a escala de sección, no de golpe. Las
+    ganancias se suavizan en `suavizado_s` para que no se oigan cambios.
+    Los silencios (30 dB bajo el cuadro más fuerte) no se tocan.
+    """
+    bandas = _split_bandas(audio, sr)
+    hop = int(cuadro_s * sr)
+    nf = audio.shape[0] // hop
+    if nf < 4:
+        return audio, {}
+    lv = np.array([[10 * np.log10(np.mean(b[k * hop:(k + 1) * hop] ** 2) + 1e-12)
+                    for k in range(nf)] for b in bandas.values()])
+    total = 10 * np.log10(np.sum(10 ** (lv / 10), axis=0))
+    activos = total > total.max() - 30
+    rel = lv - total
+    objetivo = np.median(rel[:, activos], axis=1)
+    eq = np.clip(-0.5 * (rel - objetivo[:, None]), -max_eq_db, max_eq_db)
+    p75 = np.percentile(lv[:, activos], 75, axis=1)
+    comp = -np.clip(0.5 * (lv - p75[:, None]), 0.0, max_comp_db)
+    g = eq + comp
+    g[:, ~activos] = 0.0
+    from scipy.ndimage import uniform_filter1d
+    g = uniform_filter1d(g, size=max(1, int(round(suavizado_s / cuadro_s))), axis=1, mode="nearest")
+    t_cuadro = (np.arange(nf) + 0.5) * hop
+    idx = np.arange(audio.shape[0])
+    out = np.zeros_like(audio)
+    for i, b in enumerate(bandas.values()):
+        out += b * (10 ** (np.interp(idx, t_cuadro, g[i]) / 20))[:, None]
+    eq[:, ~activos] = comp[:, ~activos] = 0.0
+    return out, {"eq_max_db": round(float(np.abs(eq).max()), 1),
+                 "comp_max_db": round(float(-comp.min()), 1)}
+
+
 # --------------------------------------------- multibanda (v0.7 · Tier 2)
 
 def _split_bandas(audio: np.ndarray, sr: int) -> dict[str, np.ndarray]:
@@ -2236,6 +2284,19 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
             return y
         aplicar_eq(_perceptual)
         avisar(f"EQ perceptual: {info_ep.get('db', 0):.1f} dB de ajuste medio (recuperar/domar)")
+
+    cfg_sec = cfg.get("eq_por_seccion", {})
+    if cfg_sec.get("activo", False):
+        info_sec = {}
+
+        def _por_seccion(x):
+            y, info_sec["d"] = _eq_comp_por_seccion(x, sr, float(cfg_sec.get("max_eq_db", 2.0)),
+                                                    float(cfg_sec.get("max_comp_db", 1.5)))
+            return y
+        aplicar_eq(_por_seccion)
+        d = info_sec.get("d") or {}
+        avisar(f"EQ y compresión por sección: EQ hasta {d.get('eq_max_db', 0)} dB, "
+               f"compresión hasta {d.get('comp_max_db', 0)} dB según la sección")
 
     cfg_mono = cfg.get("abrir_mono", {})
     if cfg_mono.get("activo", False):

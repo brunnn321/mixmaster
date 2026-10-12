@@ -160,7 +160,7 @@ Orden por dificultad, de a uno:
 - [x] 4. Desenmascarado por jerarquía en las 7 bandas (`_desenmascarar_jerarquia`, reemplaza a `_desenmascarar_voz` en sumar_stems). Suite completa en verde (7/10: test_eq_solo_guitarras ahora apaga también el desenmascarado para aislar el EQ). Falta audio serio para comparar: preguntarle a Bruno qué temas usar (no usar Sol ni CRISIntro).
 - [x] 5. Control del grave en el tiempo (7/10): `_control_grave`, el sub del bajo (<120 Hz) baja hasta 4 dB cuando pega el bombo (ataque 5 ms, liberación 80 ms). `stems_master.control_grave`, APAGADO hasta que Bruno lo escuche. Test propio en verde.
 - [ ] 6. Limpieza de ruido de stems
-- [ ] 7. EQ y compresión por sección
+- [x] 7. EQ y compresión por sección (12/10): `_eq_comp_por_seccion`, 7 bandas en cuadros de 2 s; EQ hacia el balance mediano del tema (±2 dB) y compresión lenta sobre el percentil 75 (≤1.5 dB), suavizado 6 s. `eq_por_seccion.activo`, APAGADO hasta escucharlo. Test propio en verde.
 - [ ] 8. Detección de estilo sin referencia
 - [ ] 9. Des-limitador
 - [ ] 10. Modelos de equipos reales
