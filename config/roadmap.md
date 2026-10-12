@@ -11,6 +11,21 @@
 > con el ítem 3 sin portarlo). Todo el resto verificó OK. Ambos corregidos a
 > `[~]` abajo con su explicación.
 
+## 🔥🔥🔥 PRIORIDAD (12/10) — Tempo Genius perfecto, sin pasar por Claude
+
+Bruno: "realmente ponle interés a esa parte, que esté perfecto, que esté bien y
+que no falle. Eso es algo que nos va a permitir trabajar rápido". Lo que hace
+hoy (los 8 temas) le gusta; quiere hacerlo él mismo desde la app.
+
+- Entrada: carpeta de stems de Moises, multipista propia, o un solo audio
+  (MP3, WAV, lo que sea).
+- Cualquier compás (no solo 4/4): lo que importa es que el PULSO quede
+  perfecto; el compás lo pone él en el DAW.
+- Probar con temas sin stems y en compases impares (él los manda).
+- Carpetas ordenadas: dónde se importa, dónde llega, cómo se exporta.
+- El registro del método (`tempo/REGISTRO_app_tempo.md`) se mantiene al día y
+  en detalle: lo pidió varias veces.
+
 ## 📌 LISTA ACORDADA (7/10) — guardada, NO empezar todavía (Bruno, 12/10: "aún no haremos eso")
 
 **De Bruno (se acumulan hasta que pueda):** escuchar las tandas 1–8 con stems
@@ -21,7 +36,7 @@ el "1" quedó bien.
 
 **De la app (orden del Consejo):** 1) herramientas top: EQ y compresión por
 sección, limpieza de ruido, des-limitador (cada una medida por etapas y
-apagada hasta escucharla) · 2) ~~Tempo: estirar de ±7 a ±2 ms~~ (Bruno 12/10: "ya está bien", no se toca) · 3) consola sin
+apagada hasta escucharla) · 2) Tempo: ver la sección PRIORIDAD de Tempo Genius · 3) consola sin
 zoom y con avisos · 4) gráfico de 3 espectros en la app. **3 y 4 HECHOS (12/10)**: ya estaban en el WIP; probados con un master real a 1024 y 1920 px (en el navegador, no dentro de la app Qt): 3 espectros + "lo que falta", avisos en pantalla, cursor con Hz. Arreglado: el gráfico salía más ancho que la ventana (`.chasis` sin columna `minmax(0,1fr)`).
 Postergados: estilo sin referencia, modelos de equipos, Arena, afinar a 440
 (Bruno: "no parece tan importante"), viejos.
