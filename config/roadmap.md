@@ -22,7 +22,7 @@ el "1" quedó bien.
 **De la app (orden del Consejo):** 1) herramientas top: EQ y compresión por
 sección, limpieza de ruido, des-limitador (cada una medida por etapas y
 apagada hasta escucharla) · 2) Tempo: estirar de ±7 a ±2 ms · 3) consola sin
-zoom y con avisos · 4) gráfico de 3 espectros en la app.
+zoom y con avisos · 4) gráfico de 3 espectros en la app. **3 y 4 HECHOS (12/10)**: ya estaban en el WIP; probados con un master real a 1024 y 1920 px (en el navegador, no dentro de la app Qt): 3 espectros + "lo que falta", avisos en pantalla, cursor con Hz. Arreglado: el gráfico salía más ancho que la ventana (`.chasis` sin columna `minmax(0,1fr)`).
 Postergados: estilo sin referencia, modelos de equipos, Arena, afinar a 440
 (Bruno: "no parece tan importante"), viejos.
 
