@@ -11,6 +11,21 @@
 > con el ítem 3 sin portarlo). Todo el resto verificó OK. Ambos corregidos a
 > `[~]` abajo con su explicación.
 
+## 📌 LISTA ACORDADA (7/10) — guardada, NO empezar todavía (Bruno, 12/10: "aún no haremos eso")
+
+**De Bruno (se acumulan hasta que pueda):** escuchar las tandas 1–8 con stems
+reales · escuchar el control del grave (hay que prenderlo) · A/B del matching
+50/100 % · aprobar o no la propuesta v2 · decidir MM-01 por defecto · modo voz
+con su voz · elegir temas para comparar el desenmascarado · Tempo: escuchar si
+el "1" quedó bien.
+
+**De la app (orden del Consejo):** 1) herramientas top: EQ y compresión por
+sección, limpieza de ruido, des-limitador (cada una medida por etapas y
+apagada hasta escucharla) · 2) Tempo: estirar de ±7 a ±2 ms · 3) consola sin
+zoom y con avisos · 4) gráfico de 3 espectros en la app.
+Postergados: estilo sin referencia, modelos de equipos, Arena, afinar a 440
+(Bruno: "no parece tan importante"), viejos.
+
 ## 🔥🔥 PRIORIDAD N.º 1 — MEJORAR EL RESULTADO DEL AUDIO (30/9, pedido de Bruno)
 
 Bruno: "lo que más me importa es la mejora de resultados, mezcla, master,
