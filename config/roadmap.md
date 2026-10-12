@@ -23,6 +23,7 @@ hoy (los 8 temas) le gusta; quiere hacerlo él mismo desde la app.
   perfecto; el compás lo pone él en el DAW.
 - Probar con temas sin stems y en compases impares (él los manda).
 - Carpetas ordenadas: dónde se importa, dónde llega, cómo se exporta.
+- Plan detallado, fase por fase: `tempo/PLAN_tempo_genius.md`.
 - El registro del método (`tempo/REGISTRO_app_tempo.md`) se mantiene al día y
   en detalle: lo pidió varias veces.
 

@@ -1,0 +1,112 @@
+# Plan: Tempo Genius perfecto (12/10/2026)
+
+Pedido de Bruno: pasar cualquier tema (stems de Moises, multipista propia o un
+solo audio en MP3, WAV o lo que sea) y recibirlo **a tempo fijo, con el pulso
+perfecto**, listo para arrastrar al compás 1 de Studio One. Todo desde la app,
+sin pasar por Claude. "Que esté perfecto, que esté bien y que no falle."
+
+Decisiones de Bruno:
+- El **compás lo decide él** en el DAW. A la app solo le importa el pulso.
+- Si el tema sube o baja de tempo, **igual queda en un tempo estable**. Los
+  cambios de tempo a propósito se ven más adelante.
+- Lo que se hizo con los 8 temas le gusta: es la base.
+
+Decisiones por defecto (se pueden cambiar cuando Bruno diga):
+- Los resultados llegan a `A TEMPO/<Tema> - <BPM> BPM/` junto a lo que se importa.
+- Formato FLAC de 24 bits (sin pérdida, Studio One lo abre).
+
+---
+
+## Fase 0 — Registro al día
+
+1. Actualizar `tempo/REGISTRO_app_tempo.md` con lo que cambió en la PC (v0.5):
+   Rubber Band en tiempo real (pylibrb), Beat This! para el "1", Demucs para
+   temas sin stems, mapa de tempo MIDI, avisos, carpetas. Cada fase que se
+   cierre se anota ahí en el momento, no al final.
+
+## Fase 1 — Entrada: cualquier cosa
+
+2. **Stems de Moises con metrónomo** (como ahora).
+3. **Stems de Moises sin metrónomo, o multipista propia**: la batería se busca
+   por nombre (drums, kick, snare, bombo, caja, overhead, batería…) y se suma
+   como referencia. Si no hay batería, Demucs la separa de la suma.
+4. **Un solo audio** (MP3, WAV, FLAC, M4A…): Demucs separa la batería; el audio
+   se estira entero.
+5. Pistas con distinto largo, sample rate o mono/estéreo: se llevan a 44.1 kHz
+   y se alinean al inicio (una multipista se grabó junta).
+6. Formatos que soundfile no lee (M4A, WMA): decodificar con lo mismo que usa
+   el Convertidor de MixMaster (copiado, no importado).
+
+## Fase 2 — Pulso perfecto en cualquier compás
+
+7. **Guía de tiempos sin metrónomo**: usar los pulsos de Beat This! (funciona
+   en cualquier compás) en lugar del detector de librosa. El metrónomo de
+   Moises, cuando está, sigue siendo la guía.
+8. **BPM automático**: si el nombre no lo trae, se estima con los pulsos y se
+   propone redondeado; Bruno lo puede corregir antes de procesar.
+9. **El pulso no depende del compás**: el ajuste fino (promedio de la batería
+   por ventanas, método v0.4) trabaja tiempo a tiempo, sin suponer 4/4.
+10. **Acento del click**: selector de compás en la ventana (4/4, 3/4, 6/8, 7/8…
+    o "solo pulso"). Sin elegir, todos los clicks iguales. El "1" se ubica con
+    Beat This! solo si Bruno elige compás.
+11. Riesgo a vigilar: en 6/8 y 12/8 hay dos pulsos posibles (negra con punto o
+    corchea). Se elige el más cercano al BPM indicado; si duda, aviso.
+
+## Fase 3 — Tempo estable siempre
+
+12. **Cambio de criterio**: hoy los tramos fuera de ±3 % (ritardando, intro
+    libre) quedan naturales. Nuevo: **todo tramo con pulso se endereza** al
+    tempo fijo. Solo queda libre lo que no tiene pulso (silencio, rubato sin
+    golpes), y se avisa.
+13. Si en algún tramo hay que estirar mucho (más de ~8 %), aviso de calidad:
+    ahí el audio puede sonar estirado.
+14. La opción "respetar finales libres" queda guardada para cuando se vean las
+    variaciones.
+
+## Fase 4 — Precisión y que no falle
+
+15. **Segunda pasada**: hoy a veces empeora (Tengo Sed: 6.6 → 13.2 ms). Aplicar
+    la mitad de la corrección y quedarse con ella solo si mejora.
+16. Meta: secciones a **±3 ms con stems** y **±5 ms sin stems** (la variación
+    natural del baterista ronda 2.6–5.2 ms).
+17. Comprobar que los stems de salida siguen alineados entre sí (mismo mapa,
+    comparación por correlación entre stems).
+18. Temas largos (10 min) y multipistas grandes (30 pistas): procesar pista por
+    pista, sin cargar todo a la vez; avisar la RAM estimada.
+19. Errores: mensaje claro en la ventana, nunca colgarse; todo al log.
+20. Volver a correr los **8 temas** y comparar con las cifras del registro: no
+    puede empeorar ninguno.
+
+## Fase 5 — Carpetas, importación y exportación
+
+21. **Importar**: arrastrar una carpeta o uno o varios archivos a Tempo Genius.
+    **Cola**: varios temas seguidos sin esperar uno por uno.
+22. **Exportar** a `A TEMPO/<Tema> - <BPM> BPM/`:
+    - cada pista con el BPM en el nombre: `Batería 128bpm.flac`, `Voz 128bpm.flac`…
+    - `Mezcla 128bpm.flac`, `Click 128bpm.flac`, `Tempo 128bpm.mid`
+    - `REPORTE.txt` en palabras (BPM, cuánto se estiró, peor sección, avisos)
+    - `log.json` con las mediciones
+23. Nunca pisar un resultado anterior: si existe, se agrega V2, V3…
+24. Opción de carpeta de salida fija, para quien la prefiera.
+
+## Fase 6 — Ventana de Tempo Genius
+
+25. Cola con progreso por tema, resultado en una línea (BPM, peor sección,
+    avisos), escuchar con click, mover el "1" (solo si hay compás elegido),
+    abrir carpeta.
+26. Campo de BPM con el detectado y selector de compás.
+27. Probarla dentro de la app a 1920x1080, como la usa Bruno, antes de decir
+    que está lista.
+
+## Fase 7 — Pruebas
+
+28. Los 8 temas de siempre (regresión).
+29. 2–3 temas **sin stems**.
+30. Temas en **3/4, 6/8 y 7/8** (los manda Bruno).
+31. Un tema **en vivo sin click**, que sube y baja.
+32. Test automático con señales sintéticas: pulso con deriva, acelerando y
+    ritardando → la salida debe quedar a ±2 ms.
+
+---
+
+**Lo que falta de Bruno:** los temas de prueba de los puntos 29–31.
