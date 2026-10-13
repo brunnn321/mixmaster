@@ -137,3 +137,42 @@ Fórmulas: duración del tiempo = 60 / BPM · muestra = segundos × 44 100 · fa
 7. **Probar con temas difíciles:** en vivo sin click, 6/8, baladas sin batería, cambios de tempo.
 
 Herramientas: Python, numpy, scipy, soundfile, librosa (pruebas sin stems), ffmpeg, Rubber Band 3.3, Demucs/UVR (pendiente).
+
+---
+
+## 9. Versión PC dentro de MixMaster (v0.5, 6–13 oct 2026)
+
+El script se reescribió en la PC desde la sección 3 (el `_app/stems_fix.py` original
+no estaba): `tempo/stems_fix.py`. Se usa desde **MixMaster → Herramientas → ⏱ Tempo
+Genius** o por consola:
+
+`python tempo/stems_fix.py "<carpeta de stems o un audio>" "<carpeta salida>" [BPM] [--fase=0..3] [--forzar-estirar]`
+
+Plan de trabajo por fases: `tempo/PLAN_tempo_genius.md`.
+
+**Qué cambió respecto de v0.4**
+
+| Tema | v0.4 (registro) | v0.5 (PC) | Por qué |
+|---|---|---|---|
+| Leer MP3 | ffmpeg | soundfile (lee MP3 directo); M4A/WMA con librosa + ffmpeg | en la PC no había ffmpeg |
+| Estirar | Rubber Band CLI, mapa de tiempos, R2 `--crisp 6` | pylibrb (Rubber Band 3 como librería) en tiempo real, cambiando la proporción tramo a tramo para que cada tiempo caiga donde dice el mapa; mismas opciones que `--crisp 6` | `set_keyframe_map` de pylibrb no funciona (error de tipos) y la CLI no estaba |
+| El "1" | heurística caja/bombo | modelo entrenado **Beat This!** (votos sobre los downbeats); la heurística queda de respaldo | era el punto 4 de los próximos pasos |
+| Sin stems | ~10 ms desde la mezcla | **Demucs** separa la batería; guía con detector de pulsos | punto 3 de los próximos pasos |
+| Sin metrónomo | — | guía con detector de pulsos (librosa); en la fase 2 pasa a Beat This! | |
+| Batería | stem `drums` | también multipista: suma de pistas con nombre de batería (kick, bombo, caja, snare, toms, OH, room, perc…) | fase 1 |
+| Mapa de tempo | — | `TEMPO.mid` que sigue al click, con el "1" en inicio de compás | punto 2 |
+| Reporte | log.json | log.json + avisos (sin batería en tal tramo, finales libres, el "1" dudoso, secciones corridas) | punto 5 |
+| Secciones sin batería | se medían | se excluyen de la verificación: sin golpes no hay referencia (antes daban −49 ms falsos) | |
+
+**Resultados en la PC**
+
+| Tema | Entrada | Modo | Verificación (secciones de 32 tiempos) |
+|---|---|---|---|
+| Te Doy Gloria | stems Moises | estudio | −4.2…+6.4 ms (registro: +2…+7) |
+| Tengo Sed | stems Moises | estirar | −6.2…+6.6 ms, final libre desde 5:45 detectado (registro: ±2) |
+| Te Doy Gloria | solo la mezcla MP3 | estudio | −3.6…+2.0 ms (Demucs) |
+
+**Problemas conocidos (13/10)**
+- La 2.ª pasada de estirar a veces empeora (Tengo Sed 6.6 → 13.2 ms); se usa la mejor. Fase 4 del plan.
+- En Te Doy Gloria el "1" quedó 2 tiempos corrido respecto de la versión entregada en v0.3; Beat This! y la heurística coinciden en v0.5. Falta confirmarlo de oído.
+- "Afinar a 440" rompe el audio (Rubber Band R3 recibe el tema entero de una vez). Postergado: Bruno dijo que no es importante.
