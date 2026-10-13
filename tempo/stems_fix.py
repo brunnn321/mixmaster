@@ -19,7 +19,9 @@ SR = 44100
 RE_STEM = re.compile(r"-([^-]+)-[A-G][b#]? (major|minor)")   # sin ignorar mayúsculas ("LETRA")
 RE_TEMA = re.compile(r"^(.*)-[A-G][b#]? (major|minor)-")
 RE_BPM = re.compile(r"(\d+(?:\.\d+)?)bpm")
-DRUMS = {"drums", "bateria", "batería"}
+# batería por nombre: stem de Moises o pistas de una multipista (bombo, caja, overheads…)
+RE_BATERIA = re.compile(r"(?<![a-z])(drums?|bater[a-zí]*|kick|bombo|snare|caja|toms?|hi-?hats?|"
+                        r"hats?|overheads?|oh|rooms?|perc[a-zú]*)(?![a-z])", re.I)
 CLICKS = {"metronome", "click", "metronomo", "metrónomo"}
 
 TOL_TEMPO = 0.03         # tramo a tempo: ±3 % del BPM
@@ -32,7 +34,17 @@ UMBRAL_CHEQUEO_MS = 3.0  # chequeo final: si la batería queda a más de 3 ms de
 # ---------- audio ----------
 
 def cargar(path):
-    x, sr = sf.read(str(path), dtype="float32", always_2d=True)
+    try:
+        x, sr = sf.read(str(path), dtype="float32", always_2d=True)
+    except Exception:
+        # M4A, WMA, AAC: soundfile no los lee; librosa usa ffmpeg (igual que MixMaster)
+        try:
+            import librosa
+            y, sr = librosa.load(str(path), sr=None, mono=False)
+        except Exception as e:
+            raise SystemExit(f"No se pudo leer {Path(path).name}. Para M4A, WMA o AAC hace falta "
+                             f"ffmpeg instalado (winget install ffmpeg). Detalle: {e}")
+        x = np.atleast_2d(y).T.astype(np.float32)
     if sr != SR:
         x = resample_poly(x, SR, sr, axis=0).astype(np.float32)
     return x
@@ -399,19 +411,21 @@ def main():
 
     stems = {}
     for f in ([entrada] if entrada.is_file() else sorted(entrada.iterdir())):
-        if f.suffix.lower() not in (".mp3", ".wav", ".flac", ".m4a", ".ogg", ".aiff", ".aif"):
+        if f.suffix.lower() not in (".mp3", ".wav", ".flac", ".m4a", ".ogg", ".aiff", ".aif", ".wma", ".aac", ".mp4"):
             continue
         ms = RE_STEM.search(f.stem)
         stems[ms.group(1) if ms else f.stem] = f
-    n_drums = next((k for k in stems if k.lower() in DRUMS), None)
     n_click = next((k for k in stems if k.lower() in CLICKS), None)
     musicales = [k for k in stems if k != n_click]
+    n_bateria = [k for k in musicales if RE_BATERIA.search(k)]
     if not musicales:
         raise SystemExit("No hay audio en la entrada.")
     print(f"{tema} | {bpm} BPM | stems: {', '.join(musicales)}")
 
-    if n_drums:
-        drums = cargar(stems[n_drums])
+    if n_bateria:
+        if len(n_bateria) > 1:
+            print(f"  batería de referencia: suma de {', '.join(n_bateria)}")
+        drums = sum_stems([cargar(stems[k]) for k in n_bateria])
     else:
         print("  sin stem de batería: se separa con Demucs (unos minutos)…")
         drums = separar_bateria(sum_stems([cargar(stems[k]) for k in musicales]))
@@ -428,7 +442,7 @@ def main():
     inicio = None
     mezcla_in = None
     for k in musicales:
-        x = cargar(stems[k]) if k != n_drums else drums
+        x = drums if [k] == n_bateria else cargar(stems[k])
         mezcla_in = x.copy() if mezcla_in is None else sum_stems([mezcla_in, x])
         e = suavizar(np.abs(x.mean(axis=1)), 50)
         on = np.flatnonzero(e > 0.02 * e.max())
@@ -580,15 +594,15 @@ def main():
     base = f"{tema} - {bpm:g} BPM"
     mezcla = None
     for k in musicales:
-        y = d_out if k == n_drums else procesar(cargar(stems[k]), plan)
+        y = d_out if [k] == n_bateria else procesar(cargar(stems[k]), plan)
         if len(musicales) > 1:
             sf.write(str(salida / f"{base} - {k}.flac"), y, SR, subtype="PCM_24")
         if mezcla is None:
-            mezcla = y.astype(np.float32).copy()
+            mezcla = np.zeros((len(y), 2), np.float32) + y[:, :2]   # pistas mono o estéreo
         else:
             n = max(len(mezcla), len(y))
             mezcla = np.pad(mezcla, ((0, n - len(mezcla)), (0, 0)))
-            mezcla[:len(y)] += y
+            mezcla[:len(y)] += y[:, :2]
         print(f"  {k} listo")
     pico = float(np.abs(mezcla).max())
     if pico > 0.999:
