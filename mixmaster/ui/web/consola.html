@@ -555,6 +555,12 @@ function ponerTarget(v) {
   perilla("p-target", (target + 18) / 13, `${target.toFixed(1)} LUFS`);
   document.querySelectorAll(".preset").forEach(p => p.classList.toggle("on", Math.abs(+p.dataset.v - target) < .01));
 }
+// target 0 = automático: el motor elige el LUFS que deja el crest en ~10 dB
+function ponerAuto() {
+  target = 0;
+  perilla("p-target", .5, "AUTO · crest 10");
+  document.querySelectorAll(".preset").forEach(p => p.classList.toggle("on", +p.dataset.v === 0));
+}
 (function perillaArrastrable() {
   const cuerpo = document.querySelector("#p-target .cuerpo");
   let y0 = null, v0 = 0;
@@ -639,7 +645,8 @@ const MM = {
   init(d) {
     destinos = d.destinos || [];
     document.getElementById("presets").innerHTML = destinos.slice(0, 4).map(x =>
-      `<span class="preset" data-v="${x.lufs}" onclick="ponerTarget(${x.lufs})" title="${x.nombre}">${x.nombre.split(" ")[0].slice(0, 7)} ${x.lufs}</span>`).join("");
+      `<span class="preset" data-v="${x.lufs}" onclick="ponerTarget(${x.lufs})" title="${x.nombre}">${x.nombre.split(" ")[0].slice(0, 7)} ${x.lufs}</span>`).join("")
+      + `<span class="preset" data-v="0" onclick="ponerAuto()" title="Elige el volumen que deja el crest en ~10 dB, tu zona">AUTO</span>`;
     ponerTarget(d.target);
     if (d.proyecto) MM.proyecto(d.proyecto);
     estado(d.mensaje || "Listo. Carga una mezcla o una carpeta de stems.");

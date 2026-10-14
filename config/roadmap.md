@@ -229,7 +229,7 @@ correlación y la envolvente L/R, y `consola.html` tiene ~1100 líneas cambiadas
 
 **Master**
 - [ ] 9. **Prueba A/B matching 50% vs 100%** a igual loudness (del mentor).
-- [ ] 10. **Volumen guiado por crest**: elegir el LUFS final para aterrizar
+- [x] 10. **Volumen guiado por crest** (14/10): target AUTO en la consola y "Automático" en la ventana clásica; `volumen_por_crest` en el config. Prueba: dos mezclas sintéticas quedan en crest 8.8 y 9.3. Antes: elegir el LUFS final para aterrizar
   en crest ~10 (su zona medida: <6 machacado, >12 no se nota).
 - [ ] 11. **Clipper suave antes del limitador**: gana volumen sin bombeo.
 - [ ] 12. **Compresión de bus (glue)** antes del limitador, suave (1–2 dB).

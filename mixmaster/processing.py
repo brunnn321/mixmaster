@@ -159,6 +159,11 @@ CONFIG_MASTER_DEFAULT = {
     # 2/10 (ítem 24): EQ perceptual estilo Gullfoss. "recuperar" realza lo
     # que queda enmascarado por bandas vecinas; "domar" baja lo que domina.
     # Con "EQ solo en guitarras" actúa solo sobre las guitarras.
+    # 14/10: con target automático (None o 0) el LUFS se elige para este crest
+    "volumen_por_crest": {
+        "crest_objetivo": 10.0,
+        "rango_lufs": [-14.0, -6.0],
+    },
     "eq_perceptual": {
         "activo": True,
         "recuperar_db": 2.0,
@@ -2131,10 +2136,16 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
     # master se pide "más brillo / más grave / más fuerte / menos matching" y
     # se rehace. brillo/grave en dB (shelf 5 kHz / 120 Hz, después del
     # matching), volumen en LU (corre el objetivo), matching 0..1.
+    # target None o 0: volumen guiado por crest (14/10). El LUFS se elige para que el
+    # master quede en la zona de crest que Bruno aprobó (~10 dB; <6 machacado, >12 no se nota).
+    auto_crest = target_lufs is None or target_lufs >= 0
+    ajuste_rev = 0.0
     revision = {k: float(v) for k, v in (revision or {}).items() if v}
     if revision:
         cfg = copy.deepcopy(cfg)
-        target_lufs = target_lufs + revision.get("volumen_lu", 0.0)
+        ajuste_rev = revision.get("volumen_lu", 0.0)
+        if not auto_crest:
+            target_lufs = target_lufs + ajuste_rev
         if "matching" in revision:
             cfg["eq_correctivo"]["intensidad"] = min(1.0, max(0.0, revision["matching"]))
         avisar(f"Revisión pedida: {revision}")
@@ -2517,6 +2528,19 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
     # ¿Cuánto habrá que empujar? Si es mucho, densidad previa (soft-clip suave).
     # Drive PROPORCIONAL: empuje moderado → densidad casi transparente; solo los
     # empujes extremos usan el drive máximo. Antes era binario (siempre 1.5).
+    cfg_vc = cfg.get("volumen_por_crest", {})
+    crest_obj = float(cfg_vc.get("crest_objetivo", 10.0))
+    lufs_min, lufs_max = (float(x) for x in cfg_vc.get("rango_lufs", (-14.0, -6.0)))
+    if auto_crest:
+        # después del limitador el pico queda en el techo, así que crest ≈ techo − RMS:
+        # se busca la ganancia que deja el RMS en techo − crest objetivo
+        l0 = lufs_integrado(audio, sr)
+        rms0 = 20 * np.log10(np.sqrt(np.mean(audio ** 2)) + 1e-12)
+        pico_final = float(cfg_lim["ceiling_dbtp"]) - 0.3
+        estimado = l0 + (pico_final - crest_obj - rms0) if np.isfinite(l0) else -9.0
+        target_lufs = round(float(np.clip(estimado, lufs_min, lufs_max)) * 2) / 2 + ajuste_rev
+        avisar(f"Volumen guiado por crest: {target_lufs:g} LUFS para dejar el crest cerca de {crest_obj:g} dB")
+
     densidad_aplicada = False
     lufs_actual = lufs_integrado(audio, sr)
     if np.isfinite(lufs_actual):
@@ -2566,42 +2590,57 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
     # que el limitador se come, se le suma a la ganancia lo que se comió en la
     # pasada anterior. Converge en 1-2 vueltas en vez de 4-6 (cada pasada del
     # limitador cuesta ~45 s en un tema largo).
-    perdida_prev = 0.0
-    mejor: tuple[float, np.ndarray] | None = None
-    for intento in range(6):
-        lufs_actual = lufs_integrado(audio, sr)
-        if not np.isfinite(lufs_actual):
-            break
-        diff = target_lufs - lufs_actual
-        if mejor is None or abs(diff) < mejor[0]:
-            mejor = (abs(diff), audio)
-        if abs(diff) <= tol_lufs:
-            break
-        ganancia = diff + perdida_prev
-        esperado = lufs_actual + ganancia
-        audio = audio * 10 ** (ganancia / 20)
-        if cfg_clip.get("activo", True):
-            umbral_clip = float(cfg_clip.get("umbral_dbfs", -0.5))
-            if cfg_clip.get("solo_transitorios", True):
-                audio = _clipper_transitorios(audio, sr, umbral_clip)
-            else:
-                audio = _a_2x(_clipper, audio, umbral_clip)
-        avisar(f"Limitando picos (techo {cfg_lim['ceiling_dbtp']:g} dBTP, pasada {intento + 1})…")
-        audio = _limitar(audio, sr, cfg_lim)
-        lufs_post = lufs_integrado(audio, sr)
-        if np.isfinite(lufs_post):
-            # tope de 2 LU: si se comió más que eso no fue el limitador
-            # afinando, es material que no da — que lo diga el warning de
-            # no-convergencia y no que dispare la ganancia en la vuelta siguiente
-            perdida_prev = float(np.clip(esperado - lufs_post, 0.0, 2.0))
+    def _a_loudness(audio, target_lufs):
+        perdida_prev = 0.0
+        mejor: tuple[float, np.ndarray] | None = None
+        for intento in range(6):
+            lufs_actual = lufs_integrado(audio, sr)
+            if not np.isfinite(lufs_actual):
+                break
+            diff = target_lufs - lufs_actual
+            if mejor is None or abs(diff) < mejor[0]:
+                mejor = (abs(diff), audio)
+            if abs(diff) <= tol_lufs:
+                break
+            ganancia = diff + perdida_prev
+            esperado = lufs_actual + ganancia
+            audio = audio * 10 ** (ganancia / 20)
+            if cfg_clip.get("activo", True):
+                umbral_clip = float(cfg_clip.get("umbral_dbfs", -0.5))
+                if cfg_clip.get("solo_transitorios", True):
+                    audio = _clipper_transitorios(audio, sr, umbral_clip)
+                else:
+                    audio = _a_2x(_clipper, audio, umbral_clip)
+            avisar(f"Limitando picos (techo {cfg_lim['ceiling_dbtp']:g} dBTP, pasada {intento + 1})…")
+            audio = _limitar(audio, sr, cfg_lim)
+            lufs_post = lufs_integrado(audio, sr)
+            if np.isfinite(lufs_post):
+                # tope de 2 LU: si se comió más que eso no fue el limitador
+                # afinando, es material que no da — que lo diga el warning de
+                # no-convergencia y no que dispare la ganancia en la vuelta siguiente
+                perdida_prev = float(np.clip(esperado - lufs_post, 0.0, 2.0))
 
-    # Quedarse con la pasada más cercana al target: subir de más y volver a
-    # limitar puede alejar en vez de acercar, y en ese caso la vuelta anterior
-    # era mejor master (mismo loudness, menos limitador encima).
-    lufs_fin = lufs_integrado(audio, sr)
-    if (mejor is not None and np.isfinite(lufs_fin)
-            and abs(target_lufs - lufs_fin) > mejor[0]):
-        audio = mejor[1]
+        # Quedarse con la pasada más cercana al target: subir de más y volver a
+        # limitar puede alejar en vez de acercar, y en ese caso la vuelta anterior
+        # era mejor master (mismo loudness, menos limitador encima).
+        lufs_fin = lufs_integrado(audio, sr)
+        if (mejor is not None and np.isfinite(lufs_fin)
+                and abs(target_lufs - lufs_fin) > mejor[0]):
+            audio = mejor[1]
+        return audio
+
+    pre_bucle = audio.copy() if auto_crest else None
+    audio = _a_loudness(audio, target_lufs)
+    if auto_crest:
+        # una corrección: si el crest quedó lejos del objetivo, se repite con otro LUFS
+        # (1 dB de crest de más pide ~1 LU más de volumen)
+        desvio = crest_factor_db(audio) - crest_obj
+        nuevo_t = round(float(np.clip(target_lufs + desvio, lufs_min, lufs_max)) * 2) / 2
+        if abs(desvio) > 1.0 and abs(nuevo_t - target_lufs) >= 0.5:
+            avisar(f"Crest {crest_obj + desvio:.1f} dB: se repite el volumen a {nuevo_t:g} LUFS")
+            target_lufs = nuevo_t
+            audio = _a_loudness(pre_bucle, target_lufs)
+        del pre_bucle
 
     # Aviso de no-convergencia: si tras las 6 pasadas sigue lejos del target,
     # el material no da para ese loudness sin machacarse (pasó con "Hasta mis
@@ -2784,6 +2823,7 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         "correlacion_master": round(float(analisis_estereo(audio, sr)["correlacion_global"]), 2),
         "envolvente_lr": env,
         "target_lufs": target_lufs,
+        "target_por_crest": auto_crest,
         "recorte_silencio_s": {"inicio": recorte_inicio_s, "fin": recorte_fin_s},
         "muestras_declipeadas": muestras_declipeadas,
         "eq_aplicado_db": correccion,

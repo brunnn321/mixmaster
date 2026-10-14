@@ -2038,7 +2038,9 @@ class MainWindow(QMainWindow):
         from ..loudness_targets import TARGETS_PLATAFORMA
         nota_aprendido = (f"Personalizado — tu aprendido ({default_lufs:g} LUFS, "
                           f"de {pref['n']} masters)") if pref else f"Personalizado ({default_lufs:g} LUFS)"
-        opciones = [nota_aprendido] + list(TARGETS_PLATAFORMA.keys()) + ["Otro (elegir manual)…"]
+        auto_crest = "Automático: el volumen que deja el crest en ~10 dB (tu zona)"
+        opciones = ([nota_aprendido, auto_crest] + list(TARGETS_PLATAFORMA.keys())
+                    + ["Otro (elegir manual)…"])
         elegido, ok = QInputDialog.getItem(
             self, "Master final", "Loudness objetivo — destino:", opciones, 0, False)
         if not ok:
@@ -2046,6 +2048,8 @@ class MainWindow(QMainWindow):
 
         if elegido == nota_aprendido:
             target = default_lufs
+        elif elegido == auto_crest:
+            target = 0.0   # masterizar elige el LUFS por crest
         elif elegido in TARGETS_PLATAFORMA:
             info = TARGETS_PLATAFORMA[elegido]
             target = info["lufs"]
