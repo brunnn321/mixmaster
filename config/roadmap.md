@@ -304,7 +304,7 @@ visual: **mostrar una imagen/propuesta primero** y esperar el visto bueno.
 - [ ] Llevar ese gráfico a la app (paso 03 · Master), con los datos reales de
   cada master: hoy el resumen solo trae el espectro del master; hay que
   guardar también el de la mezcla y el de la referencia.
-- [ ] Mejorar "1000x" los gráficos en general.
+- [ ] Mejorar "1000x" los gráficos en general. 14/10: propuesta `docs/propuestas/graficos_v2.html` (espectro con lo que falta/sobra y diferencia por banda, volumen y dinámica en el tiempo, goniómetro, ancho por banda), esperando su visto bueno.
 
 **Interfaz**
 - [ ] Mucho más animada y "ultra realista", que se vea en 4K. **Primero una

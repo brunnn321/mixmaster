@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gráficos v2 · propuesta</title>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  /* Propuesta 14/10/2026: gráficos de la consola MM-01 mejorados. Datos de ejemplo
+     (sintéticos), no de un tema real. Misma estética que mixmaster/ui/web/consola.html. */
+  :root{ --u: calc(min(100vw, 177.8vh) / 1920);
+    --panel:#123238; --panel2:#0d262b; --crt:#04110f; --verde:#7fe0b0; --ambar:#f2a83c; --azul:#6fb4ff;
+    --gris:#9aa7a8; --rojo:#ff6b5a; --texto:#cfe3df; }
+  *{box-sizing:border-box;margin:0}
+  body{background:#0a0c0c;color:var(--texto);font-family:'Oswald',sans-serif;min-height:100vh;
+    display:flex;align-items:center;justify-content:center}
+  .rack{width:calc(1880*var(--u));height:calc(1040*var(--u));display:grid;gap:calc(14*var(--u));
+    grid-template-columns:1.7fr 1fr;grid-template-rows:auto 1.25fr 1fr;padding:calc(18*var(--u));
+    border-radius:calc(14*var(--u));
+    background:linear-gradient(180deg,#17393f,#0f2a2f);box-shadow:inset 0 0 0 calc(2*var(--u)) #24474d,0 0 calc(40*var(--u)) #000}
+  h1{grid-column:1/3;font-size:calc(26*var(--u));letter-spacing:calc(3*var(--u));display:flex;gap:calc(18*var(--u));align-items:baseline}
+  h1 b{color:var(--ambar)} h1 small{font-family:'Share Tech Mono';font-size:calc(15*var(--u));color:var(--gris);letter-spacing:0}
+  .caja{position:relative;border-radius:calc(10*var(--u));background:var(--crt);overflow:hidden;
+    box-shadow:inset 0 0 calc(30*var(--u)) #000,0 0 0 calc(2*var(--u)) #24474d}
+  .caja::after{content:"";position:absolute;inset:0;pointer-events:none;
+    background:repeating-linear-gradient(0deg,rgba(255,255,255,.025) 0 1px,transparent 1px 3px)}
+  .titulo{position:absolute;left:calc(16*var(--u));top:calc(10*var(--u));font-size:calc(15*var(--u));letter-spacing:calc(2*var(--u));color:var(--gris);z-index:2}
+  .leyenda{position:absolute;right:calc(16*var(--u));top:calc(10*var(--u));display:flex;gap:calc(16*var(--u));font-size:calc(14*var(--u));z-index:2}
+  .leyenda span::before{content:"";display:inline-block;width:calc(18*var(--u));height:calc(3*var(--u));margin-right:calc(6*var(--u));vertical-align:middle;background:currentColor;border-radius:2px}
+  svg{position:absolute;inset:0;width:100%;height:100%}
+  .lectura{position:absolute;z-index:3;pointer-events:none;font-family:'Share Tech Mono';font-size:calc(15*var(--u));
+    background:rgba(4,17,15,.92);border:1px solid #2f5a55;border-radius:calc(6*var(--u));padding:calc(8*var(--u)) calc(10*var(--u));display:none;line-height:1.45}
+  .espectro{grid-row:2/4}
+  .der{display:grid;grid-template-rows:1fr 1fr;gap:calc(14*var(--u))}
+  .abajo{display:grid;grid-template-columns:1fr 1fr;gap:calc(14*var(--u))}
+  .nota{position:absolute;left:calc(16*var(--u));bottom:calc(8*var(--u));font-family:'Share Tech Mono';font-size:calc(13*var(--u));color:#6f8f88;z-index:2}
+</style>
+</head>
+<body>
+<div class="rack">
+  <h1><span>MIX<b>MASTER</b> · GRÁFICOS v2</span><small>propuesta · datos de ejemplo · pasa el mouse por los gráficos</small></h1>
+
+  <div class="caja espectro" id="c-esp">
+    <div class="titulo">ESPECTRO · MEZCLA · REFERENCIA · MASTER</div>
+    <div class="leyenda"><span style="color:var(--gris)">mezcla</span><span style="color:var(--ambar)">referencia</span>
+      <span style="color:var(--verde)">master</span><span style="color:#ffb36b">te falta</span><span style="color:var(--azul)">te sobra</span></div>
+    <svg id="esp" viewBox="0 0 1100 700" preserveAspectRatio="none"></svg>
+    <div class="lectura" id="lec-esp"></div>
+    <div class="nota">curvas a 1/6 de octava · puntos: picos máximos del master · franja de abajo: diferencia por banda</div>
+  </div>
+
+  <div class="der">
+    <div class="caja" id="c-vol">
+      <div class="titulo">VOLUMEN EN EL TIEMPO (LUFS corto plazo)</div>
+      <div class="leyenda"><span style="color:var(--gris)">mezcla</span><span style="color:var(--verde)">master</span><span style="color:var(--ambar)">objetivo</span></div>
+      <svg id="vol" viewBox="0 0 700 330" preserveAspectRatio="none"></svg>
+      <div class="lectura" id="lec-vol"></div>
+    </div>
+    <div class="caja" id="c-crest">
+      <div class="titulo">DINÁMICA EN EL TIEMPO (crest por sección)</div>
+      <div class="leyenda"><span style="color:var(--gris)">mezcla</span><span style="color:var(--verde)">master</span><span style="color:#2e6b52">tu zona 6–12 dB</span></div>
+      <svg id="crest" viewBox="0 0 700 330" preserveAspectRatio="none"></svg>
+      <div class="lectura" id="lec-crest"></div>
+    </div>
+  </div>
+
+  <div class="abajo">
+    <div class="caja" id="c-gonio">
+      <div class="titulo">IMAGEN ESTÉREO</div>
+      <svg id="gonio" viewBox="0 0 330 330" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+    <div class="caja" id="c-corr">
+      <div class="titulo">ANCHO POR BANDA</div>
+      <svg id="corr" viewBox="0 0 330 330" preserveAspectRatio="none"></svg>
+      <div class="lectura" id="lec-corr"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---------- datos de ejemplo (sintéticos, reproducibles) ----------
+let semilla = 7; const azar = () => (semilla = (semilla * 16807) % 2147483647) / 2147483647;
+const BANDAS = [["SUB",20,60],["LOW",60,250],["LOW MID",250,500],["MID",500,2000],["HIGH MID",2000,4000],["PRESENCIA",4000,6000],["AIRE",6000,20000]];
+const F = Array.from({length: 240}, (_, i) => 20 * Math.pow(1000, i / 239));
+const curva = (ajuste) => F.map(f => {
+  const l = Math.log10(f);
+  return -4.5 * (l - 2) - 3 * Math.exp(-((l - 1.7) ** 2) / .02) * 0 + ajuste(l) + (azar() - .5) * 2.2;
+});
+const suave = (a, k = 4) => a.map((_, i) => { let s = 0, n = 0; for (let j = Math.max(0, i - k); j <= Math.min(a.length - 1, i + k); j++) { s += a[j]; n++; } return s / n; });
+const ref = suave(curva(l => 2.5 * Math.exp(-((l - 1.8) ** 2) / .05) + 1.5 * Math.exp(-((l - 3.6) ** 2) / .08)));
+const mez = suave(curva(l => 4 * Math.exp(-((l - 2.5) ** 2) / .04) - 3 * Math.exp(-((l - 3.9) ** 2) / .06)));
+const mas = suave(mez.map((v, i) => v + (ref[i] - v) * .55 + (azar() - .5) * .6), 3);
+const picos = mas.map(v => v + 3 + azar() * 1.5);
+
+// ---------- utilidades ----------
+const $ = id => document.getElementById(id);
+const NS = "http://www.w3.org/2000/svg";
+const hz = f => f >= 1000 ? (f / 1000).toFixed(f >= 10000 ? 0 : 1) + "k" : Math.round(f);
+function lectura(caja, el, ev, html) {
+  const r = caja.getBoundingClientRect();
+  el.innerHTML = html; el.style.display = "block";
+  const x = ev.clientX - r.left, y = ev.clientY - r.top;
+  el.style.left = Math.min(x + 18, r.width - el.offsetWidth - 8) + "px";
+  el.style.top = Math.max(8, y - el.offsetHeight - 12) + "px";
+}
+
+// ---------- espectro ----------
+(function () {
+  const W = 1100, H = 700, X0 = 70, X1 = 1080, Y0 = 60, Y1 = 520, B0 = 560, B1 = 690;
+  const xL = f => X0 + Math.log10(f / 20) / 3 * (X1 - X0);
+  const TOP = 12, BOT = -36, y = v => Y0 + (TOP - Math.max(BOT, Math.min(TOP, v))) / (TOP - BOT) * (Y1 - Y0);
+  const linea = a => a.map((v, i) => `${xL(F[i]).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  let s = `<defs><filter id="glow"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <linearGradient id="gv" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7fe0b0" stop-opacity=".28"/><stop offset="1" stop-color="#7fe0b0" stop-opacity="0"/></linearGradient></defs>`;
+  for (let v = TOP; v >= BOT; v -= 6) s += `<line x1="${X0}" x2="${X1}" y1="${y(v)}" y2="${y(v)}" stroke="#163a33" stroke-width="1"/>
+    <text x="${X0 - 10}" y="${y(v) + 5}" fill="#4f7d72" font-family="Share Tech Mono" font-size="15" text-anchor="end">${v > 0 ? "+" + v : v}</text>`;
+  [20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000].forEach(f => s += `<line x1="${xL(f)}" x2="${xL(f)}" y1="${Y0}" y2="${Y1}" stroke="#163a33"/>
+    <text x="${xL(f)}" y="${Y1 + 22}" fill="#4f7d72" font-family="Share Tech Mono" font-size="15" text-anchor="middle">${hz(f)}</text>`);
+  BANDAS.forEach(([n, a, b], k) => { s += `<rect x="${xL(a)}" y="${Y0 - 34}" width="${xL(b) - xL(a)}" height="22" fill="${k % 2 ? "#0b2420" : "#0e2b26"}"/>
+    <text x="${(xL(a) + xL(b)) / 2}" y="${Y0 - 18}" fill="#6f9a8f" font-size="14" letter-spacing="2" text-anchor="middle">${n}</text>`; });
+  // lo que falta (ámbar) y lo que sobra (azul) entre master y referencia
+  for (let i = 0; i < F.length - 1; i++) {
+    const d = ref[i] - mas[i];
+    if (Math.abs(d) < .4) continue;
+    s += `<polygon points="${xL(F[i])},${y(mas[i])} ${xL(F[i + 1])},${y(mas[i + 1])} ${xL(F[i + 1])},${y(ref[i + 1])} ${xL(F[i])},${y(ref[i])}"
+      fill="${d > 0 ? "#ffb36b" : "#6fb4ff"}" opacity="${Math.min(.55, Math.abs(d) / 6)}"/>`;
+  }
+  s += `<polygon points="${X0},${Y1} ${linea(mas)} ${X1},${Y1}" fill="url(#gv)"/>`;
+  s += `<polyline points="${linea(mez)}" fill="none" stroke="#9aa7a8" stroke-width="2" stroke-dasharray="6 4" opacity=".8"/>`;
+  s += `<polyline points="${linea(ref)}" fill="none" stroke="#f2a83c" stroke-width="2.5" filter="url(#glow)"/>`;
+  s += `<polyline points="${linea(mas)}" fill="none" stroke="#7fe0b0" stroke-width="3" filter="url(#glow)"/>`;
+  picos.forEach((v, i) => { if (i % 8 === 0) s += `<circle cx="${xL(F[i])}" cy="${y(v)}" r="2.2" fill="#7fe0b0" opacity=".55"/>`; });
+  // franja de diferencia por banda
+  s += `<line x1="${X0}" x2="${X1}" y1="${(B0 + B1) / 2}" y2="${(B0 + B1) / 2}" stroke="#2f5a55"/>`;
+  BANDAS.forEach(([n, a, b]) => {
+    const idx = F.map((f, i) => f >= a && f < b ? i : -1).filter(i => i >= 0);
+    const d = idx.reduce((t, i) => t + ref[i] - mas[i], 0) / idx.length;
+    const h = Math.min(1, Math.abs(d) / 2.5) * (B1 - B0) / 2 - 4, yc = (B0 + B1) / 2;
+    const xa = xL(a) + 10, w = xL(b) - xL(a) - 20;
+    s += `<rect x="${xa}" y="${d > 0 ? yc - h : yc}" width="${w}" height="${Math.max(2, h)}" rx="3" fill="${d > 0 ? "#ffb36b" : "#6fb4ff"}" opacity=".85"/>
+      <text x="${xa + w / 2}" y="${d > 0 ? yc + 22 : yc - 10}" fill="${d > 0 ? "#ffb36b" : "#6fb4ff"}" font-family="Share Tech Mono" font-size="16" text-anchor="middle">${d > 0 ? "falta " : "sobra "}${Math.abs(d).toFixed(1)} dB</text>`;
+  });
+  s += `<line id="cur-esp" y1="${Y0}" y2="${Y1}" stroke="#cfe3df" stroke-width="1" opacity="0"/>`;
+  $("esp").innerHTML = s;
+  const caja = $("c-esp"), lec = $("lec-esp"), cur = $("cur-esp");
+  caja.addEventListener("mousemove", ev => {
+    const r = $("esp").getBoundingClientRect(), xv = (ev.clientX - r.left) / r.width * W;
+    if (xv < X0 || xv > X1) { lec.style.display = "none"; cur.setAttribute("opacity", 0); return; }
+    const f = 20 * Math.pow(1000, (xv - X0) / (X1 - X0)), i = Math.round(Math.log(f / 20) / Math.log(1000) * 239);
+    cur.setAttribute("x1", xv); cur.setAttribute("x2", xv); cur.setAttribute("opacity", .5);
+    const d = ref[i] - mas[i];
+    lectura(caja, lec, ev, `<b>${hz(F[i])} Hz</b><br><span style="color:#9aa7a8">mezcla ${mez[i].toFixed(1)} dB</span><br>
+      <span style="color:#f2a83c">referencia ${ref[i].toFixed(1)} dB</span><br><span style="color:#7fe0b0">master ${mas[i].toFixed(1)} dB</span><br>
+      <span style="color:${d > 0 ? "#ffb36b" : "#6fb4ff"}">${d > 0 ? "te falta" : "te sobra"} ${Math.abs(d).toFixed(1)} dB</span>`);
+  });
+  caja.addEventListener("mouseleave", () => { lec.style.display = "none"; cur.setAttribute("opacity", 0); });
+})();
+
+// ---------- volumen y dinámica en el tiempo ----------
+const N = 180, DUR = 210;
+const forma = t => .55 + .45 * Math.sin(t / DUR * Math.PI * 3.2 - .8) ** 2;   // estrofas suaves, estribillos fuertes
+const lufsMez = suave(Array.from({length: N}, (_, i) => -19 + 8 * forma(i / N * DUR) + (azar() - .5) * 1.5), 2);
+const lufsMas = suave(lufsMez.map(v => -9 + (v + 15) * .45 + (azar() - .5) * .6), 2);
+const crestMez = suave(lufsMez.map(v => 17 - (v + 19) * .3 + (azar() - .5) * 1.2), 2);
+const crestMas = suave(lufsMas.map(v => 11.2 - (v + 9) * .6 + (azar() - .5) * .8), 2);
+function serieTiempo(id, cajaId, lecId, series, rango, unidad, zona, objetivo) {
+  const W = 700, H = 330, X0 = 56, X1 = 690, Y0 = 46, Y1 = 300;
+  const [lo, hi] = rango, x = i => X0 + i / (N - 1) * (X1 - X0), y = v => Y0 + (hi - v) / (hi - lo) * (Y1 - Y0);
+  let s = "";
+  if (zona) s += `<rect x="${X0}" y="${y(zona[1])}" width="${X1 - X0}" height="${y(zona[0]) - y(zona[1])}" fill="#2e6b52" opacity=".28"/>
+    <line x1="${X0}" x2="${X1}" y1="${y(zona[0])}" y2="${y(zona[0])}" stroke="#ff6b5a" stroke-dasharray="4 4" opacity=".6"/>`;
+  for (let v = Math.ceil(lo / 3) * 3; v <= hi; v += 3) s += `<line x1="${X0}" x2="${X1}" y1="${y(v)}" y2="${y(v)}" stroke="#163a33"/>
+    <text x="${X0 - 8}" y="${y(v) + 5}" fill="#4f7d72" font-family="Share Tech Mono" font-size="14" text-anchor="end">${v}</text>`;
+  for (let m = 0; m <= DUR; m += 30) s += `<text x="${x(m / DUR * (N - 1))}" y="${H - 8}" fill="#4f7d72" font-family="Share Tech Mono" font-size="13" text-anchor="middle">${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}</text>`;
+  if (objetivo != null) s += `<line x1="${X0}" x2="${X1}" y1="${y(objetivo)}" y2="${y(objetivo)}" stroke="#f2a83c" stroke-width="2" stroke-dasharray="8 5"/>`;
+  series.forEach(([a, c, w]) => s += `<polyline points="${a.map((v, i) => `${x(i)},${y(v)}`).join(" ")}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linejoin="round"/>`);
+  s += `<line id="cur-${id}" y1="${Y0}" y2="${Y1}" stroke="#cfe3df" opacity="0"/>`;
+  $(id).innerHTML = s;
+  const caja = $(cajaId), lec = $(lecId), cur = $("cur-" + id);
+  caja.addEventListener("mousemove", ev => {
+    const r = $(id).getBoundingClientRect(), xv = (ev.clientX - r.left) / r.width * W;
+    const i = Math.round((xv - X0) / (X1 - X0) * (N - 1));
+    if (i < 0 || i >= N) { lec.style.display = "none"; return; }
+    cur.setAttribute("x1", x(i)); cur.setAttribute("x2", x(i)); cur.setAttribute("opacity", .5);
+    const t = i / (N - 1) * DUR;
+    lectura(caja, lec, ev, `<b>${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}</b><br>` +
+      series.map(([a, c, , n]) => `<span style="color:${c}">${n} ${a[i].toFixed(1)} ${unidad}</span>`).join("<br>"));
+  });
+  caja.addEventListener("mouseleave", () => { lec.style.display = "none"; cur.setAttribute("opacity", 0); });
+}
+serieTiempo("vol", "c-vol", "lec-vol", [[lufsMez, "#9aa7a8", 2, "mezcla"], [lufsMas, "#7fe0b0", 3, "master"]], [-24, -3], "LUFS", null, -9);
+serieTiempo("crest", "c-crest", "lec-crest", [[crestMez, "#9aa7a8", 2, "mezcla"], [crestMas, "#7fe0b0", 3, "master"]], [3, 21], "dB", [6, 12], null);
+
+// ---------- imagen estéreo: goniómetro ----------
+(function () {
+  let s = `<circle cx="165" cy="175" r="130" fill="none" stroke="#163a33"/><line x1="165" y1="45" x2="165" y2="305" stroke="#1d4a40"/>
+    <line x1="35" y1="175" x2="295" y2="175" stroke="#163a33"/>
+    <line x1="73" y1="83" x2="257" y2="267" stroke="#163a33"/><line x1="257" y1="83" x2="73" y2="267" stroke="#163a33"/>
+    <text x="165" y="40" fill="#4f7d72" font-size="13" text-anchor="middle" font-family="Share Tech Mono">MONO</text>
+    <text x="70" y="78" fill="#4f7d72" font-size="13" font-family="Share Tech Mono">L</text><text x="252" y="78" fill="#4f7d72" font-size="13" font-family="Share Tech Mono">R</text>`;
+  for (let k = 0; k < 1400; k++) {
+    const m = (azar() + azar() + azar() - 1.5) * 1.1, sd = (azar() + azar() - 1) * .55 * (1 - Math.abs(m) / 2);
+    s += `<circle cx="${165 + sd * 110}" cy="${175 - m * 75}" r="1.1" fill="#7fe0b0" opacity=".35"/>`;
+  }
+  s += `<rect x="40" y="315" width="250" height="8" rx="4" fill="#0e2b26"/><rect x="${40 + .78 * 250 - 3}" y="311" width="6" height="16" rx="2" fill="#7fe0b0"/>
+    <text x="40" y="310" fill="#4f7d72" font-size="12" font-family="Share Tech Mono">−1</text><text x="290" y="310" fill="#4f7d72" font-size="12" text-anchor="end" font-family="Share Tech Mono">+1 · correlación 0.56</text>`;
+  $("gonio").innerHTML = s;
+})();
+
+// ---------- ancho por banda ----------
+(function () {
+  const anchoRef = [0, .1, .35, .55, .7, .8, .85], anchoMas = [0, .05, .3, .5, .62, .74, .8];
+  const W = 330, X0 = 18, X1 = 312, y0 = 52, paso = 38;
+  let s = "";
+  BANDAS.forEach(([n], k) => {
+    const y = y0 + k * paso;
+    s += `<text x="${X0}" y="${y + 4}" fill="#6f9a8f" font-size="12" letter-spacing="1">${n}</text>
+      <rect x="${X0 + 90}" y="${y - 7}" width="${X1 - X0 - 90}" height="14" rx="3" fill="#0e2b26"/>
+      <rect x="${X0 + 90}" y="${y - 7}" width="${(X1 - X0 - 90) * anchoMas[k]}" height="14" rx="3" fill="#7fe0b0" opacity=".8"/>
+      <line x1="${X0 + 90 + (X1 - X0 - 90) * anchoRef[k]}" x2="${X0 + 90 + (X1 - X0 - 90) * anchoRef[k]}" y1="${y - 11}" y2="${y + 11}" stroke="#f2a83c" stroke-width="3"/>`;
+  });
+  s += `<text x="${X0}" y="${y0 + 7 * paso + 6}" fill="#4f7d72" font-size="12" font-family="Share Tech Mono">barra verde: master · línea ámbar: referencia</text>`;
+  $("corr").innerHTML = s;
+})();
+</script>
+</body>
+</html>
