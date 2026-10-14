@@ -16,7 +16,7 @@ import soundfile as sf
 from PySide6.QtCore import QProcess, QProcessEnvironment, Qt, QUrl
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import (
-    QCheckBox, QDialog, QDoubleSpinBox, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
+    QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
     QPlainTextEdit, QPushButton, QVBoxLayout,
 )
 
@@ -55,9 +55,8 @@ class TempoDialog(QDialog):
         btn_carpeta = QPushButton("📁 Elegir carpeta…")
         btn_carpeta.clicked.connect(self._elegir_carpeta)
         btn_tema = QPushButton("🎵 Tema sin stems…")
-        btn_tema.setToolTip("Un solo archivo (la mezcla): la batería se separa con Demucs.
-"
-                            "Pon el BPM a mano si no está en el nombre.")
+        btn_tema.setToolTip("Un solo archivo (la mezcla): la batería se separa con Demucs.\n"
+                            "Si el nombre no trae el BPM, se detecta solo.")
         btn_tema.clicked.connect(self._elegir_tema)
         fila_carpeta.addWidget(self.txt_carpeta, 1)
         fila_carpeta.addWidget(btn_carpeta)
@@ -71,6 +70,23 @@ class TempoDialog(QDialog):
         self.spin_bpm.setDecimals(2)
         self.spin_bpm.setValue(120)
         fila_bpm.addWidget(self.spin_bpm)
+        self.chk_auto = QCheckBox("Detectar")
+        self.chk_auto.setToolTip("Detecta el BPM con los pulsos del tema (cuando el nombre no lo trae).")
+        self.chk_auto.toggled.connect(lambda si: self.spin_bpm.setEnabled(not si))
+        fila_bpm.addWidget(self.chk_auto)
+        fila_bpm.addWidget(QLabel("Compás:"))
+        self.combo_compas = QComboBox()
+        for texto, n in (("4/4", 4), ("3/4", 3), ("2/4", 2), ("5/4", 5), ("6 pulsos", 6),
+                         ("7 pulsos", 7), ("Solo pulso", 0)):
+            self.combo_compas.addItem(texto, n)
+        self.combo_compas.setToolTip("Solo cambia el acento del click y dónde cae el 1.\n"
+                                     "El pulso se ajusta igual en cualquier compás.")
+        fila_bpm.addWidget(self.combo_compas)
+        self.chk_enderezar = QCheckBox("Enderezar todo")
+        self.chk_enderezar.setToolTip(
+            "También lo que sube o baja de tempo (intro, final, rubatos) queda en el tempo fijo.\n"
+            "Apagado: esos tramos quedan naturales y el click los sigue.")
+        fila_bpm.addWidget(self.chk_enderezar)
         self.chk_440 = QCheckBox("Afinar a 440 Hz")
         self.chk_440.setToolTip("Si el tema está en 441 o 442 Hz (lo dice el nombre de Moises), lo lleva a 440.")
         fila_bpm.addWidget(self.chk_440)
@@ -143,6 +159,7 @@ class TempoDialog(QDialog):
         m = RE_BPM.search(carpeta.stem if carpeta.is_file() else carpeta.name)
         if m:
             self.spin_bpm.setValue(float(m.group(1)))
+        self.chk_auto.setChecked(not m)
         self._fase = None
         self.lbl_salida.setText(f"→ {self._carpeta_salida()}")
 
@@ -151,7 +168,8 @@ class TempoDialog(QDialog):
         nombre = carpeta.stem if carpeta.is_file() else carpeta.name
         m = RE_TEMA.match(nombre)
         tema = m.group(1).strip() if m else nombre
-        return carpeta.parent / "A TEMPO" / f"{tema} - {self.spin_bpm.value():g} BPM"
+        bpm = "BPM auto" if self.chk_auto.isChecked() else f"{self.spin_bpm.value():g} BPM"
+        return carpeta.parent / "A TEMPO" / f"{tema} - {bpm}"
 
     # ---------- proceso ----------
 
@@ -161,7 +179,11 @@ class TempoDialog(QDialog):
             return
         self._soltar_audio()
         self._salida = self._carpeta_salida()
-        args = ["-u", str(SCRIPT), self.txt_carpeta.text(), str(self._salida), f"{self.spin_bpm.value():g}"]
+        bpm = "0" if self.chk_auto.isChecked() else f"{self.spin_bpm.value():g}"
+        args = ["-u", str(SCRIPT), self.txt_carpeta.text(), str(self._salida), bpm,
+                f"--compas={self.combo_compas.currentData()}"]
+        if self.chk_enderezar.isChecked():
+            args.append("--todo-a-tempo")
         if fase is not None:
             args.append(f"--fase={fase}")
         if self.chk_440.isChecked():
@@ -196,6 +218,16 @@ class TempoDialog(QDialog):
             self.lbl_resumen.setText("Terminó, pero no se pudo leer log.json.")
             return
         self._fase = info["downbeat_fase"]
+        if info.get("bpm_detectado"):
+            # la carpeta se nombró "BPM auto": se renombra con el BPM detectado
+            self.spin_bpm.setValue(float(info["bpm"]))
+            self.chk_auto.setChecked(False)   # mover el 1 y repetir usan este BPM y esta carpeta
+            nueva = self._salida.with_name(self._salida.name.replace("BPM auto", f"{info['bpm']:g} BPM"))
+            if not nueva.exists():
+                try:
+                    self._salida = self._salida.rename(nueva)
+                except OSError:
+                    log.exception("No se pudo renombrar la carpeta de salida")
         secs = [abs(v) for v in info.get("verificacion_secciones_32_ms", []) if v is not None]
         partes = [f"Modo {info['modo']}", f"ajuste {info['bpm_ajuste']} BPM",
                   f"peor sección {max(secs):.1f} ms" if secs else "sin secciones con batería"]
@@ -235,7 +267,9 @@ class TempoDialog(QDialog):
 
     def _mover_uno(self, delta: int):
         if self._fase is not None:
-            self._procesar(fase=(self._fase + delta) % 4)
+            n = self.combo_compas.currentData() or 0
+            if n > 0:
+                self._procesar(fase=(self._fase + delta) % n)
 
     def _soltar_audio(self):
         """Libera el archivo de escucha (en Windows queda bloqueado mientras se reproduce)."""

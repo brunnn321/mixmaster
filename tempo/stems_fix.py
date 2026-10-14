@@ -1,8 +1,11 @@
 """Pone los stems de Moises a tempo fijo y genera un click exacto (método v0.4 de REGISTRO_app_tempo.md).
 
-Uso: python stems_fix.py "<carpeta stems Moises o tema>" "<carpeta salida>" [BPM] [--forzar-estirar] [--fase=0..3] [--afinar-440]
+Uso: python stems_fix.py "<carpeta de stems, multipista o un audio>" "<carpeta salida>" [BPM | 0 = automático]
+       [--compas=N] [--todo-a-tempo] [--fase=N] [--forzar-estirar] [--afinar-440]
 
---fase fija en qué tiempo cae el "1" (lo usa el botón "mover el 1" de Tempo Genius).
+--compas      pulsos por compás para el acento del click y el "1" (4 por defecto; 0 = solo pulso).
+--todo-a-tempo endereza también lo que sube o baja de tempo (intros, finales, rubatos). Solo si se pide.
+--fase        fija en qué pulso cae el "1" (lo usa el botón "mover el 1" de Tempo Genius).
 
 No depende de MixMaster. Necesita numpy, scipy, soundfile (lee MP3) y pylibrb (solo en modo estirar).
 """
@@ -230,12 +233,27 @@ def separar_bateria(x):
     return drums.astype(np.float32)
 
 
+def pulsos_modelo(mezcla):
+    """Pulsos y "1" con Beat This! (funciona en cualquier compás). (None, None) si no está instalado."""
+    try:
+        from beat_this.inference import Audio2Beats
+    except ImportError:
+        return None, None
+    beats, downs = Audio2Beats(checkpoint_path="final0", device="cpu", dbn=False)(mezcla.mean(axis=1), SR)
+    return np.asarray(beats, float), np.asarray(downs, float)
+
+
 def clicks_detector(drums, bpm):
-    """Guía aproximada de los tiempos cuando no hay metrónomo de Moises (la corrige después el ERP)."""
+    """Respaldo sin Beat This!: pulsos de librosa sobre la batería."""
     import librosa
     onset = librosa.onset.onset_strength(y=drums.mean(axis=1), sr=SR, hop_length=256)
-    _, beats = librosa.beat.beat_track(onset_envelope=onset, sr=SR, hop_length=256, start_bpm=bpm,
+    _, beats = librosa.beat.beat_track(onset_envelope=onset, sr=SR, hop_length=256, start_bpm=bpm or 120.0,
                                        tightness=400, units="time")
+    return beats
+
+
+def ajustar_nivel(beats, bpm):
+    """Si el detector marcó corcheas o blancas, lleva los pulsos al nivel del BPM indicado."""
     P = 60.0 / bpm
     paso = np.median(np.diff(beats))
     if paso < 0.75 * P:
@@ -243,6 +261,29 @@ def clicks_detector(drums, bpm):
     elif paso > 1.5 * P:
         beats = np.sort(np.concatenate([beats, (beats[:-1] + beats[1:]) / 2]))
     return beats
+
+
+def regularizar_pulsos(beats):
+    """Rellena pulsos que el detector se saltó y quita los dobles, para que la cuenta no se corra."""
+    beats = np.asarray(beats, float)
+    d0 = np.median(np.diff(beats))
+    out = [beats[0]]
+    for b in beats[1:]:
+        prev = out[-1]
+        gap = b - prev
+        if gap < 0.5 * d0:
+            continue
+        n = max(1, int(round(gap / d0)))
+        out.extend(prev + gap * k / n for k in range(1, n))
+        out.append(b)
+    return np.array(out)
+
+
+def bpm_de_pulsos(beats):
+    """BPM con el ajuste lineal de todos los pulsos (la mediana sola sale cuantizada a 20 ms
+    con Beat This!: 140 daba 143). Entero si está a menos de 0.3 de uno, si no con un decimal."""
+    b = 60.0 / np.polyfit(np.arange(len(beats)), beats, 1)[0]
+    return float(round(b)) if abs(b - round(b)) < 0.3 else round(b, 1)
 
 
 # ---------- estirar ----------
@@ -310,18 +351,15 @@ def afinar(x, escala):
     return y[:len(x)]
 
 
-def downbeat_modelo(mezcla, tiempos, a, z):
-    """Fase del "1" según Beat This! (modelo entrenado). None si no está instalado o no decide."""
-    try:
-        from beat_this.inference import Audio2Beats
-    except ImportError:
+def downbeat_modelo(downs, tiempos, a, z, n_comp):
+    """Fase del "1" según los downbeats de Beat This!, para compases de `n_comp` pulsos."""
+    if downs is None or n_comp < 1:
         return None, None
-    _, downs = Audio2Beats(checkpoint_path="final0", device="cpu", dbn=False)(mezcla.mean(axis=1), SR)
-    votos = np.zeros(4)
+    votos = np.zeros(n_comp)
     for d in downs:
         i = int(np.argmin(np.abs(tiempos - d)))
         if a <= i <= z and abs(tiempos[i] - d) < 0.1:
-            votos[i % 4] += 1
+            votos[i % n_comp] += 1
     if votos.sum() < 8:
         return None, votos.tolist()
     return int(np.argmax(votos)), votos.tolist()
@@ -351,19 +389,20 @@ def _vlq(n):
     return bytes(out)
 
 
-def escribir_midi(path, tiempos, indices, idx_uno, tick_uno, ppq=960):
+def escribir_midi(path, tiempos, indices, idx_uno, tick_uno, ppq=960, pulsos_compas=4):
     """Mapa de tempo (.mid) que sigue al click, también en los tramos libres; el "1" cae en inicio de compás."""
+    tc = pulsos_compas * ppq
     ticks = (np.asarray(indices) - idx_uno) * ppq + tick_uno
     if ticks[0] < 0:
-        ticks += int(np.ceil(-ticks[0] / (4 * ppq))) * 4 * ppq
+        ticks += int(np.ceil(-ticks[0] / tc)) * tc
     if ticks[0] == 0 and tiempos[0] > 0.001:
-        ticks += 4 * ppq
+        ticks += tc
     eventos = []   # (tick, microsegundos por negra)
     if ticks[0] > 0:
         eventos.append((0, tiempos[0] / (ticks[0] / ppq) * 1e6))
     for k in range(len(tiempos) - 1):
         eventos.append((int(ticks[k]), (tiempos[k + 1] - tiempos[k]) * 1e6))
-    pista = bytearray(b"\x00\xff\x58\x04\x04\x02\x18\x08")   # 4/4
+    pista = bytearray(b"\x00\xff\x58\x04" + bytes([pulsos_compas]) + b"\x02\x18\x08")   # n/4
     ultimo = 0
     for tick, us in eventos:
         us = int(round(min(max(us, 1), 0xFFFFFF)))
@@ -396,16 +435,18 @@ def generar_click(tiempos, acentos, largo):
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     forzar = "--forzar-estirar" in sys.argv
-    fase_forzada = next((int(x.split("=")[1]) % 4 for x in sys.argv if x.startswith("--fase=")), None)
+    fase_forzada = next((int(x.split("=")[1]) for x in sys.argv if x.startswith("--fase=")), None)
+    # pulsos por compás para el acento del click y el "1"; 0 = solo pulso (el compás lo pone Bruno)
+    n_comp = next((int(x.split("=")[1]) for x in sys.argv if x.startswith("--compas=")), 4)
+    # enderezar también lo que sube o baja: solo si se pide (Bruno, 13/10: "solo si la presiono")
+    todo_a_tempo = "--todo-a-tempo" in sys.argv
     afinar_440 = "--afinar-440" in sys.argv
     if len(args) < 2:
         raise SystemExit(__doc__)
     entrada, salida = Path(args[0]), Path(args[1])
     nombre = entrada.stem if entrada.is_file() else entrada.name
     m = RE_BPM.search(nombre)
-    bpm = float(args[2]) if len(args) > 2 else (float(m.group(1)) if m else None)
-    if bpm is None:
-        raise SystemExit("No se encontró el BPM en el nombre de la carpeta; pásalo como tercer argumento.")
+    bpm = float(args[2]) if len(args) > 2 and float(args[2]) > 0 else (float(m.group(1)) if m else None)
     mt = RE_TEMA.match(nombre)
     tema = mt.group(1).strip() if mt else nombre
 
@@ -420,7 +461,7 @@ def main():
     n_bateria = [k for k in musicales if RE_BATERIA.search(k)]
     if not musicales:
         raise SystemExit("No hay audio en la entrada.")
-    print(f"{tema} | {bpm} BPM | stems: {', '.join(musicales)}")
+    print(f"{tema} | {f'{bpm:g} BPM' if bpm else 'BPM automático'} | stems: {', '.join(musicales)}")
 
     if n_bateria:
         if len(n_bateria) > 1:
@@ -430,13 +471,6 @@ def main():
         print("  sin stem de batería: se separa con Demucs (unos minutos)…")
         drums = separar_bateria(sum_stems([cargar(stems[k]) for k in musicales]))
     env = envolvente(drums)
-    if n_click:
-        clicks = detectar_clicks(cargar(stems[n_click]))
-    else:
-        print("  sin metrónomo de Moises: la guía sale de un detector de pulsos")
-        clicks = clicks_detector(drums, bpm)
-    if len(clicks) < 32:
-        raise SystemExit("La guía de tiempos tiene muy pocos clicks.")
 
     # inicio de la música (para dejar como máximo un compás de click antes)
     inicio = None
@@ -451,21 +485,54 @@ def main():
             inicio = t if inicio is None else min(inicio, t)
         del x
 
+    # guía de tiempos: el metrónomo de Moises o, si no hay, los pulsos de Beat This! (cualquier compás)
+    downs = None
+    if n_click:
+        clicks = detectar_clicks(cargar(stems[n_click]))
+    else:
+        print("  sin metrónomo: los pulsos salen del modelo entrenado (Beat This!)…")
+        clicks, downs = pulsos_modelo(mezcla_in)
+        if clicks is None:
+            print("  Beat This! no está instalado: se usa el detector de librosa")
+            clicks = clicks_detector(drums, bpm)
+    if len(clicks) < 32:
+        raise SystemExit("La guía de tiempos tiene muy pocos pulsos: ¿el tema tiene un pulso claro?")
+    if not n_click:
+        clicks = regularizar_pulsos(clicks)
+    bpm_detectado = bpm is None
+    if bpm_detectado:
+        bpm = bpm_de_pulsos(clicks)
+        print(f"  BPM detectado: {bpm:g}")
+    elif not n_click:
+        clicks = regularizar_pulsos(ajustar_nivel(clicks, bpm))
+
     guia, _ = ajuste_local(clicks, 8)          # el click de Moises redondea a 20 ms: se suaviza
     tiempos, confiable, off_global = medir_tiempos(env, guia)
-    a, z = tramo_a_tempo(tiempos, bpm)
-    fase, fase_info = fase_downbeat(drums, tiempos, a, z)
-    print("  buscando el 1 con el modelo entrenado…")
-    fase_mod, votos = downbeat_modelo(mezcla_in, tiempos, a, z)
+    # --todo-a-tempo (13/10): también lo que sube o baja (intros, finales, rubatos) va a la grilla del
+    # DAW. Solo si se pide: Un adorador tenía una intro a ~136 y la banda entra a 150,72.
+    a, z = (0, len(tiempos) - 1) if todo_a_tempo else tramo_a_tempo(tiempos, bpm)
+
+    # el "1": solo importa si se eligió compás; la heurística de caja en 2 y 4 sirve solo para 4/4
+    if n_comp == 4:
+        fase, fase_info = fase_downbeat(drums, tiempos, a, z)
+    else:
+        fase, fase_info = 0, {}
+    fase_info["heuristica"] = fase if n_comp == 4 else None
+    if n_comp > 0:
+        if downs is None:
+            print("  buscando el 1 con el modelo entrenado…")
+            _, downs = pulsos_modelo(mezcla_in)
+        fase_mod, votos = downbeat_modelo(downs, tiempos, a, z, n_comp)
+        fase_info["modelo_votos"] = votos
+        if fase_mod is not None:
+            fase_info["modelo"] = fase_mod
+            fase = fase_mod
+        if fase_forzada is not None:
+            fase_info["detectada"], fase = fase, fase_forzada % n_comp
     del mezcla_in
-    fase_info["heuristica"], fase_info["modelo_votos"] = fase, votos
-    if fase_mod is not None:
-        fase_info["modelo"] = fase_mod
-        fase = fase_mod
-    if fase_forzada is not None:
-        fase_info["detectada"], fase = fase, fase_forzada
     P = 60.0 / bpm
-    compas = 4 * P
+    pc = n_comp if n_comp > 0 else 4      # pulsos por compás para ubicar la grilla y el MIDI
+    compas = pc * P
 
     j = np.arange(a, z + 1)
     tt = tiempos[a:z + 1]
@@ -481,7 +548,7 @@ def main():
                and max(abs(v) for v in secs24) <= MAX_SECCION_MS)
 
     # grilla de salida: el "1" en inicio de compás, con la música dentro del primer compás
-    jd = next(i for i in range(a, z + 1) if (i - fase) % 4 == 0)
+    jd = next(i for i in range(a, z + 1) if n_comp == 0 or (i - fase) % n_comp == 0)
     rel = (j - jd) * P
     s_base = float(np.mean(rel - tt)) if estudio else rel[0] - tt[0]
     K = int(np.ceil((0.05 - inicio - s_base) / compas))
@@ -504,7 +571,8 @@ def main():
            "tiempos": len(tiempos), "tramo_a_tempo": {"desde_tiempo": a, "hasta_tiempo": z,
            "desde_s": round(tiempos[a], 2), "hasta_s": round(tiempos[z], 2)},
            "inicio_libre": a > 0, "final_libre": z < len(tiempos) - 1,
-           "downbeat_fase": fase, "downbeat_detalle": fase_info, "inicio_musica_s": round(inicio, 3)}
+           "downbeat_fase": fase, "downbeat_detalle": fase_info, "inicio_musica_s": round(inicio, 3),
+           "compas": n_comp, "bpm_detectado": bpm_detectado, "todo_a_tempo": todo_a_tempo}
 
     # plan y pasadas sobre la batería
     if estudio:
@@ -525,7 +593,8 @@ def main():
             pasadas.append((error, plan, d_out))
             # 2.ª pasada: medir el resultado con el mismo método robusto y corregir lo que queda
             medidos, _, _ = medir_tiempos(env_o, destino_tempo)
-            objetivo = objetivo - (medidos - destino_tempo)
+            # media corrección: la completa a veces se pasaba (Tengo Sed 6.6 → 13.2 ms)
+            objetivo = objetivo - 0.5 * (medidos - destino_tempo)
         error, plan, d_out = min(pasadas, key=lambda p: p[0])
         log["pasadas_peor_seccion_ms"] = [round(p[0], 1) for p in pasadas]
 
@@ -568,10 +637,18 @@ def main():
         avisos.append(f"inicio libre hasta {mmss(tiempos[a])}: el click sigue a la música")
     if z < len(tiempos) - 1:
         avisos.append(f"final libre desde {mmss(tiempos[z])}: el click sigue a la música")
-    if fase_info.get("modelo") is not None and fase_info["modelo"] != fase_info["heuristica"]:
-        avisos.append("el modelo y la heurística no coinciden en el 1: confirmar de oído")
-    elif fase_info.get("modelo") is None:
-        avisos.append("el 1 se adivinó con la heurística: confirmar de oído")
+    if n_comp > 0:
+        if fase_info.get("modelo") is None:
+            avisos.append("el 1 no lo confirmó el modelo: revisarlo de oído")
+        elif fase_info["heuristica"] is not None and fase_info["modelo"] != fase_info["heuristica"]:
+            avisos.append("el modelo y la heurística no coinciden en el 1: confirmar de oído")
+    if todo_a_tempo:
+        _, pend = ajuste_local(tiempos, 4)
+        desvio = np.abs((60.0 / pend) / bpm - 1)
+        if desvio.max() > 0.08:
+            k = int(np.argmax(desvio))
+            avisos.append(f"cerca de {mmss(tiempos[k])} el tempo original se aleja {desvio[k]:.0%}: "
+                          "ahí el audio se estira mucho y puede notarse")
     for k, v in enumerate(verif):
         if v is not None and abs(v) > 8:
             avisos.append(f"sección desde {mmss(destino[a + 32 * k])} corrida {v:+.1f} ms")
@@ -587,7 +664,7 @@ def main():
         t -= P
     click_t = np.concatenate([previos, destino])
     indices = np.concatenate([np.arange(-len(previos), 0), np.arange(len(destino))])
-    acentos = (indices - fase) % 4 == 0
+    acentos = (indices - fase) % n_comp == 0 if n_comp > 0 else np.zeros(len(indices), bool)
 
     # salida
     salida.mkdir(parents=True, exist_ok=True)
@@ -610,7 +687,7 @@ def main():
         log["mezcla_bajada_db"] = round(20 * np.log10(0.999 / pico), 2)
     sf.write(str(salida / f"{base} - MEZCLA.flac"), mezcla, SR, subtype="PCM_24")
     sf.write(str(salida / f"{base} - CLICK.flac"), generar_click(click_t, acentos, len(mezcla)), SR, subtype="PCM_24")
-    escribir_midi(salida / f"{base} - TEMPO.mid", click_t, indices, jd, K * 4 * 960)
+    escribir_midi(salida / f"{base} - TEMPO.mid", click_t, indices, jd, K * pc * 960, pulsos_compas=pc)
     log["desplazamiento_s"] = round(s_ini + plan["s_fin"], 4)
     (salida / "log.json").write_text(json.dumps(log, ensure_ascii=False, indent=2, default=float), encoding="utf-8")
     print(f"Listo: {salida}")
