@@ -137,7 +137,7 @@ Decisiones por defecto (se pueden cambiar cuando Bruno diga):
   texto, desde el 7/10).
 - **Fase 4** (13/10, más): stems alineados entre sí comprobado con la prueba
   sintética (bajo y batería: +0.00 ms de cambio). Falta: temas largos y
-  multipistas grandes (18).
+  multipistas grandes (18): ✅ 14/10, la batería de una multipista se suma de a una pista y hay aviso de RAM en temas muy largos.
 - **Fase 5** ✅ nombres con el BPM (`Batería 128bpm.flac`, `Mezcla …`, `Click …`,
   `Tempo 128bpm.mid`; stems de Moises en castellano), `REPORTE.txt` en palabras,
   nunca se pisa un resultado (V2, V3…), carpeta de salida fija opcional
@@ -145,7 +145,7 @@ Decisiones por defecto (se pueden cambiar cuando Bruno diga):
 - **Fase 6** ✅ ventana con cola: agregar carpetas o varios audios (o arrastrar),
   opciones por tema (BPM / Detectar, compás, Enderezar todo), procesa uno tras
   otro, resultado por tema en la lista, escuchar y mover el 1 del tema elegido.
-  Probada sin pantalla con dos temas sintéticos. **Falta verla dentro de la app
+  Probada sin pantalla con dos temas sintéticos y renderizada con el estilo de la app (14/10): se ve bien. Falta que Bruno la abra dentro de la app
   a 1920x1080** (avisar antes de abrir nada en la pantalla de Bruno).
 - **Fase 7**: `tempo/tests/test_sintetico.py` (sin audios de Bruno): stems con
   metrónomo, compás de 3 y un audio solo con BPM automático. Faltan los temas

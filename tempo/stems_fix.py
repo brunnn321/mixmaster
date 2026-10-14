@@ -462,11 +462,21 @@ def main():
     if not musicales:
         raise SystemExit("No hay audio en la entrada.")
     print(f"{tema} | {f'{bpm:g} BPM' if bpm else 'BPM automático'} | stems: {', '.join(musicales)}")
+    try:   # estimación barata (solo cabeceras): cada pista se carga entera en float32
+        minutos = max(sf.info(str(stems[k])).duration for k in musicales) / 60
+        gb = minutos * 60 * SR * 2 * 4 * 6 / 1e9    # ~6 copias estéreo a la vez en el peor paso
+        if gb > 6:
+            print(f"  aviso: tema de {minutos:.0f} min, puede necesitar ~{gb:.0f} GB de RAM")
+    except Exception:
+        pass
 
     if n_bateria:
         if len(n_bateria) > 1:
             print(f"  batería de referencia: suma de {', '.join(n_bateria)}")
-        drums = sum_stems([cargar(stems[k]) for k in n_bateria])
+        drums = None                       # de a una pista: una multipista grande no llena la RAM
+        for k in n_bateria:
+            x = cargar(stems[k])
+            drums = x if drums is None else sum_stems([drums, x])
     else:
         print("  sin stem de batería: se separa con Demucs (unos minutos)…")
         drums = separar_bateria(sum_stems([cargar(stems[k]) for k in musicales]))
