@@ -175,7 +175,7 @@ Orden por dificultad, de a uno:
 - [x] 3. Limitador multibanda (`_limitador_multibanda`, `limitador.multibanda`): 4 bandas, la reducción va a la banda que manda el pico. Señal de prueba: la guitarra baja 0.5 dB con el bombo (antes 3.9). En "Sol" (60 s) el score no cambia (84 vs 85) y el medidor de bombeo sigue marcando −0.55 con cualquier limitador y sin clipper: el medidor probablemente lee el contenido de medios del propio bombo; calibrarlo de oído. Suma ~30 s por master.
 - [x] 4. Desenmascarado por jerarquía en las 7 bandas (`_desenmascarar_jerarquia`, reemplaza a `_desenmascarar_voz` en sumar_stems). Suite completa en verde (7/10: test_eq_solo_guitarras ahora apaga también el desenmascarado para aislar el EQ). Falta audio serio para comparar: preguntarle a Bruno qué temas usar (no usar Sol ni CRISIntro).
 - [x] 5. Control del grave en el tiempo (7/10): `_control_grave`, el sub del bajo (<120 Hz) baja hasta 4 dB cuando pega el bombo (ataque 5 ms, liberación 80 ms). `stems_master.control_grave`, APAGADO hasta que Bruno lo escuche. Test propio en verde.
-- [ ] 6. Limpieza de ruido de stems
+- [~] 6. Limpieza de ruido de stems — FUERA (Bruno 13/10: "eso nunca lo pedí")
 - [x] 7. EQ y compresión por sección (12/10): `_eq_comp_por_seccion`, 7 bandas en cuadros de 2 s; EQ hacia el balance mediano del tema (±2 dB) y compresión lenta sobre el percentil 75 (≤1.5 dB), suavizado 6 s. `eq_por_seccion.activo`, APAGADO hasta escucharlo. Test propio en verde.
 - [ ] 8. Detección de estilo sin referencia
 - [ ] 9. Des-limitador
