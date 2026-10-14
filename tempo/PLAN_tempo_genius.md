@@ -110,3 +110,43 @@ Decisiones por defecto (se pueden cambiar cuando Bruno diga):
 ---
 
 **Lo que falta de Bruno:** los temas de prueba de los puntos 29–31.
+
+---
+
+## Estado (13/10/2026)
+
+- **Fase 0** ✅ registro con la sección 9 (v0.5).
+- **Fase 1** ✅ multipista (batería por nombre: kick, bombo, caja, OH, room, perc…),
+  M4A/WMA vía librosa + ffmpeg, pistas mono. Probado: multipista sin metrónomo de
+  Te Doy Gloria, ±7 ms.
+- **Fase 2** ✅ sin metrónomo, los pulsos salen de Beat This!; se rellenan pulsos
+  saltados y se quitan dobles; BPM automático con ajuste lineal (la mediana daba
+  143 en vez de 140 porque Beat This! marca en pasos de 20 ms). `--compas=N`
+  (0 = solo pulso) para el acento y el "1"; la heurística de caja en 2 y 4 solo
+  se usa en 4/4. MIDI con el compás elegido. Probado: Te Doy Gloria solo MP3, BPM
+  detectado 140, ±2.8 ms.
+- **Fase 3** ✅ con un cambio pedido por Bruno (13/10): enderezar lo que sube o
+  baja es **opcional** ("solo si la presiono"): casilla "Enderezar todo" en la
+  ventana / `--todo-a-tempo`. Apagada, los tramos libres quedan naturales como
+  antes. Aviso si algún tramo se estira más de 8 %.
+- **Fase 4** en curso: la 2.ª pasada aplica media corrección (Tengo Sed: 6.6 →
+  5.7 ms, antes empeoraba a 13.2). Falta: alineación entre stems (17), temas
+  largos y multipistas grandes (18), regresión de los 8 temas (20, corriendo).
+- Ventana: casilla "Detectar" BPM, selector de compás, "Enderezar todo". Se
+  arregló un error que impedía abrir la ventana (salto de línea dentro de un
+  texto, desde el 7/10).
+- **Fase 4** (13/10, más): stems alineados entre sí comprobado con la prueba
+  sintética (bajo y batería: +0.00 ms de cambio). Falta: temas largos y
+  multipistas grandes (18).
+- **Fase 5** ✅ nombres con el BPM (`Batería 128bpm.flac`, `Mezcla …`, `Click …`,
+  `Tempo 128bpm.mid`; stems de Moises en castellano), `REPORTE.txt` en palabras,
+  nunca se pisa un resultado (V2, V3…), carpeta de salida fija opcional
+  (se recuerda entre sesiones).
+- **Fase 6** ✅ ventana con cola: agregar carpetas o varios audios (o arrastrar),
+  opciones por tema (BPM / Detectar, compás, Enderezar todo), procesa uno tras
+  otro, resultado por tema en la lista, escuchar y mover el 1 del tema elegido.
+  Probada sin pantalla con dos temas sintéticos. **Falta verla dentro de la app
+  a 1920x1080** (avisar antes de abrir nada en la pantalla de Bruno).
+- **Fase 7**: `tempo/tests/test_sintetico.py` (sin audios de Bruno): stems con
+  metrónomo, compás de 3 y un audio solo con BPM automático. Faltan los temas
+  reales difíciles, **cuando Bruno diga cuáles** (no usar sus audios sin permiso).

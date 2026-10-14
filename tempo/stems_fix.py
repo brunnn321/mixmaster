@@ -666,14 +666,14 @@ def main():
     indices = np.concatenate([np.arange(-len(previos), 0), np.arange(len(destino))])
     acentos = (indices - fase) % n_comp == 0 if n_comp > 0 else np.zeros(len(indices), bool)
 
-    # salida
+    # salida: cada archivo con el BPM en el nombre, para ponerlo en el DAW (regla de Bruno, 7 y 8/10)
     salida.mkdir(parents=True, exist_ok=True)
-    base = f"{tema} - {bpm:g} BPM"
+    etiqueta = f"{bpm:g}bpm"
     mezcla = None
     for k in musicales:
         y = d_out if [k] == n_bateria else procesar(cargar(stems[k]), plan)
         if len(musicales) > 1:
-            sf.write(str(salida / f"{base} - {k}.flac"), y, SR, subtype="PCM_24")
+            sf.write(str(salida / f"{nombre_pista(k)} {etiqueta}.flac"), y, SR, subtype="PCM_24")
         if mezcla is None:
             mezcla = np.zeros((len(y), 2), np.float32) + y[:, :2]   # pistas mono o estéreo
         else:
@@ -685,12 +685,50 @@ def main():
     if pico > 0.999:
         mezcla *= 0.999 / pico
         log["mezcla_bajada_db"] = round(20 * np.log10(0.999 / pico), 2)
-    sf.write(str(salida / f"{base} - MEZCLA.flac"), mezcla, SR, subtype="PCM_24")
-    sf.write(str(salida / f"{base} - CLICK.flac"), generar_click(click_t, acentos, len(mezcla)), SR, subtype="PCM_24")
-    escribir_midi(salida / f"{base} - TEMPO.mid", click_t, indices, jd, K * pc * 960, pulsos_compas=pc)
+    sf.write(str(salida / f"Mezcla {etiqueta}.flac"), mezcla, SR, subtype="PCM_24")
+    sf.write(str(salida / f"Click {etiqueta}.flac"), generar_click(click_t, acentos, len(mezcla)), SR, subtype="PCM_24")
+    escribir_midi(salida / f"Tempo {etiqueta}.mid", click_t, indices, jd, K * pc * 960, pulsos_compas=pc)
     log["desplazamiento_s"] = round(s_ini + plan["s_fin"], 4)
+    log["inicio_musica_salida_s"] = round(inicio + s_ini + plan["s_fin"], 3)
     (salida / "log.json").write_text(json.dumps(log, ensure_ascii=False, indent=2, default=float), encoding="utf-8")
+    (salida / "REPORTE.txt").write_text(reporte(log, verif), encoding="utf-8")
     print(f"Listo: {salida}")
+
+
+NOMBRES_MOISES = {"drums": "Batería", "bass": "Bajo", "vocals": "Voz", "backing_vocals": "Coros",
+                  "guitars": "Guitarras", "guitar": "Guitarra", "keys": "Teclas", "piano": "Piano",
+                  "other": "Otros", "strings": "Cuerdas", "wind": "Vientos", "electric_guitar": "Guitarra eléctrica",
+                  "acoustic_guitar": "Guitarra acústica", "synth": "Sintetizador"}
+
+
+def nombre_pista(k):
+    """Nombre en castellano para los stems de Moises; las pistas de una multipista quedan como vienen."""
+    return NOMBRES_MOISES.get(k.lower(), k)
+
+
+def reporte(log, verif):
+    """Resumen en palabras de lo que se hizo, para leer sin abrir el log."""
+    secs = [abs(v) for v in verif if v is not None]
+    comp = {0: "solo pulso (sin acento)"}.get(log["compas"], f"{log['compas']} pulsos por compás")
+    lineas = [
+        f"{log['tema']} — {log['bpm']:g} BPM ({'detectado' if log['bpm_detectado'] else 'indicado'})",
+        "",
+        "Modo: " + ("el tema ya estaba a click; solo se desplazó, el audio no se estiró"
+                    if log["modo"] == "estudio" else "se estiró tiempo a tiempo para dejarlo a tempo fijo"),
+        f"Click: {comp}",
+        "Precisión: " + (f"la batería cae a ±{max(secs):.1f} ms del click en la peor sección"
+                         if secs else "no hubo batería para medirla"),
+        "Enderezar todo: " + ("sí, también lo que subía o bajaba" if log["todo_a_tempo"]
+                              else "no; los tramos libres quedan naturales y el click los sigue"),
+        f"La música empieza en {log['inicio_musica_salida_s']:.2f} s",
+        "",
+        "Avisos:" if log["avisos"] else "Sin avisos.",
+        *[f"- {a}" for a in log["avisos"]],
+        "",
+        f"En Studio One: tempo {log['bpm']:g} BPM y arrastrar todo al compás 1.",
+        f"Si el tema tiene tramos libres, importar 'Tempo {log['bpm']:g}bpm.mid' para que el metrónomo los siga.",
+    ]
+    return "\n".join(lineas) + "\n"
 
 
 if __name__ == "__main__":
