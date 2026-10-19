@@ -150,3 +150,21 @@ Decisiones por defecto (se pueden cambiar cuando Bruno diga):
 - **Fase 7**: `tempo/tests/test_sintetico.py` (sin audios de Bruno): stems con
   metrónomo, compás de 3 y un audio solo con BPM automático. Faltan los temas
   reales difíciles, **cuando Bruno diga cuáles** (no usar sus audios sin permiso).
+
+---
+
+## Idea: Fase 8 con MuScriptor (19/10/2026, sin empezar)
+
+Transcripción audio→MIDI de Kyutai/Mirelo (github.com/muscriptor/muscriptor; pesos
+CC BY-NC en Hugging Face, hay que aceptar la licencia con una cuenta gratis y que
+Bruno haga `hf auth login` él mismo, nunca pasar el token).
+
+Lo que **sí** sirve (Bruno, 19/10):
+1. Transcribir a MIDI el bajo y la voz de los stems ya a tempo, con el BPM en el nombre.
+2. Que la mezcla automática reconozca el instrumento de cada stem cuando el nombre no lo dice.
+
+Lo que **no** sirve (Bruno, 19/10): partituras/tablaturas en PDF (MuseScore) y la guía de
+acordes desde teclas y guitarra.
+
+Instalación prevista: entorno aparte con uv + Python 3.12, paquete `muscriptor`, PyTorch
+con CUDA y solo el modelo medium (~1.2 GB). Sin la web ni MuseScore.
