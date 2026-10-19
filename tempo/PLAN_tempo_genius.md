@@ -168,3 +168,10 @@ acordes desde teclas y guitarra.
 
 Instalado (19/10): `tempo/.muscriptor` (uv + Python 3.12, muscriptor, PyTorch CPU: la PC tiene AMD Radeon integrada, sin CUDA → modelo small). Antes se pensaba: PyTorch
 con CUDA y solo el modelo medium (~1.2 GB). Sin la web ni MuseScore.
+
+Estado MuScriptor (19/10, al cerrar): Bruno ya inició sesión en Hugging Face (usuario
+bruno321; el token quedó en `~/.cache/huggingface`, sirve para cualquier entorno). El
+modelo **medium** ya está en la caché (lo bajó el proyecto CREATOR MIDI\transcribir), así
+que no hace falta descargar otro. **Pendiente:** la primera prueba con un bajo sintético
+salió con código 255 sin mensaje; revisar eso antes de integrarlo (correr con
+`PYTHONIOENCODING=utf-8`, la consola de Windows rompe los caracteres de `rich`).
