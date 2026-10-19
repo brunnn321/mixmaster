@@ -166,5 +166,5 @@ Lo que **sí** sirve (Bruno, 19/10):
 Lo que **no** sirve (Bruno, 19/10): partituras/tablaturas en PDF (MuseScore) y la guía de
 acordes desde teclas y guitarra.
 
-Instalación prevista: entorno aparte con uv + Python 3.12, paquete `muscriptor`, PyTorch
+Instalado (19/10): `tempo/.muscriptor` (uv + Python 3.12, muscriptor, PyTorch CPU: la PC tiene AMD Radeon integrada, sin CUDA → modelo small). Antes se pensaba: PyTorch
 con CUDA y solo el modelo medium (~1.2 GB). Sin la web ni MuseScore.
