@@ -10,11 +10,12 @@ import json
 import re
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 import numpy as np
 import soundfile as sf
-from PySide6.QtCore import QProcess, QProcessEnvironment, QSettings, Qt, QUrl
+from PySide6.QtCore import QProcess, QProcessEnvironment, QSettings, Qt, QTimer, QUrl
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFileDialog, QHBoxLayout,
@@ -26,6 +27,8 @@ from ..logger import get_logger
 log = get_logger("mixmaster.ui.tempo")
 
 SCRIPT = Path(__file__).resolve().parents[2] / "tempo" / "stems_fix.py"
+SCRIPT_MIDI = SCRIPT.with_name("transcribir_midi.py")
+ENV_MIDI = SCRIPT.parent / ".muscriptor" / "Scripts" / "python.exe"   # MuScriptor pide Python 3.12
 RE_BPM = re.compile(r"(\d+(?:\.\d+)?)bpm", re.I)
 RE_TEMA = re.compile(r"^(.*)-[A-G][b#]? (major|minor)-")
 ESCUCHA = Path(tempfile.gettempdir()) / "mixmaster_tempo_escucha.wav"
@@ -155,7 +158,11 @@ class TempoDialog(QDialog):
         self.btn_despues.clicked.connect(lambda: self._mover_uno(+1))
         self.btn_abrir = QPushButton("📂 Abrir carpeta")
         self.btn_abrir.clicked.connect(self._abrir_salida)
-        for b in (self.btn_play, self.btn_antes, self.btn_despues, self.btn_abrir):
+        self.btn_midi = QPushButton("🎼 MIDI de bajo y voz")
+        self.btn_midi.setToolTip("Transcribe con MuScriptor el bajo y la voz ya a tempo:\n"
+                                 "«Bajo 128bpm.mid» y «Voz 128bpm.mid» en la misma carpeta.")
+        self.btn_midi.clicked.connect(self._transcribir_midi)
+        for b in (self.btn_play, self.btn_antes, self.btn_despues, self.btn_abrir, self.btn_midi):
             b.setEnabled(False)
             fila_escucha.addWidget(b)
         lay.addLayout(fila_escucha)
@@ -321,7 +328,8 @@ class TempoDialog(QDialog):
         self._pintar(i)
         self.txt_log.clear()
         self.lbl_resumen.setText(f"Procesando {nombre_tema(t['ruta'])}…")
-        for b in (self.btn_procesar, self.btn_play, self.btn_antes, self.btn_despues, self.btn_abrir):
+        for b in (self.btn_procesar, self.btn_play, self.btn_antes, self.btn_despues, self.btn_abrir,
+                  self.btn_midi):
             b.setEnabled(False)
 
         self._proc = QProcess(self)
@@ -368,7 +376,7 @@ class TempoDialog(QDialog):
 
     def _mostrar_resultado(self, t):
         listo = t["estado"] == "listo" and t["info"] is not None
-        for b in (self.btn_play, self.btn_antes, self.btn_despues, self.btn_abrir):
+        for b in (self.btn_play, self.btn_antes, self.btn_despues, self.btn_abrir, self.btn_midi):
             b.setEnabled(False)
         if t["estado"] == "error":
             self.lbl_resumen.setText("Falló: el detalle está en el texto de arriba.")
@@ -386,6 +394,7 @@ class TempoDialog(QDialog):
                   if info.get("compas", 4) > 0 else "")
         self.lbl_resumen.setText(" · ".join(partes) + avisos + cierre)
         self.btn_abrir.setEnabled(True)
+        self.btn_midi.setEnabled(self._proc is None and ENV_MIDI.exists())
         if self._proc is None:
             self._preparar_escucha(t)
             if info.get("compas", 4) > 0:
@@ -429,6 +438,67 @@ class TempoDialog(QDialog):
         if t["info"] is None or n <= 0:
             return
         self._siguiente(fase=(t["info"]["downbeat_fase"] + delta) % n, rehacer=filas[0])
+
+    # ---------- MIDI de bajo y voz (MuScriptor, entorno aparte) ----------
+
+    def _transcribir_midi(self):
+        filas = self._seleccionados()
+        if len(filas) != 1 or self._proc is not None:
+            return
+        t = self._temas[filas[0]]
+        if t["salida"] is None:
+            return
+        self._soltar_audio()
+        self.txt_log.clear()
+        self.lbl_resumen.setText(f"MIDI de bajo y voz de {nombre_tema(t['ruta'])}…")
+        for b in (self.btn_procesar, self.btn_play, self.btn_antes, self.btn_despues, self.btn_midi):
+            b.setEnabled(False)
+        self._proc = QProcess(self)
+        env = QProcessEnvironment.systemEnvironment()
+        env.insert("PYTHONIOENCODING", "utf-8")
+        self._proc.setProcessEnvironment(env)
+        self._proc.setProcessChannelMode(QProcess.MergedChannels)
+        self._proc.readyReadStandardOutput.connect(self._leer_salida_midi)
+        self._proc.finished.connect(self._midi_terminado)
+        # si pasan 3 minutos sin una línea nueva, se trabó: se corta y se avisa
+        self._ultima_linea = time.monotonic()
+        self._vigia = QTimer(self)
+        self._vigia.timeout.connect(self._vigilar_midi)
+        self._vigia.start(5000)
+        self._proc.start(str(ENV_MIDI), ["-u", str(SCRIPT_MIDI), str(t["salida"])])
+
+    def _leer_salida_midi(self):
+        self._ultima_linea = time.monotonic()
+        texto = bytes(self._proc.readAllStandardOutput()).decode("utf-8", errors="replace")
+        lineas = [l for l in texto.splitlines() if not l.startswith("[muscriptor]")]
+        if lineas:
+            self.txt_log.appendPlainText("\n".join(lineas))
+
+    def _vigilar_midi(self):
+        if self._proc is not None and time.monotonic() - self._ultima_linea > 180:
+            self._trabado = True
+            self._proc.kill()
+
+    def _midi_terminado(self, codigo, _estado):
+        self._vigia.stop()
+        self._proc = None
+        trabado = getattr(self, "_trabado", False)
+        self._trabado = False
+        if trabado:
+            self.lbl_resumen.setText("⚠ MuScriptor no avanzó en 3 minutos y se cortó. "
+                                     "Si estaba descargando el modelo, revisa la conexión y vuelve a intentar.")
+        elif codigo != 0:
+            self.lbl_resumen.setText("⚠ El MIDI de bajo y voz falló: el detalle está en el texto de arriba.")
+        else:
+            self.lbl_resumen.setText("✓ MIDI listo: «Bajo …bpm.mid» y «Voz …bpm.mid» en la carpeta del tema.")
+        self._actualizar_boton()
+        filas = self._seleccionados()
+        if filas:
+            t = self._temas[filas[0]]
+            self.btn_abrir.setEnabled(t["salida"] is not None)
+            self.btn_midi.setEnabled(ENV_MIDI.exists())
+            if t["info"] is not None:
+                self._preparar_escucha(t)
 
     def _soltar_audio(self):
         """Libera el archivo de escucha (en Windows queda bloqueado mientras se reproduce)."""

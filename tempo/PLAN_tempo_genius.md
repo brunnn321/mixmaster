@@ -175,3 +175,13 @@ modelo **medium** ya está en la caché (lo bajó el proyecto CREATOR MIDI\trans
 que no hace falta descargar otro. **Pendiente:** la primera prueba con un bajo sintético
 salió con código 255 sin mensaje; revisar eso antes de integrarlo (correr con
 `PYTHONIOENCODING=utf-8`, la consola de Windows rompe los caracteres de `rich`).
+
+**19/10, cierre del día:** la prueba "trabada" no era un error: el modelo medium se estaba
+descargando (CREATOR MIDI lo había dejado a medias) y tardó 12 min en "Loading model…".
+Transcribir anda: ~2 s de proceso por segundo de audio en CPU. Hecho:
+`tempo/transcribir_midi.py` (bajo y voz → `Bajo 128bpm.mid` / `Voz 128bpm.mid` con el tempo del
+tema) y el botón "🎼 MIDI de bajo y voz" en Tempo Genius. **Para que no vuelva a trabarse:** el
+modelo se busca en la caché antes de cargar, la descarga avisa y tiene límite de red de 30 s,
+se borran restos de descargas viejas, se imprime una línea por bloque de 5 s y la ventana corta
+el proceso si pasan 3 minutos sin líneas nuevas. Probado con bajo y voz sintéticos (44 s en total).
+Pospuestos por Bruno: reconocer instrumento de cada stem y compresión por rol.

@@ -218,7 +218,7 @@ correlación y la envolvente L/R, y `consola.html` tiene ~1100 líneas cambiadas
 - [ ] 3. **EQ de desenmascarado**: usar el choque que ya detecta el checklist
   (7 bandas + Bark) para recortar, en el stem que acompaña, la zona donde
   pisa al principal.
-- [ ] 4. **Compresión por stem según rol**: voz (nivel parejo), bajo
+- [ ] 4. ⚪ POSPUESTO (Bruno 19/10). **Compresión por stem según rol**: voz (nivel parejo), bajo
   (constante), bombo/caja (ataque). Valores de partida por rol.
 - [ ] 5. **Sidechain**: bombo → bajo (ducking corto en graves) y voz →
   guitarras/teclas (EQ dinámica en 1–4 kHz solo cuando canta).
@@ -650,14 +650,14 @@ BPM/tempo tool eliminado por completo a pedido del usuario (`tempo_tool.py` borr
 - [x] Reproductor de escucha comparada: 4 fuentes reales (pre-master / master / M50x / altavoz) + barra de reproducción con seek, antes solo tenía 3 y sin control de posición.
 - [x] A/B ciego embebido en PASO 3 (antes ventana aparte) — al elegir revela AMBAS (A y B), no solo la elegida, y la decisión se registra en `decisiones-y-feedback.md`.
 - [~] Altavoz pequeño: DESCARTADO (2026-07-29) — se había marcado `[x]` pero `small_speaker_sim.py` nunca existió en el repo (ni en git history), el combo real solo tiene pre-master/master/M50x. Al revisar, sin curva medida real de un modelo específico no vale la pena inventar una aproximación genérica. No retomar salvo pedido explícito.
-- [ ] Simulación de más dispositivos (TV, otros audífonos): DESCARTADO para TV/parlantes (no existen mediciones reales publicadas, sería inventado). Abierto a sumar más audífonos SI existen en la base AutoEQ real.
+- [~] FUERA (Bruno 19/10: "yo no te pedí eso"). Simulación de más dispositivos (TV, otros audífonos): DESCARTADO para TV/parlantes (no existen mediciones reales publicadas, sería inventado). Abierto a sumar más audífonos SI existen en la base AutoEQ real.
 
 ## ✅ COMPLETADO (v0.9.x)
 
 - [x] Limpieza UX — caja única, chips referencias con ✕, nombres export con LUFS, carpetas perezosas
 - [x] M50x calibration + bypass A/B (`m50x_calibration.py`, curva real AutoEq/oratory1990)
 - [x] Learning "Tu sonido" — sugerencia LUFS + badge ✨ activación a 5+ masters aprobados
-- [ ] Reference caching — test manual de speedup pendiente de correr
+- [x] Reference caching — medido 19/10 con una referencia sintética de 3 min: 11.45 s la primera vez, 0.14 s con caché (80 veces más rápido)
 
 ---
 
