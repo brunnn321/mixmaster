@@ -40,7 +40,7 @@ sección, limpieza de ruido, des-limitador (cada una medida por etapas y
 apagada hasta escucharla) · 2) Tempo: ver la sección PRIORIDAD de Tempo Genius · 3) consola sin
 zoom y con avisos · 4) gráfico de 3 espectros en la app. **3 y 4 HECHOS (12/10)**: ya estaban en el WIP; probados con un master real a 1024 y 1920 px (en el navegador, no dentro de la app Qt): 3 espectros + "lo que falta", avisos en pantalla, cursor con Hz. Arreglado: el gráfico salía más ancho que la ventana (`.chasis` sin columna `minmax(0,1fr)`).
 Postergados: estilo sin referencia, modelos de equipos, Arena, afinar a 440
-(Bruno: "no parece tan importante"), viejos.
+(FUERA, Bruno 19/10: "déjalo afuera"), viejos.
 
 ## 🔥🔥 PRIORIDAD N.º 1 — MEJORAR EL RESULTADO DEL AUDIO (30/9, pedido de Bruno)
 
