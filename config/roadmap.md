@@ -11,6 +11,20 @@
 > con el ítem 3 sin portarlo). Todo el resto verificó OK. Ambos corregidos a
 > `[~]` abajo con su explicación.
 
+## 🔴 VEREDICTO DE BRUNO (20/10) — el master no sirve
+
+Bruno probó masterizar un tema en la app y dijo, textual: "el máster ha sido lo peor que has
+podido hacer, no has entendido nada, no me sirve nada de eso. Gracias, yo voy a ver aparte.
+Que te quede en conciencia y en informe que toda esta es una cagada y que ni siquiera el puto
+cartel has podido hacerlo en menos tiempo."
+
+- El resultado del master con todas las tandas (1–8, control del grave, EQ por sección,
+  volumen AUTO, etc.) **no le sirve**. No dijo qué le falló; él lo va a ver por su cuenta.
+  No retomar trabajo de sonido del master hasta que él diga qué escuchó y qué quiere.
+- El cartel "GUARDADO" al cerrar seguía más de 10 s (el aviso de Windows ignora la duración
+  pedida). 20/10: reemplazado por un cartel propio de 0.7 s que muere con la app.
+- La app no abría: había 6 copias colgadas sin ventana; se cerraron y abrió bien.
+
 ## 🔥🔥🔥 PRIORIDAD (12/10) — Tempo Genius perfecto, sin pasar por Claude
 
 Bruno: "realmente ponle interés a esa parte, que esté perfecto, que esté bien y

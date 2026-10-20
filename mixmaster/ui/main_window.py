@@ -538,18 +538,28 @@ class MainWindow(QMainWindow):
         oculta el ícono de la bandeja, y eso retira el aviso: Bruno (20/10)
         quiere que dure un segundo o menos, no los ~5 s que Windows lo deja.
         """
+        # 20/10: el aviso de Windows (showMessage) quedaba 10 s o más aunque se
+        # pidieran 800 ms: Windows decide cuánto dura. Ahora es un cartel propio
+        # que muere con la app, así que dura lo que dice el temporizador.
         if not self._notificado:
             self._notificado = True
             try:
-                if QSystemTrayIcon.supportsMessages():
-                    self._tray.showMessage(
-                        "MixMaster", "GUARDADO",
-                        QSystemTrayIcon.MessageIcon.NoIcon, 800)
-                    QTimer.singleShot(800, self.close)  # cierra tras mostrar
-                    event.ignore()
-                    return
+                from PySide6.QtWidgets import QLabel
+                aviso = QLabel("GUARDADO", None, Qt.FramelessWindowHint
+                               | Qt.WindowStaysOnTopHint | Qt.Tool)
+                aviso.setStyleSheet("background:#1f2a24; color:#7fd99a; font: bold 22px;"
+                                    " padding:14px 30px; border:1px solid #4fa76a; border-radius:8px;")
+                aviso.adjustSize()
+                centro = self.frameGeometry().center()
+                aviso.move(centro.x() - aviso.width() // 2, centro.y() - aviso.height() // 2)
+                aviso.show()
+                self._aviso_cierre = aviso
+                self.hide()
+                QTimer.singleShot(700, self.close)
+                event.ignore()
+                return
             except Exception:
-                log.debug("Notificación no disponible; cierre normal")
+                log.debug("Cartel de cierre no disponible; cierre normal")
         try:
             self._tray.hide()   # sin ícono, Windows retira el aviso en el acto
         except Exception:
