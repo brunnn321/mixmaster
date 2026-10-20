@@ -534,9 +534,9 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         """Notificación nativa Qt al cerrar (fiable en Win11), luego cierra.
 
-        Muestra el toast, da 600 ms para que el SO lo renderice y recién
-        entonces cierra de verdad (si se cerrara al instante, el proceso
-        muere antes de que la notificación aparezca).
+        Muestra el toast, da 800 ms para que se vea y cierra. Al cerrar se
+        oculta el ícono de la bandeja, y eso retira el aviso: Bruno (20/10)
+        quiere que dure un segundo o menos, no los ~5 s que Windows lo deja.
         """
         if not self._notificado:
             self._notificado = True
@@ -544,12 +544,16 @@ class MainWindow(QMainWindow):
                 if QSystemTrayIcon.supportsMessages():
                     self._tray.showMessage(
                         "MixMaster", "GUARDADO",
-                        QSystemTrayIcon.MessageIcon.NoIcon, 2500)
-                    QTimer.singleShot(600, self.close)  # cierra tras mostrar
+                        QSystemTrayIcon.MessageIcon.NoIcon, 800)
+                    QTimer.singleShot(800, self.close)  # cierra tras mostrar
                     event.ignore()
                     return
             except Exception:
                 log.debug("Notificación no disponible; cierre normal")
+        try:
+            self._tray.hide()   # sin ícono, Windows retira el aviso en el acto
+        except Exception:
+            pass
         event.accept()
 
     # ------------------------------------------------------------- menú y UI
