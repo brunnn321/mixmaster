@@ -564,7 +564,14 @@ class MainWindow(QMainWindow):
             self._tray.hide()   # sin ícono, Windows retira el aviso en el acto
         except Exception:
             pass
+        # el cartel es una ventana más: si no se cierra, la app sigue viva y el
+        # cartel queda congelado en pantalla (pasó el 20/10)
+        aviso = getattr(self, "_aviso_cierre", None)
+        if aviso is not None:
+            aviso.close()
         event.accept()
+        from PySide6.QtWidgets import QApplication
+        QApplication.instance().quit()
 
     # ------------------------------------------------------------- menú y UI
 
