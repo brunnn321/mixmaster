@@ -197,3 +197,4 @@ estira nada: el audio queda como el original (solo −0.03 dB de margen) y el cl
 .mid se arrastra desde el navegador **encima de la pista de tempo** (desde la 3.5; al arreglo no
 importa el tempo). Las pistas de audio van con Tempo = "No seguir". Born In Space: 911 cambios de
 tempo; el mapa coincide con el click a 0.08 ms.
+- 19/10: Bruno aprobó las dos opciones (estirar a tempo fijo y Seguir al tema).
