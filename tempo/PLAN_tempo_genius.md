@@ -185,3 +185,8 @@ modelo se busca en la caché antes de cargar, la descarga avisa y tiene límite 
 se borran restos de descargas viejas, se imprime una línea por bloque de 5 s y la ventana corta
 el proceso si pasan 3 minutos sin líneas nuevas. Probado con bajo y voz sintéticos (44 s en total).
 Pospuestos por Bruno: reconocer instrumento de cada stem y compresión por rol.
+
+**Prueba real con permiso (19/10): Owane, "Born In Space"** (MP3 solo, 5:44, sin stems, compás
+"solo pulso"), por la ventana de Tempo Genius: BPM detectado 160, modo estirar. El original se
+corría hasta 59.7 ms por sección; quedó en ±6.4 ms. Desde 4:07 (después de un tramo sin batería)
+las secciones quedan parejas en −6 ms: un corrimiento fijo, no deriva. Falta que Bruno lo escuche.
