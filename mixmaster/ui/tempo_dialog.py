@@ -116,6 +116,12 @@ class TempoDialog(QDialog):
             "Apagado: esos tramos quedan naturales y el click los sigue.")
         self.chk_enderezar.toggled.connect(self._opciones_cambiaron)
         fila_op.addWidget(self.chk_enderezar)
+        self.chk_seguir = QCheckBox("Seguir al tema (no estirar)")
+        self.chk_seguir.setToolTip(
+            "El audio queda igual al original: el click y el mapa de tempo (.mid) siguen sus\n"
+            "variaciones. En Studio One se arrastra el .mid encima de la pista de tempo.")
+        self.chk_seguir.toggled.connect(self._opciones_cambiaron)
+        fila_op.addWidget(self.chk_seguir)
         fila_op.addStretch()
         lay.addLayout(fila_op)
 
@@ -196,6 +202,7 @@ class TempoDialog(QDialog):
             m = RE_BPM.search(ruta.stem if ruta.is_file() else ruta.name)
             tema = {"ruta": ruta, "bpm": float(m.group(1)) if m else None,
                     "compas": self.combo_compas.currentData(), "enderezar": self.chk_enderezar.isChecked(),
+                    "seguir": self.chk_seguir.isChecked(),
                     "estado": "pendiente", "salida": None, "info": None}
             self._temas.append(tema)
             item = QListWidgetItem()
@@ -226,7 +233,7 @@ class TempoDialog(QDialog):
                 detalle += f" · {len(t['info']['avisos'])} aviso(s)"
         elif t["estado"] == "error":
             detalle = "  →  falló (ver el detalle abajo)"
-        extra = " · enderezar todo" if t["enderezar"] else ""
+        extra = " · seguir al tema" if t.get("seguir") else (" · enderezar todo" if t["enderezar"] else "")
         self.lista.item(i).setText(f"{estado}  {nombre_tema(t['ruta'])}   [{bpm} · {comp}{extra}]{detalle}")
 
     def _seleccionados(self):
@@ -237,7 +244,7 @@ class TempoDialog(QDialog):
         if not filas:
             return
         t = self._temas[filas[0]]
-        for w in (self.spin_bpm, self.chk_auto, self.combo_compas, self.chk_enderezar):
+        for w in (self.spin_bpm, self.chk_auto, self.combo_compas, self.chk_enderezar, self.chk_seguir):
             w.blockSignals(True)
         self.chk_auto.setChecked(t["bpm"] is None)
         self.spin_bpm.setEnabled(t["bpm"] is not None)
@@ -245,12 +252,15 @@ class TempoDialog(QDialog):
             self.spin_bpm.setValue(t["bpm"])
         self.combo_compas.setCurrentIndex(self.combo_compas.findData(t["compas"]))
         self.chk_enderezar.setChecked(t["enderezar"])
-        for w in (self.spin_bpm, self.chk_auto, self.combo_compas, self.chk_enderezar):
+        self.chk_seguir.setChecked(t.get("seguir", False))
+        self.chk_enderezar.setEnabled(not t.get("seguir", False))
+        for w in (self.spin_bpm, self.chk_auto, self.combo_compas, self.chk_enderezar, self.chk_seguir):
             w.blockSignals(False)
         self._mostrar_resultado(t)
 
     def _opciones_cambiaron(self, *_):
         self.spin_bpm.setEnabled(not self.chk_auto.isChecked())
+        self.chk_enderezar.setEnabled(not self.chk_seguir.isChecked())   # seguir no estira nada
         for i in self._seleccionados():
             t = self._temas[i]
             if t["estado"] == "procesando":
@@ -258,6 +268,7 @@ class TempoDialog(QDialog):
             t["bpm"] = None if self.chk_auto.isChecked() else self.spin_bpm.value()
             t["compas"] = self.combo_compas.currentData()
             t["enderezar"] = self.chk_enderezar.isChecked()
+            t["seguir"] = self.chk_seguir.isChecked()
             if t["estado"] == "listo":
                 t["estado"] = "pendiente"     # con otras opciones hay que volver a procesarlo
             self._pintar(i)
@@ -319,7 +330,9 @@ class TempoDialog(QDialog):
             t["salida"] = self._carpeta_salida(t)
         args = ["-u", str(SCRIPT), str(t["ruta"]), str(t["salida"]),
                 "0" if t["bpm"] is None else f"{t['bpm']:g}", f"--compas={t['compas']}"]
-        if t["enderezar"]:
+        if t.get("seguir"):
+            args.append("--seguir")
+        elif t["enderezar"]:
             args.append("--todo-a-tempo")
         if fase is not None:
             args.append(f"--fase={fase}")

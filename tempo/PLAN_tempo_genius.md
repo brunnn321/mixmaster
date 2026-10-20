@@ -190,3 +190,10 @@ Pospuestos por Bruno: reconocer instrumento de cada stem y compresión por rol.
 "solo pulso"), por la ventana de Tempo Genius: BPM detectado 160, modo estirar. El original se
 corría hasta 59.7 ms por sección; quedó en ±6.4 ms. Desde 4:07 (después de un tramo sin batería)
 las secciones quedan parejas en −6 ms: un corrimiento fijo, no deriva. Falta que Bruno lo escuche.
+
+**Modo "Seguir al tema" (19/10, pedido de Bruno):** `--seguir` / casilla en la ventana. No se
+estira nada: el audio queda como el original (solo −0.03 dB de margen) y el click y
+`Tempo …bpm.mid` siguen las variaciones del tema, pulso a pulso. Studio One lee el mapa si el
+.mid se arrastra desde el navegador **encima de la pista de tempo** (desde la 3.5; al arreglo no
+importa el tempo). Las pistas de audio van con Tempo = "No seguir". Born In Space: 911 cambios de
+tempo; el mapa coincide con el click a 0.08 ms.

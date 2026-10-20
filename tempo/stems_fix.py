@@ -1,10 +1,11 @@
 """Pone los stems de Moises a tempo fijo y genera un click exacto (método v0.4 de REGISTRO_app_tempo.md).
 
 Uso: python stems_fix.py "<carpeta de stems, multipista o un audio>" "<carpeta salida>" [BPM | 0 = automático]
-       [--compas=N] [--todo-a-tempo] [--fase=N] [--forzar-estirar] [--afinar-440]
+       [--compas=N] [--todo-a-tempo] [--seguir] [--fase=N] [--forzar-estirar]
 
 --compas      pulsos por compás para el acento del click y el "1" (4 por defecto; 0 = solo pulso).
 --todo-a-tempo endereza también lo que sube o baja de tempo (intros, finales, rubatos). Solo si se pide.
+--seguir      no estira: el audio queda como el original y el click y el MIDI de tempo siguen sus variaciones.
 --fase        fija en qué pulso cae el "1" (lo usa el botón "mover el 1" de Tempo Genius).
 
 No depende de MixMaster. Necesita numpy, scipy, soundfile (lee MP3) y pylibrb (solo en modo estirar).
@@ -440,6 +441,8 @@ def main():
     n_comp = next((int(x.split("=")[1]) for x in sys.argv if x.startswith("--compas=")), 4)
     # enderezar también lo que sube o baja: solo si se pide (Bruno, 13/10: "solo si la presiono")
     todo_a_tempo = "--todo-a-tempo" in sys.argv
+    # seguir al tema: no se estira nada; el click y el MIDI de tempo copian sus variaciones
+    seguir = "--seguir" in sys.argv
     afinar_440 = "--afinar-440" in sys.argv
     if len(args) < 2:
         raise SystemExit(__doc__)
@@ -574,6 +577,15 @@ def main():
         destino[z + 1:] = tiempos[z + 1:] + (destino_tempo[-1] - tiempos[z])
     else:
         destino[a:z + 1] = destino_tempo
+    if seguir:
+        # --seguir (19/10): el audio queda como el original y es el click y el mapa de tempo los que
+        # siguen sus variaciones (Bruno: "mantener las variaciones del original y ponerlo al DAW")
+        estudio = True
+        s_ini = 0.0
+        destino = tiempos.copy()
+        a, z = 0, len(tiempos) - 1
+        K = int(np.floor(destino[jd] / compas + 1e-9))   # compases enteros antes del primer "1"
+        print(f"  modo seguir: el audio no se toca; el click y el mapa de tempo siguen al tema")
 
     log = {"tema": tema, "bpm": bpm, "bpm_ajuste": round(bpm_ajuste, 4), "tercios": [round(b, 4) for b in tercios],
            "secciones_24_ms": [round(v, 1) for v in secs24], "modo": "estudio" if estudio else "estirar",
@@ -583,6 +595,8 @@ def main():
            "inicio_libre": a > 0, "final_libre": z < len(tiempos) - 1,
            "downbeat_fase": fase, "downbeat_detalle": fase_info, "inicio_musica_s": round(inicio, 3),
            "compas": n_comp, "bpm_detectado": bpm_detectado, "todo_a_tempo": todo_a_tempo}
+    if seguir:
+        log["modo"] = "seguir"
 
     # plan y pasadas sobre la batería
     if estudio:
@@ -620,7 +634,7 @@ def main():
     # chequeo final independiente: batería de salida contra el click de salida
     env_o = envolvente(d_out)
     off_final, _ = ataque_erp(env_o, destino[a:z + 1])
-    if off_final is not None and abs(off_final * 1000) > UMBRAL_CHEQUEO_MS:
+    if not seguir and off_final is not None and abs(off_final * 1000) > UMBRAL_CHEQUEO_MS:
         plan["s_fin"] = -off_final
         d_out = desplazar(d_out, -off_final)
         env_o = envolvente(d_out)
@@ -723,8 +737,9 @@ def reporte(log, verif):
     lineas = [
         f"{log['tema']} — {log['bpm']:g} BPM ({'detectado' if log['bpm_detectado'] else 'indicado'})",
         "",
-        "Modo: " + ("el tema ya estaba a click; solo se desplazó, el audio no se estiró"
-                    if log["modo"] == "estudio" else "se estiró tiempo a tiempo para dejarlo a tempo fijo"),
+        "Modo: " + {"seguir": "el audio quedó igual al original; el click y el mapa de tempo siguen sus variaciones",
+                    "estudio": "el tema ya estaba a click; solo se desplazó, el audio no se estiró"}.get(
+                        log["modo"], "se estiró tiempo a tiempo para dejarlo a tempo fijo"),
         f"Click: {comp}",
         "Precisión: " + (f"la batería cae a ±{max(secs):.1f} ms del click en la peor sección"
                          if secs else "no hubo batería para medirla"),
@@ -735,9 +750,19 @@ def reporte(log, verif):
         "Avisos:" if log["avisos"] else "Sin avisos.",
         *[f"- {a}" for a in log["avisos"]],
         "",
-        f"En Studio One: tempo {log['bpm']:g} BPM y arrastrar todo al compás 1.",
-        f"Si el tema tiene tramos libres, importar 'Tempo {log['bpm']:g}bpm.mid' para que el metrónomo los siga.",
     ]
+    if log["modo"] == "seguir":
+        lineas += [
+            "En Studio One: arrastrar los audios al compás 1 y después arrastrar",
+            f"'Tempo {log['bpm']:g}bpm.mid' desde el navegador ENCIMA de la pista de tempo (no al arreglo):",
+            "así la grilla y el metrónomo siguen al tema. En las pistas de audio, Tempo = 'No seguir'",
+            "para que no se estiren.",
+        ]
+    else:
+        lineas += [
+            f"En Studio One: tempo {log['bpm']:g} BPM y arrastrar todo al compás 1.",
+            f"Si el tema tiene tramos libres, arrastrar 'Tempo {log['bpm']:g}bpm.mid' encima de la pista de tempo.",
+        ]
     return "\n".join(lineas) + "\n"
 
 
