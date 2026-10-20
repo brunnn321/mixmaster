@@ -174,5 +174,5 @@ Plan de trabajo por fases: `tempo/PLAN_tempo_genius.md`.
 
 **Problemas conocidos (13/10)**
 - La 2.ª pasada de estirar a veces empeora (Tengo Sed 6.6 → 13.2 ms); se usa la mejor. Fase 4 del plan.
-- En Te Doy Gloria el "1" quedó 2 tiempos corrido respecto de la versión entregada en v0.3; Beat This! y la heurística coinciden en v0.5. Falta confirmarlo de oído.
+- En Te Doy Gloria el "1" de v0.5 quedó 2 tiempos corrido respecto de la versión entregada en v0.3. Bruno lo escuchó (19/10): el de v0.5 **está bien**.
 - "Afinar a 440": FUERA (Bruno 19/10: "déjalo afuera"). La opción quedó sin usar en el script.
