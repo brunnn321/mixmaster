@@ -132,7 +132,7 @@ class _BotonMaster(QPushButton):
     def __init__(self, texto: str, parent=None):
         super().__init__(texto, parent)
         self._glow = QGraphicsDropShadowEffect(self)
-        self._glow.setColor(QColor(67, 224, 138, 200))
+        self._glow.setColor(QColor(255, 154, 60, 220))
         self._glow.setOffset(0, 0)
         self._glow.setBlurRadius(0)
         self.setGraphicsEffect(self._glow)
@@ -676,7 +676,7 @@ class MainWindow(QMainWindow):
             f"border-image: url('{tema._FONDOS}/barra_superior.png') 30 40 30 40 stretch stretch;"
             f" border-width: 8px 14px;"
             f" color: {tema.AMBAR}; padding: 4px;"
-            f" font-family: {tema.MONO}; letter-spacing: 2px;")
+            f" font-family: {tema.MONO}; letter-spacing: 2px; font-size: 15px; font-weight: bold;")
         raiz.addWidget(self.lbl_guia)
 
         # --- pila de pasos ---
@@ -760,13 +760,16 @@ class MainWindow(QMainWindow):
         self.btn_master = _BotonMaster("MASTER")
         self.btn_master.setMinimumHeight(64)
         self.btn_master.setCursor(Qt.PointingHandCursor)
+        self.btn_master.setMinimumHeight(110)
         self.btn_master.setStyleSheet(
-            "QPushButton { font-weight: 800; font-size: 20px; letter-spacing: 2px; color: white;"
-            " border-radius: 10px; border: 1px solid #4fa76a;"
-            " background: qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 #4aa06a, stop:1 #2c6b46); }"
-            " QPushButton:hover { background: qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 #55b478, stop:1 #337a50); }"
-            " QPushButton:pressed { background: #2a5f3e; }"
-            " QPushButton:disabled { background: #2a3b31; color: #6f8579; border-color: #33463b; }")
+            "QPushButton { border-image: none; font-weight: 900; font-size: 36px; letter-spacing: 8px;"
+            " color: #1a1208; border-radius: 12px; border: 2px solid #ffd08a;"
+            " background: qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 #ffb45c, stop:1 #e07a1c); }"
+            " QPushButton:hover { border-image: none; background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
+            " stop:0 #ffc77e, stop:1 #f08a2a); }"
+            " QPushButton:pressed { border-image: none; background: #c76a14; }"
+            " QPushButton:disabled { border-image: none; background: #3a2e20; color: #8a7458;"
+            " border-color: #5a4630; }")
         self.btn_master.setToolTip(
             "EQ 7 bandas + imagen estéreo hacia las referencias + densidad + "
             "loudness (-8.5 default) + limitador -1 dBTP.\n"
@@ -849,6 +852,9 @@ class MainWindow(QMainWindow):
         self.pila.addWidget(pag3)
 
         raiz.addWidget(self.pila)
+        # La pila ocupa solo lo que pide el paso visible; el resto va a resultados.
+        self.pila.currentChanged.connect(self._ajustar_pila)
+        self._ajustar_pila(self.pila.currentIndex())
 
         # --- navegación ---
         nav = QHBoxLayout()
@@ -902,6 +908,18 @@ class MainWindow(QMainWindow):
         ]
 
         self.setCentralWidget(central)
+
+    def _ajustar_pila(self, actual: int):
+        """Las páginas ocultas no cuentan para el alto de la pila."""
+        from PySide6.QtWidgets import QSizePolicy
+        for k in range(self.pila.count()):
+            pag = self.pila.widget(k)
+            if k == actual:
+                pag.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+            else:
+                pag.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+        self.pila.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+        self.pila.updateGeometry()
 
     def _barra_activa(self, activa: bool, pasos: int = 14):
         """Barra con avance real + ventana emergente que bloquea la app mientras dura.

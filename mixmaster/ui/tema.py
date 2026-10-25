@@ -133,7 +133,7 @@ QMenu::item:selected {{ background: {AMBAR}; color: {CHASIS}; }}
 QPushButton {{
     border-image: url('{_BOTONES}/boton_normal.png') 14 14 14 14 stretch stretch;
     border-width: 6px 8px;
-    color: {CREMA}; padding: 3px 8px;
+    color: #f4ead8; padding: 3px 8px; font-weight: bold; font-size: 13px;
     font-family: {MONO}; letter-spacing: 1px;
 }}
 QPushButton:hover {{
@@ -145,7 +145,7 @@ QPushButton:pressed {{
 }}
 QPushButton:disabled {{
     border-image: url('{_BOTONES}/boton_disabled.png') 14 14 14 14 stretch stretch;
-    color: #5c564b;
+    color: #8f8778;
 }}
 QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {{
     border-image: url('{_BOTONES}/campo.png') 50 60 50 60 stretch stretch;
@@ -169,7 +169,7 @@ QTabWidget::pane {{
 QTabBar::tab {{
     border-image: url('{_BOTONES}/pestana_inactiva.png') 40 40 40 40 stretch stretch;
     border-width: 6px 10px;
-    color: {INK_DIM}; padding: 2px 8px;
+    color: #d8cdb8; padding: 2px 8px; font-weight: bold; font-size: 13px;
     font-family: {MONO}; letter-spacing: 1px;
 }}
 QTabBar::tab:selected {{
