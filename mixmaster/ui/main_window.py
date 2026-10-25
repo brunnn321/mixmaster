@@ -641,6 +641,12 @@ class MainWindow(QMainWindow):
     def _crear_ui(self):
         """Layout: proyecto → guía → paso actual → navegación → resultados."""
         central = QWidget()
+        # Fondo de la ventana principal (metal cepillado con línea ámbar)
+        central.setObjectName("fondoPrincipal")
+        central.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        fondo = (Path(__file__).resolve().parents[2] / "assets" / "fondos" / "fondo_principal.jpg").as_posix()
+        central.setStyleSheet(
+            f"#fondoPrincipal {{ border-image: url('{fondo}') 0 0 0 0 stretch stretch; }}")
         raiz = QVBoxLayout(central)
 
         self.lbl_guia = QLabel("")
