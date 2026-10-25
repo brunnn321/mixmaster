@@ -760,22 +760,14 @@ class MainWindow(QMainWindow):
         self.btn_master = _BotonMaster("MASTER")
         self.btn_master.setMinimumHeight(64)
         self.btn_master.setCursor(Qt.PointingHandCursor)
-        self.btn_master.setMinimumHeight(110)
-        self.btn_master.setStyleSheet(
-            "QPushButton { border-image: none; font-weight: 900; font-size: 36px; letter-spacing: 8px;"
-            " color: #1a1208; border-radius: 12px; border: 2px solid #ffd08a;"
-            " background: qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 #ffb45c, stop:1 #e07a1c); }"
-            " QPushButton:hover { border-image: none; background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
-            " stop:0 #ffc77e, stop:1 #f08a2a); }"
-            " QPushButton:pressed { border-image: none; background: #c76a14; }"
-            " QPushButton:disabled { border-image: none; background: #3a2e20; color: #8a7458;"
-            " border-color: #5a4630; }")
+        self.btn_master.setFixedSize(720, 120)
+        self._estilo_master(True)
         self.btn_master.setToolTip(
             "EQ 7 bandas + imagen estéreo hacia las referencias + densidad + "
             "loudness (-8.5 default) + limitador -1 dBTP.\n"
             "Config editable en config/master.json")
         self.btn_master.clicked.connect(self._masterizar)
-        lay3.addWidget(self.btn_master)  # ancho completo — es el botón más importante
+        lay3.addWidget(self.btn_master, alignment=Qt.AlignHCenter)  # el botón más importante
 
         # Panel de escucha comparada: original / master / M50x plano
         self.panel_m50x = QFrame()
@@ -908,6 +900,16 @@ class MainWindow(QMainWindow):
         ]
 
         self.setCentralWidget(central)
+
+    def _estilo_master(self, con_palabra: bool):
+        """Botón MASTER con la imagen que trae la palabra; en modo voz, imagen sin palabra y texto encima."""
+        img = "boton_master.png" if con_palabra else "boton_master_vacio.png"
+        color = "transparent" if con_palabra else "#262626"
+        self.btn_master.setStyleSheet(
+            f"QPushButton {{ border-image: url('{tema._BOTONES}/{img}') 0 0 0 0 stretch stretch;"
+            f" border: none; color: {color}; font-weight: 900; font-size: 30px; letter-spacing: 6px; }}"
+            " QPushButton:pressed { padding-top: 4px; }"
+            " QPushButton:disabled { color: transparent; }")
 
     def _ajustar_pila(self, actual: int):
         """Las páginas ocultas no cuentan para el alto de la pila."""
@@ -1973,10 +1975,12 @@ class MainWindow(QMainWindow):
         self._modo_audio = modo
         if modo == "voz":
             self.btn_master.setText("PROCESAR VOZ")
+            self._estilo_master(False)
             self.lbl_modo.setText("🎙️ Voz / Podcast — gate, compresión, de-esser, limitador")
             self._status("Modo Voz/Podcast.")
         else:
             self.btn_master.setText("MASTER")
+            self._estilo_master(True)
             self.lbl_modo.setText("🎵 Música — cadena de mastering completa")
             self._status("Modo Música.")
 
