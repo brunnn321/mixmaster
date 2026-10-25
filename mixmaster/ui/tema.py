@@ -12,8 +12,14 @@ Las pantallas (espectro, waveform, curvas) van sobre vidrio ahumado cálido y
 pintan en escala de temperatura — ámbar/crema — no en arcoíris azul-rojo.
 """
 
+from pathlib import Path
+
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QGraphicsDropShadowEffect
+
+# Imágenes de los botones (generadas por Bruno, recortadas de una sola hoja)
+_BOTONES = (Path(__file__).resolve().parents[2] / "assets" / "botones").as_posix()
+_FONDOS = (Path(__file__).resolve().parents[2] / "assets" / "fondos").as_posix()
 
 # ---- paleta: chasis --------------------------------------------------------
 CHASIS = "#1b1815"         # negro cálido — cuerpo de la unidad
@@ -108,55 +114,85 @@ QMainWindow, QDialog {{
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
         stop:0 {CHASIS_ALTO}, stop:0.45 {CHASIS}, stop:1 {CHASIS_BAJO});
 }}
+QDialog {{
+    border-image: url('{_FONDOS}/fondo_dialogo.jpg') 0 0 0 0 stretch stretch;
+}}
 QWidget {{ color: {INK}; }}
 QMenuBar {{
-    background: {CHASIS_BAJO}; color: {CREMA};
-    border-bottom: 1px solid {METAL_DIM};
+    border-image: url('{_FONDOS}/barra_menu.png') 40 40 12 40 stretch stretch;
+    border-width: 2px 4px 3px 4px; color: {CREMA};
 }}
 QMenuBar::item {{ background: transparent; padding: 6px 10px; }}
 QMenuBar::item:selected {{ background: {AMBAR}; color: {CHASIS}; }}
-QMenu {{ background: {PANEL}; color: {INK}; border: 1px solid {METAL_DIM}; }}
+QMenu {{
+    border-image: url('{_FONDOS}/menu_panel.png') 30 30 30 30 stretch stretch;
+    border-width: 4px; color: {INK};
+}}
 QMenu::item {{ padding: 6px 20px; }}
 QMenu::item:selected {{ background: {AMBAR}; color: {CHASIS}; }}
 QPushButton {{
-    background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-        stop:0 #322c23, stop:1 #201c16);
-    color: {CREMA}; border: 1px solid {METAL_DIM};
-    border-radius: 4px; padding: 7px 14px;
+    border-image: url('{_BOTONES}/boton_normal.png') 14 14 14 14 stretch stretch;
+    border-width: 6px 8px;
+    color: {CREMA}; padding: 3px 8px;
     font-family: {MONO}; letter-spacing: 1px;
 }}
-QPushButton:hover {{ border-color: {AMBAR}; color: {AMBAR_CLARO}; }}
-QPushButton:pressed {{
-    background: {SURCO}; border-color: {AMBAR};
+QPushButton:hover {{
+    border-image: url('{_BOTONES}/boton_hover.png') 14 14 14 14 stretch stretch;
+    color: {AMBAR_CLARO};
 }}
-QPushButton:disabled {{ color: #5c564b; border-color: #2e2921; }}
-QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox, QTextEdit, QPlainTextEdit,
+QPushButton:pressed {{
+    border-image: url('{_BOTONES}/boton_pressed.png') 14 14 14 14 stretch stretch;
+}}
+QPushButton:disabled {{
+    border-image: url('{_BOTONES}/boton_disabled.png') 14 14 14 14 stretch stretch;
+    color: #5c564b;
+}}
+QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {{
+    border-image: url('{_BOTONES}/campo.png') 50 60 50 60 stretch stretch;
+    border-width: 6px 8px;
+    color: {INK}; padding: 1px 4px; selection-background-color: {AMBAR};
+    selection-color: {CHASIS};
+}}
+QComboBox::drop-down {{ border: none; width: 18px; }}
+QComboBox::down-arrow {{ image: url('{_BOTONES}/combo_flecha.png'); width: 10px; height: 10px; }}
+QTextEdit, QPlainTextEdit,
 QListWidget, QTreeWidget, QTableWidget {{
     background: {VIDRIO}; color: {INK}; border: 1px solid {METAL_DIM};
     border-radius: 3px; padding: 4px; selection-background-color: {AMBAR};
     selection-color: {CHASIS};
 }}
-QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus,
 QTextEdit:focus, QPlainTextEdit:focus {{ border-color: {AMBAR}; }}
-QTabWidget::pane {{ border: 1px solid {METAL_DIM}; background: {PANEL}; }}
+QTabWidget::pane {{
+    border-image: url('{_FONDOS}/panel_resultados.png') 76 74 52 74 stretch stretch;
+    border-width: 18px 18px 14px 18px;
+}}
 QTabBar::tab {{
-    background: #2a251e; color: {INK_DIM}; padding: 8px 16px;
-    border: 1px solid {METAL_DIM}; border-bottom: none;
+    border-image: url('{_BOTONES}/pestana_inactiva.png') 40 40 40 40 stretch stretch;
+    border-width: 6px 10px;
+    color: {INK_DIM}; padding: 2px 8px;
     font-family: {MONO}; letter-spacing: 1px;
 }}
-QTabBar::tab:selected {{ background: {AMBAR}; color: {CHASIS}; }}
+QTabBar::tab:selected {{
+    border-image: url('{_BOTONES}/pestana_activa.png') 40 40 40 40 stretch stretch;
+    color: {AMBAR_CLARO};
+}}
 QTabBar::tab:hover:!selected {{ color: {CREMA}; }}
 QProgressBar {{
-    background: {SURCO}; border: 1px solid {METAL_DIM}; border-radius: 3px;
-    text-align: center; color: {CREMA}; font-family: {MONO};
+    border-image: url('{_BOTONES}/barra_vacia.png') 30 120 30 120 stretch stretch;
+    border-width: 5px 18px;
+    text-align: center; color: {CREMA}; font-family: {MONO}; font-weight: bold;
 }}
 QProgressBar::chunk {{
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-        stop:0 #c07a2a, stop:1 {AMBAR_CLARO});
+    border-image: url('{_BOTONES}/barra_llena.png') 0 8 0 8 stretch stretch;
 }}
-QScrollBar:vertical {{ background: {SURCO}; width: 12px; margin: 0; }}
-QScrollBar::handle:vertical {{ background: {METAL_DIM}; border-radius: 5px; min-height: 24px; }}
-QScrollBar::handle:vertical:hover {{ background: {METAL}; }}
+QScrollBar:vertical {{
+    border-image: url('{_BOTONES}/scroll_pista.png') 10 20 40 20 stretch stretch;
+    border-width: 2px 0px; width: 12px; margin: 0;
+}}
+QScrollBar::handle:vertical {{
+    border-image: url('{_BOTONES}/scroll_mango.png') 38 0 38 0 stretch stretch;
+    min-height: 24px;
+}}
 QScrollBar:horizontal {{ background: {SURCO}; height: 12px; margin: 0; }}
 QScrollBar::handle:horizontal {{ background: {METAL_DIM}; border-radius: 5px; min-width: 24px; }}
 QScrollBar::handle:horizontal:hover {{ background: {METAL}; }}
@@ -168,13 +204,18 @@ QGroupBox {{
 }}
 QGroupBox::title {{ subcontrol-origin: margin; left: 8px; padding: 0 4px; }}
 QCheckBox, QRadioButton {{ color: {INK}; }}
-QCheckBox::indicator, QRadioButton::indicator {{
+QRadioButton::indicator {{
     width: 13px; height: 13px;
     background: {SURCO}; border: 1px solid {METAL_DIM};
 }}
-QCheckBox::indicator:checked, QRadioButton::indicator:checked {{
+QRadioButton::indicator:checked {{
     background: {AMBAR}; border-color: {AMBAR_CLARO};
 }}
+QCheckBox::indicator {{
+    width: 18px; height: 18px;
+    image: url('{_BOTONES}/casilla_off.png');
+}}
+QCheckBox::indicator:checked {{ image: url('{_BOTONES}/casilla_on.png'); }}
 QRadioButton::indicator {{ border-radius: 7px; }}
 QLabel {{ color: {INK}; }}
 QToolTip {{

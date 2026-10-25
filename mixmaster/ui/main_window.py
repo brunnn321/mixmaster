@@ -222,12 +222,9 @@ class _ZonaDrop(QLabel):
         p.setRenderHint(QPainter.Antialiasing)
         marco = QRectF(self.rect()).adjusted(1, 1, -1, -1)
 
-        # chasis alrededor de la bahía
-        hw.dibujar_placa(p, marco, radio=10)
-
-        # la bahía propiamente dicha: un hueco fresado en la chapa
-        hueco = marco.adjusted(13, 13, -13, -13)
-        hw.dibujar_ranura(p, hueco, radio=7)
+        # chapa con bahía: imagen generada por Bruno, estirada sin deformar esquinas
+        _pintar_nueve(p, marco.toRect(), _zona_soltar_pix(), (62, 56, 62, 56), 0.36)
+        hueco = marco.adjusted(22, 20, -22, -20)
 
         if self._estado == "llena":
             acento, led, prendido = QColor(tema.AMBAR), QColor(tema.VERDE), True
@@ -240,12 +237,6 @@ class _ZonaDrop(QLabel):
         p.setPen(QPen(acento, 1.6))
         p.drawRoundedRect(hueco.adjusted(0.8, 0.8, -0.8, -0.8), 7, 7)
 
-        # tornillos en las cuatro esquinas de la chapa
-        for i, (dx, dy) in enumerate(((7, 7), (-7, 7), (7, -7), (-7, -7))):
-            cx = marco.left() + dx if dx > 0 else marco.right() + dx
-            cy = marco.top() + dy if dy > 0 else marco.bottom() + dy
-            hw.dibujar_tornillo(p, cx, cy, r=4.2, angulo=28 + i * 24)
-
         hw.dibujar_led(p, hueco.right() - 13, hueco.top() + 12, 3.4, led, prendido)
 
         # serigrafía sobre el hueco
@@ -256,6 +247,36 @@ class _ZonaDrop(QLabel):
         p.drawText(hueco.adjusted(16, 10, -16, -10).toRect(),
                    int(Qt.AlignCenter | Qt.TextWordWrap), self.text())
         p.end()
+
+
+
+_ZONA_PIX = None
+
+
+def _zona_soltar_pix():
+    """Imagen de la zona para soltar archivos, cargada una sola vez."""
+    global _ZONA_PIX
+    if _ZONA_PIX is None:
+        from PySide6.QtGui import QPixmap
+        _ZONA_PIX = QPixmap(str(Path(__file__).resolve().parents[2]
+                                / "assets" / "fondos" / "zona_soltar.png"))
+    return _ZONA_PIX
+
+
+def _pintar_nueve(p, rect, pix, bordes, escala):
+    """Pinta `pix` en `rect` en nueve partes: esquinas fijas, lados y centro estirados."""
+    from PySide6.QtCore import QRect
+    l, t, r, b = bordes
+    L, T, R, B = (round(v * escala) for v in bordes)
+    W, H = pix.width(), pix.height()
+    xs = (rect.left(), rect.left() + L, rect.right() + 1 - R, rect.right() + 1)
+    ys = (rect.top(), rect.top() + T, rect.bottom() + 1 - B, rect.bottom() + 1)
+    sx = (0, l, W - r, W)
+    sy = (0, t, H - b, H)
+    for i in range(3):
+        for j in range(3):
+            p.drawPixmap(QRect(xs[j], ys[i], xs[j + 1] - xs[j], ys[i + 1] - ys[i]), pix,
+                         QRect(sx[j], sy[i], sx[j + 1] - sx[j], sy[i + 1] - sy[i]))
 
 
 class AnalisisWorker(QThread):
@@ -652,10 +673,9 @@ class MainWindow(QMainWindow):
         self.lbl_guia = QLabel("")
         self.lbl_guia.setWordWrap(True)
         self.lbl_guia.setStyleSheet(
-            f"background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
-            f" stop:0 {tema.CHASIS_ALTO}, stop:1 {tema.CHASIS_BAJO});"
-            f" color: {tema.AMBAR}; padding: 8px; border-radius: 4px;"
-            f" border: 1px solid {tema.METAL_DIM};"
+            f"border-image: url('{tema._FONDOS}/barra_superior.png') 30 40 30 40 stretch stretch;"
+            f" border-width: 8px 14px;"
+            f" color: {tema.AMBAR}; padding: 4px;"
             f" font-family: {tema.MONO}; letter-spacing: 2px;")
         raiz.addWidget(self.lbl_guia)
 
@@ -868,10 +888,6 @@ class MainWindow(QMainWindow):
         self.barra.setTextVisible(True)
         self.barra.setFormat("%p% — %v/%m")
         self.barra.setFixedHeight(26)
-        self.barra.setStyleSheet(
-            "QProgressBar { border: 1px solid #3a7d4f; border-radius: 6px;"
-            " background: #12161f; color: white; font-weight: bold; text-align: center; }"
-            "QProgressBar::chunk { background: #3a7d4f; border-radius: 5px; }")
         self.barra.setVisible(False)
         raiz.addWidget(self.barra)
 
