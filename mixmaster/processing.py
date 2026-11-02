@@ -26,7 +26,7 @@ from .audio_analysis import (
     BANDAS_HZ, CRUCES_HZ, analisis_estereo, balance_bandas_db, cargar_audio,
     crest_factor_db, crest_por_banda, db, declip_ligero, detectar_resonancias,
     espectro_suavizado, lufs_integrado, perfil_referencias, rango_corto_db,
-    rango_corto_por_banda, recortar_silencio_extremos, split_bandas_mono,
+    rango_corto_por_banda, split_bandas_mono,
     true_peak_db,
 )
 from .logger import get_logger
@@ -2232,10 +2232,10 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         avisar(f"Declip ligero: {muestras_declipeadas} muestra(s) reparada(s) "
                "por interpolación (clipping corto de la fuente).")
 
-    # Top-and-tail (pendiente URGENTE, tanda real 2026-08-09): recorta
-    # silencio real de cabeza/cola antes de cualquier otro proceso.
+    # Sin top-and-tail (Bruno, 2/11/2026): el master conserva el largo y los
+    # silencios de la mezcla, para que calce en el DAW donde estaba.
     largo_previo = audio.shape[0]
-    audio, recorte_inicio_s, recorte_fin_s = recortar_silencio_extremos(audio, sr)
+    recorte_inicio_s, recorte_fin_s = 0.0, 0.0
     # Para la pantalla de la consola: el espectro y la correlación de la mezcla
     # ANTES de procesar, a la misma resolución que el del master.
     _, esp_entrada = espectro_suavizado(audio, sr, n_puntos=200)
