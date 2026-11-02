@@ -2740,22 +2740,17 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
     out_wav = dir_masters / f"{base_nombre}.wav"
     out_mp3 = dir_entregables / f"{base_nombre}.mp3"
 
-    # Dos archivos y nada más (pedido de Bruno, 2/11): WAV 32 bits flotante y MP3 320.
-    avisar("Exportando WAV 32 bits y MP3 320…")
-    sf.write(str(out_wav), audio.astype(np.float32), sr, subtype="FLOAT")
-
-    # MP3 (MPEG-1/2/2.5) solo soporta ciertos sample rates. Si el original no
-    # es uno de ellos (ej. 96000, 88200), se resamplea SOLO para el MP3 — el
-    # WAV master queda intacto en el sample rate original.
-    mp3_320 = dict(format="MP3", bitrate_mode="CONSTANT", compression_level=0.0)
-    if sr in SR_MP3_VALIDOS:
-        sf.write(str(out_mp3), audio, sr, **mp3_320)
-    else:
-        sr_mp3 = 48000 if sr > 44100 else 44100
+    # Dos archivos y nada más (pedido de Bruno, 2/11): WAV 48 kHz / 24 bits y MP3 320.
+    avisar("Exportando WAV 48 kHz 24 bits y MP3 320…")
+    audio_48 = audio
+    if sr != 48000:
         from math import gcd
-        g = gcd(sr_mp3, sr)
-        audio_mp3 = signal.resample_poly(audio, sr_mp3 // g, sr // g, axis=0)
-        sf.write(str(out_mp3), audio_mp3, sr_mp3, **mp3_320)
+        g = gcd(48000, sr)
+        audio_48 = signal.resample_poly(audio, 48000 // g, sr // g, axis=0)
+    sf.write(str(out_wav), audio_48, 48000, subtype="PCM_24")
+    sf.write(str(out_mp3), audio_48, 48000, format="MP3",
+             bitrate_mode="CONSTANT", compression_level=0.0)
+    del audio_48
 
     # Vista previa de códec (ítem 12): el MP3 decodificado puede tener picos
     # más altos que el WAV (el códec deforma la onda). Se mide lo que de

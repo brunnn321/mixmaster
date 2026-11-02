@@ -2249,7 +2249,7 @@ class MainWindow(QMainWindow):
             f"  True peak: {resumen['true_peak_final']} dBTP   "
             f"Crest: {resumen.get('crest_final', '?')} dB{eq_txt}{ancho_txt}{mbanda_txt}{reso_txt}{tr_txt}{den_txt}{mb_txt}"
             f"{recorte_txt}{aviso_crest_txt}{aviso_ref_txt}\n"
-            f"  WAV 32 bits: {resumen['wav']}\n"
+            f"  WAV 48 kHz 24 bits: {resumen['wav']}\n"
             f"  MP3 320: {resumen['mp3']}")
         self._refrescar_estado()
         self._status(f"Master listo → {Path(resumen['mp3']).name}")
