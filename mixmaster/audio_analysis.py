@@ -920,6 +920,15 @@ def generar_alertas(diag: dict, umbrales: dict | None = None) -> list[str]:
             f"Sub-graves en {bandas['sub']:.1f} dB (<{u['sub_min_db']:g}) — {u['nota_sub']}"
         )
 
+    # Agudos ausentes (weirdFishes, 2/11/2026): un master no puede crearlos,
+    # hay que avisar antes de masterizar para revisar la exportación.
+    if bandas.get("high") is not None and bandas["high"] < bandas["mid"] - 35:
+        alertas.append(
+            f"Faltan agudos: la banda alta está {bandas['mid'] - bandas['high']:.0f} dB por "
+            "debajo de los medios — el master no puede devolverlos; revisar si quedó "
+            "un filtro activo al exportar la mezcla"
+        )
+
     # Correlación estéreo inestable en mid / high-mid
     corr = estereo.get("correlacion_por_banda", {})
     for banda in ("mid", "high_mid"):

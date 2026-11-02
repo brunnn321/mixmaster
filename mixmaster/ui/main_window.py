@@ -721,6 +721,13 @@ class MainWindow(QMainWindow):
         self.refs_layout = QVBoxLayout(self.refs_contenedor)
         self.refs_layout.setContentsMargins(0, 0, 0, 0)
         lay2.addWidget(self.refs_contenedor)
+        # Sin referencia directo (2/11/2026): cuando ninguna calza con la mezcla
+        self.btn_sin_ref = QPushButton("Sin referencia")
+        self.btn_sin_ref.setToolTip(
+            "Masterizar sin referencia: solo volumen, densidad y limitador,\n"
+            "sin EQ correctivo ni cambios de imagen. Sirve cuando ninguna calza.")
+        self.btn_sin_ref.clicked.connect(self._sin_referencia)
+        lay2.addWidget(self.btn_sin_ref)
         # Sugerencias: "de tu biblioteca, estas se parecen a tu mezcla"
         self.panel_parecidas = QWidget()
         self._lay_parecidas = QHBoxLayout(self.panel_parecidas)
@@ -1121,6 +1128,13 @@ class MainWindow(QMainWindow):
             self._status(f"Referencia quitada: {quitada.name}")
             self._refrescar_referencias()
 
+    def _sin_referencia(self):
+        """Quita todas las referencias: el master sale sin EQ correctivo."""
+        self.referencia = None
+        self._sin_ref_elegido = True
+        self._refrescar_referencias()
+        self._status("Master sin referencia: volumen, densidad y limitador, sin EQ correctivo.")
+
     def _status(self, msg: str):
         """Mensaje en la línea de estado inferior."""
         self.lbl_estado.setText(msg)
@@ -1132,6 +1146,7 @@ class MainWindow(QMainWindow):
         self.diagnostico = None
         self.wav_activo = None
         self.referencia = None
+        self._sin_ref_elegido = False
         # el modo vuelve a música: se redefine al cargar audio (los stems
         # siempre son música, por eso no preguntan)
         self._aplicar_modo_audio("musica")
@@ -2127,7 +2142,7 @@ class MainWindow(QMainWindow):
                 self, "Loudness manual", "LUFS integrado objetivo:", default_lufs, -20.0, -5.0, 1)
             if not ok:
                 return
-        if not self.referencia:
+        if not self.referencia and not getattr(self, "_sin_ref_elegido", False):
             QMessageBox.information(
                 self, "Sin referencia",
                 "Sin referencias el master sale solo con densidad, loudness y limitador\n"
