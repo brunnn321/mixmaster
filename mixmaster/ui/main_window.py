@@ -524,6 +524,8 @@ class MainWindow(QMainWindow):
         self._tray.show()
 
         self.setWindowTitle(f"v{__version__}")  # _refrescar_estado lo actualiza con el proyecto
+        if icono.exists():
+            self.setWindowIcon(QIcon(str(icono)))  # sin esto, la barra de tareas no muestra icono
         self.resize(880, 680)
         self.setAcceptDrops(True)  # arrastrar audio/referencias a la app
         self._crear_menu()
@@ -2246,10 +2248,8 @@ class MainWindow(QMainWindow):
             f"  True peak: {resumen['true_peak_final']} dBTP   "
             f"Crest: {resumen.get('crest_final', '?')} dB{eq_txt}{ancho_txt}{mbanda_txt}{reso_txt}{tr_txt}{den_txt}{mb_txt}"
             f"{recorte_txt}{aviso_crest_txt}{aviso_ref_txt}\n"
-            f"  WAV: {resumen['wav']}\n"
-            + (f"  WAV 32 bits flotante (para reprocesar): {resumen['wav_32f']}\n"
-               if resumen.get("wav_32f") else "")
-            + f"  MP3 para subir: {resumen['mp3']}")
+            f"  WAV 32 bits: {resumen['wav']}\n"
+            f"  MP3 320: {resumen['mp3']}")
         self._refrescar_estado()
         self._status(f"Master listo → {Path(resumen['mp3']).name}")
         try:
@@ -2283,7 +2283,11 @@ class MainWindow(QMainWindow):
         self._m50x_path_premaster = self.wav_activo  # None si viene de stems (sin "original" único)
         self._m50x_path_master = Path(resumen["wav"])
         self._m50x_path_calibrado = None
-        self._m50x_worker = EscuchaWorker(self._m50x_path_master, self._m50x_path_master.parent,
+        # la copia M50x es solo para el reproductor: va a temporales, no a salida/
+        import tempfile
+        dir_escucha = Path(tempfile.gettempdir()) / "MixMaster_escucha"
+        dir_escucha.mkdir(exist_ok=True)
+        self._m50x_worker = EscuchaWorker(self._m50x_path_master, dir_escucha,
                                           self._m50x_path_premaster)
         self._m50x_worker.setParent(self)
         self._m50x_worker.terminado.connect(self._m50x_listo)

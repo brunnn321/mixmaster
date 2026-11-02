@@ -2740,27 +2740,22 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
     out_wav = dir_masters / f"{base_nombre}.wav"
     out_mp3 = dir_entregables / f"{base_nombre}.mp3"
 
-    avisar("Exportando WAV 24-bit y MP3…")
-    sf.write(str(out_wav), audio, sr, subtype="PCM_24")
-    # Copia en 32 bits flotante (como MasteringBOX 2.0): sin redondeo a 24
-    # bits, para reprocesar en un DAW. El de 24 bits sigue siendo el de
-    # entrega: varias distribuidoras no aceptan WAV en coma flotante.
-    out_wav_32f = None
-    if cfg.get("exportar", {}).get("wav_32_float", True):
-        out_wav_32f = dir_masters / f"{base_nombre}_32f.wav"
-        sf.write(str(out_wav_32f), audio.astype(np.float32), sr, subtype="FLOAT")
+    # Dos archivos y nada más (pedido de Bruno, 2/11): WAV 32 bits flotante y MP3 320.
+    avisar("Exportando WAV 32 bits y MP3 320…")
+    sf.write(str(out_wav), audio.astype(np.float32), sr, subtype="FLOAT")
 
     # MP3 (MPEG-1/2/2.5) solo soporta ciertos sample rates. Si el original no
     # es uno de ellos (ej. 96000, 88200), se resamplea SOLO para el MP3 — el
     # WAV master queda intacto en el sample rate original.
+    mp3_320 = dict(format="MP3", bitrate_mode="CONSTANT", compression_level=0.0)
     if sr in SR_MP3_VALIDOS:
-        sf.write(str(out_mp3), audio, sr)
+        sf.write(str(out_mp3), audio, sr, **mp3_320)
     else:
         sr_mp3 = 48000 if sr > 44100 else 44100
         from math import gcd
         g = gcd(sr_mp3, sr)
         audio_mp3 = signal.resample_poly(audio, sr_mp3 // g, sr // g, axis=0)
-        sf.write(str(out_mp3), audio_mp3, sr_mp3)
+        sf.write(str(out_mp3), audio_mp3, sr_mp3, **mp3_320)
 
     # Vista previa de códec (ítem 12): el MP3 decodificado puede tener picos
     # más altos que el WAV (el códec deforma la onda). Se mide lo que de
@@ -2807,7 +2802,6 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
 
     resumen = {
         "wav": str(out_wav),
-        "wav_32f": str(out_wav_32f) if out_wav_32f else None,
         "mp3": str(out_mp3),
         "lufs_final": round(float(lufs_final), 1),
         "true_peak_final": round(tp_final, 1),
