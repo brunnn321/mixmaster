@@ -568,10 +568,11 @@ class MainWindow(QMainWindow):
             self._notificado = True
             try:
                 from PySide6.QtWidgets import QLabel
-                aviso = QLabel("GUARDADO", None, Qt.FramelessWindowHint
+                aviso = QLabel("SAVED", None, Qt.FramelessWindowHint
                                | Qt.WindowStaysOnTopHint | Qt.Tool)
-                aviso.setStyleSheet("background:#1f2a24; color:#7fd99a; font: bold 22px;"
-                                    " padding:14px 30px; border:1px solid #4fa76a; border-radius:8px;")
+                aviso.setStyleSheet(f"background:{tema.CHASIS}; color:{tema.AMBAR};"
+                                    f" font: bold 22px '{tema.MONO}'; letter-spacing:4px;"
+                                    f" padding:14px 34px; border:2px solid {tema.AMBAR}; border-radius:8px;")
                 aviso.adjustSize()
                 centro = self.frameGeometry().center()
                 aviso.move(centro.x() - aviso.width() // 2, centro.y() - aviso.height() // 2)
