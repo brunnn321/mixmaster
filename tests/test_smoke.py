@@ -178,7 +178,12 @@ def main() -> int:
         # Con el matching mid/side + segunda pasada (26/9) la suma quedó en
         # ~2.1 dB contra 1.4 del original; en el mismo caso a -12 LUFS el
         # modo nuevo queda MÁS cerca que el viejo (5.7 vs 7.4 dB de suma).
-        mejora = sum(abs(d_mast[b]) for b in d_mast) <= sum(abs(d_orig[b]) for b in d_orig) + 1.0
+        # Desde el 2/11/2026 se copia el tono y no la imagen: un corrimiento parejo en
+        # todas las bandas es ancho/nivel, no tono. Se compara la FORMA (sin la media).
+        def forma(d):
+            m = sum(d.values()) / len(d)
+            return sum(abs(v - m) for v in d.values())
+        mejora = forma(d_mast) <= forma(d_orig) + 1.0
         check("master más cerca de la referencia", mejora,
               f"orig={d_orig} master={d_mast}")
 

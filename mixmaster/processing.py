@@ -227,6 +227,7 @@ FORMATOS_STEM = (".wav", ".flac", ".aiff", ".aif")
 # MP3 (MPEG-1/2/2.5) solo soporta estos sample rates.
 SR_MP3_VALIDOS = (8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000)
 SR_ENTREGA = 48000   # el master se procesa y entrega a 48 kHz (Bruno, 2/11/2026)
+CORR_IMAGEN_CRITICA = 0.3   # por debajo, la mezcla pierde demasiado al sumarse a mono
 
 # Compatibilidad con la UI/tests previos (modo destino único competitivo)
 DESTINOS = {
@@ -2384,6 +2385,15 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         modo_eq = cfg_eq.get("modo", "ms")
         if modo_eq == "ms" and perfil.get("espectro_mid_db") is None:
             modo_eq = "fino"   # caché de referencia sin datos mid/side
+        # De la referencia se copia el tono, no la imagen estéreo (Bruno,
+        # 2/11/2026, weirdFishes v03 → v04: copiarla le cerró la mezcla). El
+        # ancho se toca solo ante un problema crítico de fase en la mezcla.
+        imagen_critica = corr_entrada < CORR_IMAGEN_CRITICA
+        if modo_eq == "ms" and not imagen_critica:
+            modo_eq = "fino"
+        if imagen_critica:
+            avisar(f"⚠ Correlación estéreo {corr_entrada:.2f}: problema de fase, "
+                   "se corrige también la imagen contra la referencia.")
 
         if modo_eq == "ms":
             # Matching MID/SIDE sobre los tramos fuertes (Consejo 26/9, idea de
@@ -2477,7 +2487,7 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
             avisar(f"⚠ {aviso_referencia}")
 
         # Imagen estéreo: acerca el ancho por banda al promedio de referencias
-        if modo_eq != "ms" and cfg_eq.get("analizar_imagen_stereo", True):
+        if modo_eq != "ms" and imagen_critica and cfg_eq.get("analizar_imagen_stereo", True):
             avisar("Ajustando imagen estéreo por banda…")
             ancho_mix = analisis_estereo(audio, sr)["ancho_por_banda"]
             audio, ajuste_ancho = _ajustar_imagen(
@@ -2697,13 +2707,17 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
     # y ajuste fino de loudness otra vez. No corre si el EQ se aplicó solo a
     # las guitarras: después del limitador la mezcla ya no se puede separar.
     max_2p = float(cfg_eq.get("segunda_pasada_max_db", 2.0))
-    if (modo_eq == "ms" and grupo_eq is None and max_2p > 0
+    if (modo_eq in ("ms", "fino") and grupo_eq is None and max_2p > 0
+            and perfil.get("espectro_mid_db") is not None
             and cfg_eq.get("segunda_pasada", True)):
         avisar(f"Segunda pasada de matching (residuo, máx ±{max_2p:g} dB)…")
         freqs2, r_mid, r_side, util2 = _deltas_ms(audio, sr, perfil)
         rm = _suavizar(np.clip(r_mid, -max_2p, max_2p))
-        rs = _suavizar(np.clip(r_side, -max_2p, max_2p))
-        audio = _aplicar_ms(audio, _curva_fir_fina(freqs2, rm, sr), _curva_fir_fina(freqs2, rs, sr))
+        if modo_eq == "ms":
+            rs = _suavizar(np.clip(r_side, -max_2p, max_2p))
+            audio = _aplicar_ms(audio, _curva_fir_fina(freqs2, rm, sr), _curva_fir_fina(freqs2, rs, sr))
+        else:   # solo tono, igual en L y R: la imagen estéreo no se toca
+            audio = _aplicar_fir(audio, _curva_fir_fina(freqs2, rm, sr))
         for b, (f_lo, f_hi) in BANDAS_HZ.items():
             sel = (freqs2 >= f_lo) & (freqs2 < f_hi)
             segunda_pasada[b] = round(float(rm[sel].mean()), 1) if sel.any() else 0.0

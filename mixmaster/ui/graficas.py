@@ -520,13 +520,7 @@ def _bloque_proceso(resumen: dict) -> QFrame:
     titulo.setStyleSheet(f"border:none; color:{_INK_DIM}; font-family:{_MONO}; font-size:10px; letter-spacing:2px;")
     lay.addWidget(titulo)
 
-    eq = resumen.get("eq_aplicado_db") or {}
-    if eq:
-        eq_lbl = QLabel("EQ aplicado (dB por banda)")
-        eq_lbl.setStyleSheet(f"border:none; color:#9a9184; font-family:{_MONO}; font-size:9px;")
-        lay.addWidget(eq_lbl)
-        lay.addWidget(_BarrasEQ(eq))
-
+    eq = resumen.get("eq_aplicado_db") or {}   # las barras van en la gráfica VS REFERENCIA
     mods = []
     if eq:
         mods.append(("EQ", ", ".join(f"{b} {v:+.1f}" for b, v in eq.items())))
@@ -704,6 +698,14 @@ def construir_panel_mastering(resumen: dict, diagnostico: dict | None,
             cl.addWidget(curvas)
         else:
             cl.addWidget(_BarrasDelta(delta))
+        # lo que el master hizo para acercarse: EQ aplicado por banda, al lado
+        # de lo que faltaba o sobraba (pedido de Bruno, 2/11/2026)
+        eq = resumen.get("eq_aplicado_db") or {}
+        if eq:
+            eq_lbl = QLabel("EQ que aplicó el master (dB por banda)")
+            eq_lbl.setStyleSheet(f"border:none; color:#9a9184; font-family:{_MONO}; font-size:10px;")
+            cl.addWidget(eq_lbl)
+            cl.addWidget(_BarrasEQ(eq))
         lay.addWidget(caja)
 
     # loudness war score: ¿zona sana o sobre-comprimido?
