@@ -29,6 +29,8 @@ log = get_logger("mixmaster.ui.tempo")
 SCRIPT = Path(__file__).resolve().parents[2] / "tempo" / "stems_fix.py"
 SCRIPT_MIDI = SCRIPT.with_name("transcribir_midi.py")
 ENV_MIDI = SCRIPT.parent / ".muscriptor" / "Scripts" / "python.exe"   # MuScriptor pide Python 3.12
+if not ENV_MIDI.exists():   # instalador: Python 3.12 portátil, sin carpeta Scripts
+    ENV_MIDI = SCRIPT.parent / ".muscriptor" / "python.exe"
 RE_BPM = re.compile(r"(\d+(?:\.\d+)?)bpm", re.I)
 RE_TEMA = re.compile(r"^(.*)-[A-G][b#]? (major|minor)-")
 ESCUCHA = Path(tempfile.gettempdir()) / "mixmaster_tempo_escucha.wav"

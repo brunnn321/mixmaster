@@ -4,7 +4,14 @@ Uso:  python main.py
 """
 
 import faulthandler
+import os
 import sys
+from pathlib import Path
+
+# Instalado en otra PC: ffmpeg viaja en bin/ junto a la app (librosa lo busca en el PATH).
+_BIN = Path(__file__).resolve().parent / "bin"
+if _BIN.is_dir():
+    os.environ["PATH"] = str(_BIN) + os.pathsep + os.environ.get("PATH", "")
 
 from mixmaster.app_paths import ensure_app_dirs, LOGS_DIR
 from mixmaster.logger import get_logger

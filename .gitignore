@@ -7,3 +7,5 @@ crash.log
 config/cache_referencias.json
 config/cache_balance_referencias.json
 tempo/.muscriptor/
+instalador/build/
+instalador/salida/
