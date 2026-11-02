@@ -784,3 +784,20 @@ Feature grande, confirmada por el user ("me sirve, quiero hacerlo, es útil, inc
 - [x] Settings limpio de restos del chat eliminado — el user notó que quedaron colgados "Modo de conexión / API key / Modelo" en Settings sin ningún uso real (ese modo "api" nunca se conectó a nada, era código muerto desde antes). Sacados de `settings_dialog.py`, `settings.py` (DEFAULTS) y `ui/first_run.py` (paso completo de "elegir modo de conexión + pegar API key" en el asistente inicial, ahora solo pide carpeta de proyectos + perfil). `claude_client.py` borrado (archivo 100% muerto, nada lo importaba ni siquiera antes de esta limpieza).
 - [x] "Olvidar lo aprendido" ELIMINADO del menú Settings — a pedido explícito del user (confirmado vía pregunta directa: "sacarla del todo"). Aclarado antes de sacarla que solo reseteaba preferencias aprendidas (LUFS/crest/EQ/umbral de calidad), nunca borraba masters ni proyectos — pero el user prefirió sacarla igual. La función `learning.olvidar()` se queda en el backend (usada por tests), solo se sacó el acceso desde la UI.
 - [x] Caché de referencias migrado de clave=RUTA a clave=HASH DE CONTENIDO — `audio_analysis.py::_hash_archivo` (blake2b sobre los bytes del archivo, rápido — solo I/O, sin decodificar audio). Ahora el mismo archivo de referencia se reconoce sin importar en qué carpeta/proyecto esté o si se renombró — antes solo funcionaba si era literalmente la misma ruta. Migración automática y sin pérdida: si existe una entrada vieja (clave=ruta) con mismo mtime+size, se reusa su análisis ya hecho en vez de recalcular — probado con una referencia real de la biblioteca: migró en 0.1s en vez de re-analizar el audio completo. Los 52 análisis ya guardados en `cache_referencias.json` se migran solos la primera vez que se vuelven a usar, no se pierden.
+
+## 2/11/2026 — sesión: instalador, exportación, investigación v3, weirdFishes
+
+Hecho y subido:
+- Instalador preparado (`instalador/construir.ps1` + `MixMaster.iss`), **en pausa** hasta que Bruno termine el master nuevo. Sin probar en PC limpia.
+- Exportación: solo WAV 48 kHz / 24 bits (dither TPDF) + MP3 320; remuestreo soxr VHQ antes de procesar. Nunca recortar silencios.
+- Botón "Sin referencia", aviso de agudos faltantes, EQ que no sube bandas vacías, resonancias con persistencia, A/B ciego con aprendizaje por pares (Bradley–Terry).
+- De la referencia se copia el tono, no la imagen estéreo (salvo correlación < 0,3). EQ aplicado visible en la gráfica VS REFERENCIA.
+- VU con aguja L/R + espectro en vivo en el reproductor de escucha (solo aparece después de masterizar).
+- weirdFishes: v04 (con Emotions, sin tocar estéreo) APROBADO, ganó a Matchering. Registrado en aprendizaje (indie_rock).
+
+**PRIORIDAD ABIERTA:**
+- 🟠 4 EQ dinámico (~1 h de trabajo + 2–3 masters escuchados por Bruno). Mejor después del informe de la investigación 2.
+- Investigación 2 pendiente de que Bruno la traiga: `notas/INVESTIGACION-EQ-por-tramos-y-agudos.md`.
+- Bruno quiere poder ver las gráficas sin masterizar (la app no deja pasar de paso sin procesar).
+- StemFX para mezcla de stems (cuando traiga stems).
+- Retomar el instalador cuando lo pida.

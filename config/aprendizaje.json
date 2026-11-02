@@ -594,5 +594,165 @@
         ]
       }
     ]
+  },
+  "grunge": {
+    "aprobados": [],
+    "mezclas_propias": [
+      {
+        "fecha": "2026-10-20 16:13:56",
+        "inclinacion_db_oct": -11.24,
+        "definicion_graves_db": 7.4,
+        "punch": 1.39,
+        "centroide_hz": 407.2,
+        "rolloff_hz": 738.3,
+        "plr_db": 18.1
+      },
+      {
+        "fecha": "2026-10-24 21:12:24",
+        "inclinacion_db_oct": -7.48,
+        "definicion_graves_db": -1.7,
+        "punch": 1.5,
+        "centroide_hz": 342.8,
+        "rolloff_hz": 316.4,
+        "plr_db": 9.0
+      },
+      {
+        "fecha": "2026-11-02 14:14:53",
+        "inclinacion_db_oct": -5.33,
+        "definicion_graves_db": 44.6,
+        "punch": 1.26,
+        "centroide_hz": 378.7,
+        "rolloff_hz": 509.8,
+        "plr_db": 12.8
+      }
+    ],
+    "rechazados": [
+      {
+        "fecha": "2026-10-20 16:15:03",
+        "target_lufs": -10.5,
+        "lufs_final": -10.5,
+        "crest_final": 10.2,
+        "true_peak_final": -2.6,
+        "eq_aplicado_db": {
+          "air": 6.7,
+          "high": 9.4,
+          "high_mid": -3.3,
+          "low": -7.7,
+          "low_mid": 6.9,
+          "mid": -0.6,
+          "sub": -5.5
+        },
+        "ajuste_ancho_db": {},
+        "multibanda_db": {
+          "air": 3.0,
+          "high": 3.0,
+          "high_mid": 1.6,
+          "mid": 1.5
+        },
+        "mono_bass_hz": 80.0,
+        "score": {
+          "dinamica": 52,
+          "global": 67,
+          "imagen": 70,
+          "tonal": 72
+        },
+        "referencias": [
+          "SA_CHK_75_keys_loop_live_piano_chords_Away_G_Lydian.wav"
+        ]
+      },
+      {
+        "fecha": "2026-10-27 20:21:28",
+        "target_lufs": -14.0,
+        "lufs_final": -14.0,
+        "crest_final": 11.8,
+        "true_peak_final": -4.5,
+        "eq_aplicado_db": {},
+        "ajuste_ancho_db": {},
+        "multibanda_db": {},
+        "mono_bass_hz": 80.0,
+        "score": null,
+        "referencias": []
+      },
+      {
+        "fecha": "2026-11-02 14:20:02",
+        "target_lufs": -10.5,
+        "lufs_final": -10.6,
+        "crest_final": 11.1,
+        "true_peak_final": -1.9,
+        "eq_aplicado_db": {
+          "air": 0.1,
+          "high": 8.7,
+          "high_mid": 3.6,
+          "low": 2.8,
+          "low_mid": -7.4,
+          "mid": -1.1,
+          "sub": -5.2
+        },
+        "ajuste_ancho_db": {},
+        "multibanda_db": {
+          "high_mid": 2.5,
+          "low": 2.8,
+          "mid": 2.0,
+          "sub": 2.4
+        },
+        "mono_bass_hz": 80.0,
+        "score": {
+          "dinamica": 53,
+          "global": 71,
+          "imagen": 86,
+          "tonal": 71
+        },
+        "referencias": [
+          "Emotions Never Felt - Matthew McGhee.mp3"
+        ]
+      }
+    ]
+  },
+  "indie_rock": {
+    "aprobados": [
+      {
+        "fecha": "2026-11-02 14:26:18",
+        "target_lufs": -10.5,
+        "lufs_final": -10.5,
+        "crest_final": 11.1,
+        "true_peak_final": -2.0,
+        "eq_aplicado_db": {},
+        "ajuste_ancho_db": {},
+        "multibanda_db": {},
+        "mono_bass_hz": 100.0,
+        "score": null,
+        "referencias": []
+      },
+      {
+        "fecha": "2026-11-02 16:06:45",
+        "target_lufs": -10.5,
+        "lufs_final": -10.6,
+        "crest_final": 11.5,
+        "true_peak_final": -1.9,
+        "eq_aplicado_db": {},
+        "ajuste_ancho_db": {},
+        "multibanda_db": {},
+        "mono_bass_hz": 100.0,
+        "score": null,
+        "referencias": [
+          "Emotions Never Felt - Matthew McGhee.mp3"
+        ]
+      }
+    ],
+    "pares": [
+      {
+        "fecha": "2026-11-02 16:06:47",
+        "ganador": {
+          "lufs": -10.6,
+          "crest_db": 11.54,
+          "inclinacion_db_oct": -5.3
+        },
+        "perdedor": {
+          "lufs": -14.26,
+          "crest_db": 17.05,
+          "inclinacion_db_oct": -5.93
+        }
+      }
+    ]
   }
 }
