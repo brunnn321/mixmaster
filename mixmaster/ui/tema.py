@@ -155,6 +155,10 @@ QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {{
 }}
 QComboBox::drop-down {{ border: none; width: 18px; }}
 QComboBox::down-arrow {{ image: url('{_BOTONES}/combo_flecha.png'); width: 10px; height: 10px; }}
+QComboBox QAbstractItemView {{
+    background: {VIDRIO}; color: {INK}; border: 1px solid {METAL_DIM}; outline: 0;
+    selection-background-color: {AMBAR}; selection-color: {CHASIS};
+}}
 QTextEdit, QPlainTextEdit,
 QListWidget, QTreeWidget, QTableWidget {{
     background: {VIDRIO}; color: {INK}; border: 1px solid {METAL_DIM};
