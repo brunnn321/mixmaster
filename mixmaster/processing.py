@@ -226,6 +226,7 @@ FORMATOS_STEM = (".wav", ".flac", ".aiff", ".aif")
 
 # MP3 (MPEG-1/2/2.5) solo soporta estos sample rates.
 SR_MP3_VALIDOS = (8000, 11025, 12000, 16000, 22050, 24000, 32000, 44100, 48000)
+SR_ENTREGA = 48000   # el master se procesa y entrega a 48 kHz (Bruno, 2/11/2026)
 
 # Compatibilidad con la UI/tests previos (modo destino único competitivo)
 DESTINOS = {
@@ -2232,6 +2233,15 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         avisar(f"Declip ligero: {muestras_declipeadas} muestra(s) reparada(s) "
                "por interpolación (clipping corto de la fuente).")
 
+    # Remuestreo a 48 kHz ANTES de procesar (investigación v3, 4.1): el
+    # limitador true-peak queda como última etapa y exportar no crea picos nuevos.
+    if sr != SR_ENTREGA:
+        import soxr
+        audio = soxr.resample(audio, sr, SR_ENTREGA, quality="VHQ")
+        if grupo_eq is not None:
+            grupo_eq = soxr.resample(grupo_eq, sr, SR_ENTREGA, quality="VHQ")
+        sr = SR_ENTREGA
+
     # Sin top-and-tail (Bruno, 2/11/2026): el master conserva el largo y los
     # silencios de la mezcla, para que calce en el DAW donde estaba.
     largo_previo = audio.shape[0]
@@ -2742,15 +2752,13 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
 
     # Dos archivos y nada más (pedido de Bruno, 2/11): WAV 48 kHz / 24 bits y MP3 320.
     avisar("Exportando WAV 48 kHz 24 bits y MP3 320…")
-    audio_48 = audio
-    if sr != 48000:
-        from math import gcd
-        g = gcd(48000, sr)
-        audio_48 = signal.resample_poly(audio, 48000 // g, sr // g, axis=0)
-    sf.write(str(out_wav), audio_48, 48000, subtype="PCM_24")
-    sf.write(str(out_mp3), audio_48, 48000, format="MP3",
+    # Dither TPDF de ±1 LSB, una sola vez, al cuantizar a 24 bits (investigación v3, 4.1).
+    rng = np.random.default_rng()
+    tpdf = (rng.random(audio.shape) - rng.random(audio.shape)) * 2.0 ** -23
+    sf.write(str(out_wav), audio + tpdf, sr, subtype="PCM_24")
+    del tpdf
+    sf.write(str(out_mp3), audio, sr, format="MP3",
              bitrate_mode="CONSTANT", compression_level=0.0)
-    del audio_48
 
     # Vista previa de códec (ítem 12): el MP3 decodificado puede tener picos
     # más altos que el WAV (el códec deforma la onda). Se mide lo que de

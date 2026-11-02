@@ -38,12 +38,12 @@ def _tono(f, amp):
     return np.stack([x, x], axis=1)
 
 
-def _nivel_db(audio, f):
+def _nivel_db(audio, f, sr=SR):
     """Nivel (dB) del tono f en la señal, por FFT con ventana."""
     mono = audio.mean(axis=1)
     ventana = np.hanning(len(mono))
     espectro = np.abs(np.fft.rfft(mono * ventana))
-    freqs = np.fft.rfftfreq(len(mono), 1 / SR)
+    freqs = np.fft.rfftfreq(len(mono), 1 / sr)
     sel = (freqs > f * 0.97) & (freqs < f * 1.03)
     return 20 * np.log10(espectro[sel].max() + 1e-12)
 
@@ -92,9 +92,9 @@ def main() -> int:
         for caso, claves in (("solo_guitarras", ["gtr", "guit"]), ("toda_la_mezcla", [])):
             r = masterizar(None, tmp / "ref.wav", -20.0, tmp / caso, tmp / caso,
                            carpeta_stems=stems, cfg=_cfg_sin_dinamica(claves))
-            salida, _ = sf.read(r["wav"])
-            resultados[caso] = (r, _nivel_db(salida, 3000) - _nivel_db(salida, 60),
-                                _nivel_db(salida, 800) - _nivel_db(salida, 60))
+            salida, sr_out = sf.read(r["wav"])   # el master sale a 48 kHz
+            resultados[caso] = (r, _nivel_db(salida, 3000, sr_out) - _nivel_db(salida, 60, sr_out),
+                                _nivel_db(salida, 800, sr_out) - _nivel_db(salida, 60, sr_out))
 
         r, rel_out, gtr_out = resultados["solo_guitarras"]
         check("el resumen informa qué stems recibieron el EQ",
