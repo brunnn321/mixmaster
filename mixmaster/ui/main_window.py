@@ -814,6 +814,10 @@ class MainWindow(QMainWindow):
         fila_seek.addWidget(self.slider_escucha, stretch=1)
         fila_seek.addWidget(self.lbl_tiempo)
         lay_m50x.addLayout(fila_seek)
+        # VU con aguja + espectro en vivo de lo que está sonando
+        from .medidores import MedidoresEnVivo
+        self.medidores = MedidoresEnVivo(self._m50x_player)
+        lay_m50x.addWidget(self.medidores)
 
         lay3.addWidget(self.panel_m50x)
 
@@ -2320,6 +2324,7 @@ class MainWindow(QMainWindow):
         self.combo_escucha.model().item(0).setEnabled(bool(self._m50x_path_premaster))
         self._m50x_player.setSource(QUrl.fromLocalFile(
             str(self._m50x_path_premaster or self._m50x_path_master)))
+        self.medidores.set_fuente(self._m50x_path_premaster or self._m50x_path_master)
         self.combo_escucha.blockSignals(True)
         self.combo_escucha.setCurrentIndex(arranque)
         self.combo_escucha.blockSignals(False)
@@ -2351,6 +2356,7 @@ class MainWindow(QMainWindow):
         sonando = self._m50x_player.playbackState() == QMediaPlayer.PlayingState
         pos = self._m50x_player.position()
         self._m50x_player.setSource(QUrl.fromLocalFile(str(rutas[indice])))
+        self.medidores.set_fuente(rutas[indice])
         self._m50x_audio_out.setVolume(getattr(self, "_m50x_volumenes", [1.0] * 3)[indice])
         self._m50x_player.setPosition(pos)
         if sonando:
