@@ -269,6 +269,65 @@ def consejo_mezcla(genero: str, caracter_actual: dict, minimo: int = 3) -> str |
     return "\n".join(lineas) if len(lineas) > 1 else None
 
 
+CARAC_PAR = ("lufs", "crest_db", "inclinacion_db_oct")
+NOMBRES_PAR = {"lufs": ("más volumen", "menos volumen"),
+               "crest_db": ("más dinámica", "más compactos"),
+               "inclinacion_db_oct": ("más brillo", "más oscuros")}
+
+
+def caracteristicas_master(path) -> dict:
+    """Lo que distingue un master de otro en el A/B: volumen, dinámica y brillo."""
+    from pathlib import Path
+    from .audio_analysis import cargar_audio, crest_factor_db, inclinacion_espectral, lufs_integrado
+    audio, sr = cargar_audio(Path(path))
+    return {"lufs": round(float(lufs_integrado(audio, sr)), 2),
+            "crest_db": round(float(crest_factor_db(audio)), 2),
+            "inclinacion_db_oct": round(float(inclinacion_espectral(audio, sr)), 2)}
+
+
+def registrar_par(genero: str, ganador: dict, perdedor: dict) -> int:
+    """Guarda una elección del A/B ciego (características de ambos). Devuelve el total."""
+    datos = _cargar()
+    g = datos.setdefault(genero, {"aprobados": []})
+    g.setdefault("pares", []).append({
+        "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "ganador": ganador, "perdedor": perdedor})
+    _guardar(datos)
+    return len(g["pares"])
+
+
+def preferencia_por_pares(genero: str, regularizacion: float = 1.0) -> dict[str, float]:
+    """Bradley–Terry regularizado (investigación v3, 4.12): P(A>B) = σ(w·(xA − xB)).
+
+    El término L2 tira los pesos hacia 0: con 3–5 votos la app no saca
+    conclusiones fuertes. Devuelve el peso por característica (por unidad:
+    1 LU, 1 dB de crest, 1 dB/oct de brillo); positivo = te gusta más de eso.
+    """
+    import numpy as np
+    from scipy.optimize import minimize
+    pares = _cargar().get(genero, {}).get("pares", [])
+    if not pares:
+        return {}
+    d = np.array([[p["ganador"][k] - p["perdedor"][k] for k in CARAC_PAR] for p in pares])
+
+    def costo(w):
+        z = d @ w
+        return float(np.sum(np.logaddexp(0.0, -z)) + 0.5 * regularizacion * w @ w)
+
+    w = minimize(costo, np.zeros(len(CARAC_PAR)), method="L-BFGS-B").x
+    return {k: round(float(v), 2) for k, v in zip(CARAC_PAR, w)}
+
+
+def resumen_pares(genero: str, umbral: float = 0.3) -> str | None:
+    """Frase con lo que el A/B ciego ya aprendió de tu gusto, o None si nada es claro."""
+    n = len(_cargar().get(genero, {}).get("pares", []))
+    pesos = preferencia_por_pares(genero)
+    gustos = [NOMBRES_PAR[k][0 if v > 0 else 1] for k, v in pesos.items() if abs(v) >= umbral]
+    if not gustos:
+        return f"Con {n} comparación(es) todavía no hay una preferencia clara."
+    return f"Con {n} comparación(es), te gustan los masters con {', '.join(gustos)}."
+
+
 def olvidar(genero: str | None = None) -> None:
     """Borra el aprendizaje de un género (o de todos si genero es None)."""
     datos = _cargar()

@@ -1326,6 +1326,18 @@ def _aplicar_ms(audio: np.ndarray, fir_mid: np.ndarray, fir_side: np.ndarray) ->
 F_SIDE_MIN_HZ = 150.0  # debajo de esto el side nunca se abre: el grave se desarma en mono
 
 
+PISO_CONTENIDO_DB = 35.0   # más de 35 dB bajo la mediana de la mezcla = banda vacía
+
+
+def _bandas_vacias(esp_db: np.ndarray, util: np.ndarray) -> np.ndarray:
+    """Bins donde la mezcla no tiene contenido útil (investigación v3, 4.4).
+
+    Subir ahí solo levanta ruido (weirdFishes, 2/11/2026: nada sobre 4–8 kHz):
+    el EQ por referencia puede cortar en esas zonas, pero nunca subir.
+    """
+    return esp_db < float(np.median(esp_db[util])) - PISO_CONTENIDO_DB
+
+
 def _deltas_ms(audio: np.ndarray, sr: int, perfil: dict):
     """Corrección mid/side (dB, sin tope) para llevar `audio` a la referencia.
 
@@ -1342,6 +1354,9 @@ def _deltas_ms(audio: np.ndarray, sr: int, perfil: dict):
     d_side = (ref_side - base_ref) - (side - base_mix)
     d_mid[~util] = 0.0
     d_side[~util] = 0.0
+    vacias = _bandas_vacias(mid, util)
+    d_mid[vacias] = np.minimum(d_mid[vacias], 0.0)
+    d_side[vacias] = np.minimum(d_side[vacias], 0.0)
     graves = freqs < F_SIDE_MIN_HZ
     d_side[graves] = np.minimum(d_side[graves], 0.0)   # graves: solo estrechar
     return freqs, d_mid, d_side, util
@@ -2418,6 +2433,8 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
             delta_sin_tope = esp_ref - esp_mix
             delta_sin_tope = delta_sin_tope - float(np.mean(delta_sin_tope[util]))  # solo forma, no nivel
             delta_sin_tope[~util] = 0.0
+            vacias = _bandas_vacias(esp_mix, util)
+            delta_sin_tope[vacias] = np.minimum(delta_sin_tope[vacias], 0.0)
             for b, (f_lo, f_hi) in BANDAS_HZ.items():
                 sel = (freqs >= f_lo) & (freqs < f_hi) & util
                 distancia_bandas_db[b] = round(float(np.abs(delta_sin_tope[sel]).mean()), 1) if sel.any() else 0.0

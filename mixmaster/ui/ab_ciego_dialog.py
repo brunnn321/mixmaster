@@ -132,3 +132,16 @@ class PanelABCiego(QFrame):
             log.info("A/B ciego registrado: preferencia %s", self._rutas[letra].name)
         except Exception:
             log.exception("No se pudo registrar la decisión del A/B ciego")
+        # aprendizaje por pares (Bradley–Terry): qué distingue al elegido del otro
+        try:
+            from ..learning import caracteristicas_master, registrar_par, resumen_pares
+            settings = getattr(self.window(), "settings", None)
+            genero = settings.genero_activo() if settings else "sin_genero"
+            otra = "B" if letra == "A" else "A"
+            registrar_par(genero, caracteristicas_master(self._rutas[letra]),
+                          caracteristicas_master(self._rutas[otra]))
+            frase = resumen_pares(genero)
+            if frase:
+                self.lbl_resultado.setText(self.lbl_resultado.text() + "\n  " + frase)
+        except Exception:
+            log.exception("No se pudo registrar el par del A/B ciego")

@@ -601,24 +601,38 @@ def detectar_resonancias(audio: np.ndarray, sr: int, umbral_db: float = 6.0,
     que son el mismo pico visto cuatro veces, y dejó sin tocar el resto.
     """
     mono = audio.mean(axis=1) if audio.ndim > 1 else audio
-    f, pxx = signal.welch(mono, sr, nperseg=min(8192, len(mono)))
-    db_fino = 10 * np.log10(np.maximum(pxx, 1e-20))
+    nperseg = min(8192, len(mono))
+    f, pxx = signal.welch(mono, sr, nperseg=nperseg)
+    # ventanas de 1/3 de octava de cada bin (nivel "esperado" de banda ancha)
+    ventanas = [((f >= fc / 2 ** (1 / 3)) & (f <= fc * 2 ** (1 / 3))) if f_min <= fc <= f_max
+                else None for fc in f]
 
-    # espectro suavizado a 1/3 de octava (nivel "esperado" de banda ancha)
-    db_suave = np.copy(db_fino)
-    for i, fc in enumerate(f):
-        if fc < f_min or fc > f_max:
-            continue
-        lo, hi = fc / 2 ** (1 / 3), fc * 2 ** (1 / 3)
-        sel = (f >= lo) & (f <= hi)
-        if sel.any():
-            db_suave[i] = float(db_fino[sel].mean())
+    def residual_de(p: np.ndarray) -> np.ndarray:
+        db_fino = 10 * np.log10(np.maximum(p, 1e-20))
+        db_suave = np.copy(db_fino)
+        for i, sel in enumerate(ventanas):
+            if sel is not None and sel.any():
+                db_suave[i] = float(db_fino[sel].mean())
+        return db_fino - db_suave
 
-    residual = db_fino - db_suave
+    residual = residual_de(pxx)
     banda = (f >= f_min) & (f <= f_max)
     # picos locales del residual por encima del umbral
     idx_pico, _ = signal.find_peaks(np.where(banda, residual, -np.inf),
                                     height=umbral_db, distance=3)
+
+    # Persistencia (investigación v3, 4.5; Uriostegui-Hernandez et al. 2025):
+    # una resonancia sobresale en casi todo el tema; una nota sostenida aparece
+    # y se va. Se exige que el pico asome en al menos la mitad de 8 tramos.
+    n_tramos = 8
+    largo = len(mono) // n_tramos
+    if largo >= nperseg and len(idx_pico):
+        residuales = [residual_de(signal.welch(mono[k * largo:(k + 1) * largo], sr,
+                                               nperseg=nperseg)[1]) for k in range(n_tramos)]
+        idx_pico = [i for i in idx_pico
+                    if np.mean([r[max(i - 1, 0):i + 2].max() >= umbral_db / 2
+                                for r in residuales]) >= 0.5]
+
     encontrados = sorted(
         ({"freq": round(float(f[i]), 1), "exceso_db": round(float(residual[i]), 1)}
          for i in idx_pico),
