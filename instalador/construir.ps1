@@ -47,7 +47,9 @@ Copy-Item "$ff\ffmpeg.exe", "$ff\ffprobe.exe" "$app\bin"
 $env:TORCH_HOME = Join-Path $build 'torch_home'
 & "$raiz\.venv\Scripts\python.exe" -c "from demucs.pretrained import get_model; get_model('htdemucs')"
 if ($LASTEXITCODE -ne 0) { throw 'No se pudo bajar el modelo htdemucs' }
-Copy-Item "$env:TORCH_HOME\hub\checkpoints\*" $torch
+# demucs 4.1 baja htdemucs desde Hugging Face (no a torch hub): se copia de donde haya quedado
+if (Test-Path "$env:TORCH_HOME\hub\checkpoints") { Copy-Item "$env:TORCH_HOME\hub\checkpoints\*" $torch }
+Copiar "$env:USERPROFILE\.cache\huggingface\hub\models--adefossez--HTDemucs" "$hf\models--adefossez--HTDemucs"
 Copy-Item "$env:USERPROFILE\.cache\torch\hub\checkpoints\beat_this-final0.ckpt" $torch
 Copiar "$env:USERPROFILE\.cache\huggingface\hub\models--MuScriptor--muscriptor-medium" "$hf\models--MuScriptor--muscriptor-medium"
 Remove-Item $env:TORCH_HOME -Recurse -Force
