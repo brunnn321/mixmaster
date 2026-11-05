@@ -1141,6 +1141,9 @@ class MainWindow(QMainWindow):
 
     def _refrescar_referencias(self):
         """Reconstruye las tarjetas (chips) de referencias del PASO 2."""
+        if self.proyecto and self.wav_activo \
+                and self.proyecto.leer_config().get("mezcla") != str(self.wav_activo):
+            self.proyecto.set_config("mezcla", str(self.wav_activo))
         if self.proyecto:
             actuales = [str(r) for r in (self.referencia or [])]
             if self.proyecto.leer_config().get("referencias", []) != actuales:
@@ -1218,8 +1221,9 @@ class MainWindow(QMainWindow):
         self._limpiar_parecidas()
         self.proyecto = proyecto
         self.diagnostico = None
-        self.wav_activo = None
-        # el proyecto recuerda sus referencias (Bruno, 5/11/2026)
+        # el proyecto recuerda su mezcla y sus referencias (Bruno, 5/11/2026)
+        mezcla = proyecto.leer_config().get("mezcla")
+        self.wav_activo = Path(mezcla) if mezcla and Path(mezcla).exists() else None
         refs = [Path(r) for r in proyecto.leer_config().get("referencias", []) if Path(r).exists()]
         self.referencia = refs or None
         self._sin_ref_elegido = False
