@@ -737,7 +737,6 @@ class MainWindow(QMainWindow):
         self.ed_marcadores = QLineEdit()
         self.ed_marcadores.setPlaceholderText(
             "Marcadores para el análisis (opcional): Intro: 0:00, Riff A: 0:23")
-        lay2.addWidget(self.ed_marcadores)
         self.btn_goniometro = QPushButton("📡 Ver imagen estéreo ▸")
         self.btn_goniometro.setToolTip(
             "Goniómetro: nube de puntos mid/side de la mezcla cargada (foto completa,\n"
@@ -1085,13 +1084,8 @@ class MainWindow(QMainWindow):
             if item.widget():
                 item.widget().deleteLater()
 
-        if self.referencia:
-            self._sin_ref_elegido = False
-        sin_ref = getattr(self, "_sin_ref_elegido", False)
-        self.btn_sin_ref.setText("✓ Sin referencia (elegido)" if sin_ref else "Sin referencia")
         if not self.referencia:
-            self.zona_refs.setText("Sin referencia: el master no copia ninguna"
-                                   if sin_ref else "Cargar 1 referencia")
+            self.zona_refs.setText("Cargar 1 referencia")
             self.zona_refs.setStyleSheet(_DROPZONE_VACIA)
             self.refs_contenedor.setVisible(False)
             return
@@ -1146,7 +1140,7 @@ class MainWindow(QMainWindow):
         self.referencia = None
         self._sin_ref_elegido = True
         self._refrescar_referencias()
-        self._status("Master sin referencia: volumen, densidad y limitador, sin EQ correctivo.")
+        self._ir(2)   # sin referencia no hay nada más que elegir: directo al PASO 3
 
     def _status(self, msg: str):
         """Mensaje en la línea de estado inferior."""
