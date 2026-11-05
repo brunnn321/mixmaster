@@ -1025,8 +1025,6 @@ class MainWindow(QMainWindow):
 
     def _ir(self, idx: int):
         """Navega al paso idx (0-2) y refresca la guía."""
-        self._en_resultados = False   # al moverse vuelve el botón MASTER
-        self.btn_master.setVisible(True)
         self.pila.setCurrentIndex(max(0, min(2, idx)))
         self._refrescar_estado()
 
@@ -1053,8 +1051,7 @@ class MainWindow(QMainWindow):
         if not hay_proyecto:
             self.lbl_guia.setText("<b>PASO 1 · Carga tu audio</b>")
         else:
-            guia = "RESULTADOS" if idx == 2 and getattr(self, "_en_resultados", False) else self.GUIA[idx]
-            self.lbl_guia.setText(f"<b>{guia}</b>")
+            self.lbl_guia.setText(f"<b>{self.GUIA[idx]}</b>")
 
         # zona de fuente
         if self.wav_activo:
@@ -1091,6 +1088,10 @@ class MainWindow(QMainWindow):
 
     def _refrescar_referencias(self):
         """Reconstruye las tarjetas (chips) de referencias del PASO 2."""
+        if self.proyecto:
+            actuales = [str(r) for r in (self.referencia or [])]
+            if self.proyecto.leer_config().get("referencias", []) != actuales:
+                self.proyecto.set_config("referencias", actuales)
         # limpia los chips actuales
         while self.refs_layout.count():
             item = self.refs_layout.takeAt(0)
@@ -1165,7 +1166,9 @@ class MainWindow(QMainWindow):
         self.proyecto = proyecto
         self.diagnostico = None
         self.wav_activo = None
-        self.referencia = None
+        # el proyecto recuerda sus referencias (Bruno, 5/11/2026)
+        refs = [Path(r) for r in proyecto.leer_config().get("referencias", []) if Path(r).exists()]
+        self.referencia = refs or None
         self._sin_ref_elegido = False
         # el modo vuelve a música: se redefine al cargar audio (los stems
         # siempre son música, por eso no preguntan)
@@ -2285,9 +2288,6 @@ class MainWindow(QMainWindow):
             f"{recorte_txt}{aviso_crest_txt}{aviso_ref_txt}\n"
             f"  WAV 48 kHz 24 bits: {resumen['wav']}\n"
             f"  MP3 320: {resumen['mp3']}")
-        # pantalla de resultados: sin el botón MASTER, todo el espacio para escuchar y ver
-        self._en_resultados = True
-        self.btn_master.setVisible(False)
         self._refrescar_estado()
         self._status(f"Master listo → {Path(resumen['mp3']).name}")
         try:
@@ -2296,12 +2296,45 @@ class MainWindow(QMainWindow):
         except Exception:
             log.exception("No se pudo abrir la carpeta de salida")
         self._mostrar_graficas(resumen)
+        self._abrir_ventana_resultados(resumen)
         self._generar_m50x(resumen)
         if hasattr(self, "_revision"):
             self.panel_revision.setVisible(True)
             self.panel_revision.setEnabled(True)
             self._revision_mostrar()
         self._preguntar_aprobado(resumen)
+
+    def _abrir_ventana_resultados(self, resumen: dict):
+        """Pantalla aparte y maximizada solo con resultados: escucha con VU y
+        espectro en vivo + gráficas, sin botón MASTER (Bruno, 5/11/2026)."""
+        try:
+            from PySide6.QtWidgets import QScrollArea
+            from .graficas import construir_panel_mastering
+            from .medidores import MedidoresEnVivo
+            v = QMainWindow(self)
+            v.setWindowTitle(f"Resultados — {Path(resumen['wav']).name}")
+            cont = QWidget()
+            lay = QVBoxLayout(cont)
+            player = QMediaPlayer(v)
+            salida = QAudioOutput(v)
+            player.setAudioOutput(salida)
+            player.setSource(QUrl.fromLocalFile(resumen["wav"]))
+            medidores = MedidoresEnVivo(player)
+            medidores.set_fuente(resumen["wav"])
+            btn = QPushButton("▶ / ⏸  Escuchar el master")
+            btn.clicked.connect(lambda: player.pause()
+                                if player.playbackState() == QMediaPlayer.PlayingState else player.play())
+            lay.addWidget(btn, alignment=Qt.AlignLeft)
+            lay.addWidget(medidores)
+            scroll = QScrollArea()
+            scroll.setWidgetResizable(True)
+            scroll.setWidget(construir_panel_mastering(resumen, self.diagnostico, self.wav_activo))
+            lay.addWidget(scroll, stretch=1)
+            v.setCentralWidget(cont)
+            v.showMaximized()
+            self._ventana_resultados = v
+        except Exception:
+            log.exception("No se pudo abrir la pantalla de resultados")
 
     def _mostrar_graficas(self, resumen: dict):
         """Genera el panel de gráficas (espectro pre/post + métricas) y lo muestra."""
