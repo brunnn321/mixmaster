@@ -43,7 +43,9 @@ class MedidoresEnVivo(QWidget):
         self._timer = QTimer(self)
         self._timer.setInterval(33)
         self._timer.timeout.connect(self._tick)
-        player.playbackStateChanged.connect(self._estado)
+        # el timer corre siempre y mira el estado del reproductor en cada tick: la
+        # señal de cambio de estado no llegaba con el backend de Windows
+        self._timer.start()
 
     def set_fuente(self, ruta: Path | None):
         """Abre el archivo que pasa a sonar (se llama en cada cambio de fuente)."""
@@ -55,16 +57,6 @@ class MedidoresEnVivo(QWidget):
                 self._archivo = sf.SoundFile(str(ruta))
             except Exception:
                 self._archivo = None
-
-    def _estado(self, estado):
-        if estado == QMediaPlayer.PlayingState:
-            self._t_prev = time.monotonic()
-            self._timer.start()
-        else:
-            self._timer.stop()
-            self._vu = [VU_MIN, VU_MIN]
-            self._rta[:] = RTA_MIN_DB
-            self.update()
 
     def _bloque(self) -> np.ndarray | None:
         f = self._archivo
@@ -80,6 +72,13 @@ class MedidoresEnVivo(QWidget):
         return x if x.shape[1] >= 2 else np.repeat(x, 2, axis=1)
 
     def _tick(self):
+        if self._player.playbackState() != QMediaPlayer.PlayingState:
+            if self._vu[0] > VU_MIN or self._rta.max() > RTA_MIN_DB:
+                self._vu = [VU_MIN, VU_MIN]
+                self._rta[:] = RTA_MIN_DB
+                self.update()
+            self._t_prev = time.monotonic()
+            return
         ahora = time.monotonic()
         dt, self._t_prev = ahora - self._t_prev, ahora
         x = self._bloque()

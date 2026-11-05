@@ -434,29 +434,22 @@ class CoachingWorker(QThread):
 
 
 class EscuchaWorker(QThread):
-    """Genera la copia de escucha calibrada M50x fuera del hilo de la UI."""
+    """Mide el volumen de reproducción de cada fuente (mezcla y master) para
+    oírlas a igual sonoridad, fuera del hilo de la UI."""
 
     terminado = Signal(dict)
     fallo = Signal(str)
 
-    def __init__(self, path_master: Path, dir_salida: Path, path_premaster: Path | None = None):
+    def __init__(self, path_master: Path, path_premaster: Path | None = None):
         super().__init__()
-        self.path_master, self.dir_salida = path_master, dir_salida
-        self.path_premaster = path_premaster
+        self.path_master, self.path_premaster = path_master, path_premaster
 
     def run(self):
-        """Genera la copia M50x (nivel igualado) y mide el volumen de
-        reproducción de cada fuente para oírlas a igual sonoridad."""
         try:
             from ..audio_analysis import volumenes_igual_sonoridad
-            from ..m50x_calibration import generar_copia_calibrada
-            m50x = generar_copia_calibrada(self.path_master, self.dir_salida)
-            volumenes = volumenes_igual_sonoridad(
-                [self.path_premaster, self.path_master, m50x["ruta"]]
-                if self.path_premaster else [self.path_master, m50x["ruta"]])
-            if not self.path_premaster:
-                volumenes = [1.0] + volumenes
-            self.terminado.emit({"m50x": m50x, "volumenes": volumenes})
+            volumenes = (volumenes_igual_sonoridad([self.path_premaster, self.path_master])
+                         if self.path_premaster else [1.0, 1.0])
+            self.terminado.emit({"volumenes": volumenes})
         except Exception as e:
             log.exception("Fallo generando la copia de escucha")
             self.fallo.emit(str(e))
@@ -487,15 +480,18 @@ class MainWindow(QMainWindow):
         self._modal = None  # ventana modal de progreso (bloquea la app mientras dura)
         self._notificado = False  # evita reentrada en closeEvent
 
-        # Reproductor de escucha comparada: pre-master / master / M50x (v0.9)
+        # Escucha comparada: mezcla y master suenan a la vez, sincronizados; solo
+        # se oye la elegida (Bruno, 5/11/2026). _m50x_player = mezcla y reloj.
         self._m50x_player = QMediaPlayer(self)
         self._m50x_audio_out = QAudioOutput(self)
         self._m50x_player.setAudioOutput(self._m50x_audio_out)
+        self._escucha_b = QMediaPlayer(self)
+        self._escucha_b_out = QAudioOutput(self)
+        self._escucha_b.setAudioOutput(self._escucha_b_out)
         self._m50x_player.positionChanged.connect(self._m50x_posicion_cambio)
         self._m50x_player.durationChanged.connect(self._m50x_duracion_cambio)
         self._m50x_path_premaster: Path | None = None
         self._m50x_path_master: Path | None = None
-        self._m50x_path_calibrado: Path | None = None
         self._m50x_worker = None
 
         # "musica" | "voz" — se define al cargar, en `_preguntar_tipo_audio`
@@ -810,7 +806,7 @@ class MainWindow(QMainWindow):
         self.btn_master.clicked.connect(self._masterizar)
         lay3.addWidget(self.btn_master, alignment=Qt.AlignHCenter)  # el botón más importante
 
-        # Panel de escucha comparada: original / master / M50x plano
+        # Panel de escucha comparada: mezcla original / master
         self.panel_m50x = QFrame()
         self.panel_m50x.setStyleSheet(
             "QFrame { border: 1px solid #5a6b8c; border-radius: 8px; padding: 4px; }")
@@ -824,12 +820,8 @@ class MainWindow(QMainWindow):
         self.btn_m50x_play = QPushButton("▶ Reproducir")
         self.btn_m50x_play.clicked.connect(self._m50x_toggle_play)
         self.combo_escucha = QComboBox()
-        self.combo_escucha.addItems([
-            "Mezcla original (sin masterizar)", "Master",
-            "🎧 M50x plano (sin coloración)"])
-        self.combo_escucha.setToolTip(
-            "Cambia la fuente sin cortar: original antes de masterizar, el master,\n"
-            "o la copia corregida para tus M50x.")
+        self.combo_escucha.addItems(["Mezcla original (sin masterizar)", "Master"])
+        self.combo_escucha.setToolTip("Las dos suenan a la vez: al cambiar sigues en el mismo segundo.")
         self.combo_escucha.currentIndexChanged.connect(self._m50x_cambiar_fuente)
         fila_m50x.addWidget(self.btn_m50x_play)
         fila_m50x.addWidget(self.combo_escucha)
@@ -1075,6 +1067,7 @@ class MainWindow(QMainWindow):
         idx = max(0, min(3, idx))
         if idx != 3:   # la escucha vive en el PASO 4: al salir, deja de sonar
             self._m50x_player.pause()
+            self._escucha_b.pause()
             self.btn_m50x_play.setText("▶ Reproducir")
         self.tabs_resultado.setVisible(idx != 3)   # en el PASO 4 las gráficas van en la página
         self.pila.setCurrentIndex(idx)
@@ -2377,76 +2370,75 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------- escucha comparada
 
     def _generar_m50x(self, resumen: dict):
-        """Lanza en segundo plano la copia de escucha calibrada M50x."""
+        """Prepara la escucha comparada (mide volúmenes en segundo plano)."""
         self.panel_m50x.setVisible(False)
         self._m50x_path_premaster = self.wav_activo  # None si viene de stems (sin "original" único)
         self._m50x_path_master = Path(resumen["wav"])
-        self._m50x_path_calibrado = None
-        # la copia M50x es solo para el reproductor: va a temporales, no a salida/
-        import tempfile
-        dir_escucha = Path(tempfile.gettempdir()) / "MixMaster_escucha"
-        dir_escucha.mkdir(exist_ok=True)
-        self._m50x_worker = EscuchaWorker(self._m50x_path_master, dir_escucha,
-                                          self._m50x_path_premaster)
+        self._m50x_worker = EscuchaWorker(self._m50x_path_master, self._m50x_path_premaster)
         self._m50x_worker.setParent(self)
         self._m50x_worker.terminado.connect(self._m50x_listo)
         self._m50x_worker.fallo.connect(self._m50x_error)
         self._m50x_worker.start()
 
+    def _m50x_rutas(self) -> list:
+        return [self._m50x_path_premaster, self._m50x_path_master]
+
     def _m50x_listo(self, info: dict):
-        """Copia generada: muestra el panel de escucha comparada."""
-        self._m50x_path_calibrado = Path(info["m50x"]["ruta"])
-        self._m50x_volumenes = info.get("volumenes") or [1.0, 1.0, 1.0]
-        # sin mezcla pre-master única (master por stems): arranca directo en "Master"
-        arranque = 1 if not self._m50x_path_premaster else 0
-        self._m50x_audio_out.setVolume(self._m50x_volumenes[arranque])
-        self.combo_escucha.model().item(0).setEnabled(bool(self._m50x_path_premaster))
+        """Carga mezcla y master en los dos reproductores y muestra el panel."""
+        self._m50x_volumenes = info.get("volumenes") or [1.0, 1.0]
+        hay_mezcla = bool(self._m50x_path_premaster)
+        self.combo_escucha.model().item(0).setEnabled(hay_mezcla)
+        # sin mezcla única (master por stems) el reloj es el propio master
         self._m50x_player.setSource(QUrl.fromLocalFile(
             str(self._m50x_path_premaster or self._m50x_path_master)))
-        self.medidores.set_fuente(self._m50x_path_premaster or self._m50x_path_master)
+        self._escucha_b.setSource(QUrl.fromLocalFile(str(self._m50x_path_master)))
         self.combo_escucha.blockSignals(True)
-        self.combo_escucha.setCurrentIndex(arranque)
+        self.combo_escucha.setCurrentIndex(1)   # arranca en el master
         self.combo_escucha.blockSignals(False)
+        self._m50x_cambiar_fuente(1)
         self.btn_m50x_play.setText("▶ Reproducir")
         self.panel_m50x.setVisible(True)
-        self._status("Copia de escucha M50x lista. Las fuentes suenan a igual volumen: "
-                     "gana el sonido, no el más fuerte.")
 
     def _m50x_error(self, msg: str):
-        """Falla la copia: no bloquea el flujo, solo se oculta el panel."""
-        log.warning("No se pudo generar la copia de escucha: %s", msg)
+        """Falla la medición: no bloquea el flujo, solo se oculta el panel."""
+        log.warning("Escucha comparada no disponible: %s", msg)
         self.panel_m50x.setVisible(False)
 
     def _m50x_toggle_play(self):
-        """Play/pausa del reproductor de escucha comparada."""
+        """Reproduce o pausa las dos fuentes juntas."""
         if self._m50x_player.playbackState() == QMediaPlayer.PlayingState:
             self._m50x_player.pause()
+            self._escucha_b.pause()
             self.btn_m50x_play.setText("▶ Reproducir")
         else:
+            self._escucha_b.setPosition(self._m50x_player.position())
             self._m50x_player.play()
+            if self._m50x_path_premaster:
+                self._escucha_b.play()
             self.btn_m50x_play.setText("⏸ Pausar")
 
     def _m50x_cambiar_fuente(self, indice: int):
-        """Cambia entre pre-master / master / M50x, sin perder posición."""
-        rutas = [self._m50x_path_premaster, self._m50x_path_master,
-                  self._m50x_path_calibrado]
-        if indice >= len(rutas) or not rutas[indice]:
-            return
-        sonando = self._m50x_player.playbackState() == QMediaPlayer.PlayingState
-        pos = self._m50x_player.position()
-        self._m50x_player.setSource(QUrl.fromLocalFile(str(rutas[indice])))
-        self.medidores.set_fuente(rutas[indice])
-        self._m50x_audio_out.setVolume(getattr(self, "_m50x_volumenes", [1.0] * 3)[indice])
-        self._m50x_player.setPosition(pos)
-        if sonando:
-            self._m50x_player.play()
+        """Elige cuál se oye: la otra sigue sonando en silencio, en el mismo segundo."""
+        vols = getattr(self, "_m50x_volumenes", [1.0, 1.0])
+        if not self._m50x_path_premaster:   # solo hay master: suena el reloj
+            self._m50x_audio_out.setVolume(vols[1])
+            self._escucha_b_out.setVolume(0.0)
+        else:
+            self._m50x_audio_out.setVolume(vols[0] if indice == 0 else 0.0)
+            self._escucha_b_out.setVolume(vols[1] if indice == 1 else 0.0)
+        ruta = self._m50x_rutas()[indice] or self._m50x_path_master
+        self.medidores.set_fuente(ruta)
 
     def _m50x_buscar_posicion(self, valor: int):
-        """El usuario arrastró la barra de reproducción: salta a esa posición."""
         self._m50x_player.setPosition(valor)
+        self._escucha_b.setPosition(valor)
 
     def _m50x_posicion_cambio(self, pos_ms: int):
         """Actualiza la barra y el tiempo mientras suena (sin pelear con el arrastre)."""
+        # el master no debe correrse de la mezcla: se realinea si se aleja más de 80 ms
+        if (self._m50x_path_premaster and self._escucha_b.playbackState() == QMediaPlayer.PlayingState
+                and abs(self._escucha_b.position() - pos_ms) > 80):
+            self._escucha_b.setPosition(pos_ms)
         if not self.slider_escucha.isSliderDown():
             self.slider_escucha.setValue(pos_ms)
         self.lbl_tiempo.setText(
