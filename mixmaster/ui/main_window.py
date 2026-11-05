@@ -1022,6 +1022,10 @@ class MainWindow(QMainWindow):
     def _refrescar_estado(self):
         """Habilita botones y actualiza guía según proyecto/paso."""
         hay_proyecto = self.proyecto is not None
+        # Diagnóstico de stems solo aparece si cargaste stems (Bruno, 5/11/2026)
+        self.btn_coaching.setVisible(bool(
+            hay_proyecto and self.proyecto.dir_stems_niveladas.is_dir()
+            and any(self.proyecto.dir_stems_niveladas.glob("*.wav"))))
         # El proyecto va en el título de la ventana (junto a versión y
         # MixMaster), no como etiqueta aparte en el cuerpo — antes salía
         # duplicado ("Proyecto activo: X" arriba Y "MixMaster" repetido en
@@ -1081,8 +1085,13 @@ class MainWindow(QMainWindow):
             if item.widget():
                 item.widget().deleteLater()
 
+        if self.referencia:
+            self._sin_ref_elegido = False
+        sin_ref = getattr(self, "_sin_ref_elegido", False)
+        self.btn_sin_ref.setText("✓ Sin referencia (elegido)" if sin_ref else "Sin referencia")
         if not self.referencia:
-            self.zona_refs.setText("Cargar 1 referencia")
+            self.zona_refs.setText("Sin referencia: el master no copia ninguna"
+                                   if sin_ref else "Cargar 1 referencia")
             self.zona_refs.setStyleSheet(_DROPZONE_VACIA)
             self.refs_contenedor.setVisible(False)
             return
@@ -1519,7 +1528,6 @@ class MainWindow(QMainWindow):
         # (opcional en ambos modos, pero si no se pasa por la pantalla no hay
         # forma de agregarla).
         self._ir(1)
-        self._buscar_parecidas()
 
     # ------------------------------------------------------- drag & drop
 
