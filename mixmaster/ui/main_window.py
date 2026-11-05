@@ -856,7 +856,12 @@ class MainWindow(QMainWindow):
         lay3.addStretch()
         self.pila.addWidget(pag3)
 
-        raiz.addWidget(self.pila)
+        # Pasos + navegación arriba y resultados abajo, con un divisor que se
+        # arrastra para agrandar las gráficas (Bruno, 5/11/2026)
+        arriba = QWidget()
+        lay_arriba = QVBoxLayout(arriba)
+        lay_arriba.setContentsMargins(0, 0, 0, 0)
+        lay_arriba.addWidget(self.pila)
         # La pila ocupa solo lo que pide el paso visible; el resto va a resultados.
         self.pila.currentChanged.connect(self._ajustar_pila)
         self._ajustar_pila(self.pila.currentIndex())
@@ -871,7 +876,7 @@ class MainWindow(QMainWindow):
         nav.addWidget(self.btn_atras)
         nav.addStretch()
         nav.addWidget(self.btn_siguiente)
-        raiz.addLayout(nav)
+        lay_arriba.addLayout(nav)
 
         # --- resultados: pestañas Texto / Gráficas ---
         from PySide6.QtWidgets import QScrollArea, QTabWidget
@@ -893,7 +898,12 @@ class MainWindow(QMainWindow):
         self._graficas_placeholder.setStyleSheet("color: #8a97b0; padding: 20px;")
         self._graficas_scroll.setWidget(self._graficas_placeholder)
         self.tabs_resultado.addTab(self._graficas_scroll, "📊 Gráficas")
-        raiz.addWidget(self.tabs_resultado, stretch=1)
+        from PySide6.QtWidgets import QSplitter
+        self.divisor = QSplitter(Qt.Vertical)
+        self.divisor.addWidget(arriba)
+        self.divisor.addWidget(self.tabs_resultado)
+        self.divisor.setStretchFactor(1, 1)
+        raiz.addWidget(self.divisor, stretch=1)
 
         self.barra = QProgressBar()
         self.barra.setTextVisible(True)
@@ -1015,6 +1025,8 @@ class MainWindow(QMainWindow):
 
     def _ir(self, idx: int):
         """Navega al paso idx (0-2) y refresca la guía."""
+        self._en_resultados = False   # al moverse vuelve el botón MASTER
+        self.btn_master.setVisible(True)
         self.pila.setCurrentIndex(max(0, min(2, idx)))
         self._refrescar_estado()
 
@@ -1041,7 +1053,8 @@ class MainWindow(QMainWindow):
         if not hay_proyecto:
             self.lbl_guia.setText("<b>PASO 1 · Carga tu audio</b>")
         else:
-            self.lbl_guia.setText(f"<b>{self.GUIA[idx]}</b>")
+            guia = "RESULTADOS" if idx == 2 and getattr(self, "_en_resultados", False) else self.GUIA[idx]
+            self.lbl_guia.setText(f"<b>{guia}</b>")
 
         # zona de fuente
         if self.wav_activo:
@@ -2272,6 +2285,9 @@ class MainWindow(QMainWindow):
             f"{recorte_txt}{aviso_crest_txt}{aviso_ref_txt}\n"
             f"  WAV 48 kHz 24 bits: {resumen['wav']}\n"
             f"  MP3 320: {resumen['mp3']}")
+        # pantalla de resultados: sin el botón MASTER, todo el espacio para escuchar y ver
+        self._en_resultados = True
+        self.btn_master.setVisible(False)
         self._refrescar_estado()
         self._status(f"Master listo → {Path(resumen['mp3']).name}")
         try:
