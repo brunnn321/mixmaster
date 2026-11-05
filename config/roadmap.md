@@ -801,3 +801,9 @@ Hecho y subido:
 - Bruno quiere poder ver las gráficas sin masterizar (la app no deja pasar de paso sin procesar).
 - StemFX para mezcla de stems (cuando traiga stems).
 - Retomar el instalador cuando lo pida.
+
+## 5/11/2026 — pendiente al cerrar
+**PRIORIDAD ABIERTA:**
+- 🟡 3 Escucha comparada (paso 4): al cambiar entre mezcla y master el audio se corta / hace glitch (Bruno, 5/11). Hoy son dos QMediaPlayer y se cambia el volumen; probar mezclar las dos fuentes en un solo stream propio (QAudioSink) para que el cambio sea sin corte.
+- 🟡 3 Instalador mini: `instalador/construir.ps1` corregido (htdemucs desde Hugging Face) pero sin terminar de armar; falta generar y probar el .exe.
+- 🔵 2 Paso 4 sin verificar del todo en la app real (VU/espectro ahora se mueven por sondeo del reproductor).
