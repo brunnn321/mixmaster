@@ -596,7 +596,41 @@
     ]
   },
   "grunge": {
-    "aprobados": [],
+    "aprobados": [
+      {
+        "fecha": "2026-11-05 16:17:38",
+        "target_lufs": -10.5,
+        "lufs_final": -10.5,
+        "crest_final": 10.4,
+        "true_peak_final": -2.4,
+        "eq_aplicado_db": {
+          "air": -6.7,
+          "high": -7.2,
+          "high_mid": 8.0,
+          "low": 4.1,
+          "low_mid": 8.0,
+          "mid": 8.8,
+          "sub": -9.3
+        },
+        "ajuste_ancho_db": {},
+        "multibanda_db": {
+          "high_mid": 2.9,
+          "low": 1.3,
+          "mid": 1.0,
+          "sub": 2.0
+        },
+        "mono_bass_hz": 80.0,
+        "score": {
+          "dinamica": 47,
+          "global": 53,
+          "imagen": 79,
+          "tonal": 43
+        },
+        "referencias": [
+          "Emotions Never Felt - Matthew McGhee.mp3"
+        ]
+      }
+    ],
     "mezclas_propias": [
       {
         "fecha": "2026-10-20 16:13:56",
@@ -705,6 +739,19 @@
         "referencias": [
           "Emotions Never Felt - Matthew McGhee.mp3"
         ]
+      },
+      {
+        "fecha": "2026-11-05 15:45:55",
+        "target_lufs": -10.5,
+        "lufs_final": -10.5,
+        "crest_final": 10.7,
+        "true_peak_final": -1.8,
+        "eq_aplicado_db": {},
+        "ajuste_ancho_db": {},
+        "multibanda_db": {},
+        "mono_bass_hz": 80.0,
+        "score": null,
+        "referencias": []
       }
     ]
   },
