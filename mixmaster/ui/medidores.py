@@ -1,5 +1,5 @@
 """Medidores en vivo del reproductor: dos VU con aguja (L/R) y analizador de
-espectro (RTA) a 1/3 de octava, sincronizados con lo que está sonando.
+espectro (RTA) a 1/12 de octava, sincronizados con lo que está sonando.
 
 No intercepta el audio de Qt: lee del mismo archivo, en la posición del
 reproductor, un bloque corto 30 veces por segundo. Así funciona igual con WAV
@@ -19,13 +19,13 @@ from PySide6.QtWidgets import QWidget
 
 from . import tema
 
-BLOQUE = 4096
+BLOQUE = 8192
 VU_REF_DBFS = -18.0          # 0 VU = −18 dBFS RMS (calibración habitual de estudio)
 VU_MIN, VU_MAX = -20.0, 3.0
 VU_TIEMPO_S = 0.3            # integración clásica del VU
 RTA_MIN_DB, RTA_MAX_DB = -80.0, 0.0
 RTA_CAIDA_DB_S = 24.0        # las barras bajan suave, suben al instante
-CENTROS = [1000 * 2 ** (n / 3) for n in range(-17, 14)]   # 20 Hz … 20 kHz, 31 bandas
+CENTROS = [1000 * 2 ** (n / 12) for n in range(-68, 52)]   # 20 Hz … 20 kHz, 120 bandas de 1/12 oct
 
 
 class MedidoresEnVivo(QWidget):
@@ -100,7 +100,7 @@ class MedidoresEnVivo(QWidget):
         norm = (np.hanning(len(mono)).sum() / 2) ** 2
         nuevo = np.empty(len(CENTROS))
         for i, fc in enumerate(CENTROS):
-            sel = (freqs >= fc / 2 ** (1 / 6)) & (freqs < fc * 2 ** (1 / 6))
+            sel = (freqs >= fc / 2 ** (1 / 24)) & (freqs < fc * 2 ** (1 / 24))
             energia = esp[sel].sum() if sel.any() else esp[np.argmin(np.abs(freqs - fc))]
             nuevo[i] = 10 * math.log10(energia / norm + 1e-12)
         nuevo = np.clip(nuevo, RTA_MIN_DB, RTA_MAX_DB)

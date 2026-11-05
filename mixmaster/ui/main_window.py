@@ -472,6 +472,7 @@ class MainWindow(QMainWindow):
         "PASO 1 · Carga tu audio",
         "PASO 2 · Elige referencias",
         "PASO 3 · Masteriza",
+        "PASO 4 · Resultados",
     ]
 
     def __init__(self, settings: Settings):
@@ -606,7 +607,12 @@ class MainWindow(QMainWindow):
         acc_log.triggered.connect(self._abrir_log)
         acc_salir = QAction("Salir", self)
         acc_salir.triggered.connect(self.close)
-        m_archivo.addActions([acc_log, acc_salir])
+        # MixMaster mini (para pasarle a otra persona): solo masteriza, sin
+        # Herramientas, e importa los paquetes de mejoras que manda Bruno
+        mini = bool(self.settings.get("mini", False))
+        acc_paquete = QAction("Importar mejoras (.json)…" if mini else "Exportar mejoras (.json)…", self)
+        acc_paquete.triggered.connect(self._importar_mejoras if mini else self._exportar_mejoras)
+        m_archivo.addActions([acc_paquete, acc_log, acc_salir])
 
         m_proyecto = self.menuBar().addMenu("&Proyecto")
         acc_nuevo = QAction("Nuevo proyecto…", self)
@@ -629,6 +635,8 @@ class MainWindow(QMainWindow):
         acc_settings = QAction("Configuración…", self)
         acc_settings.triggered.connect(self._abrir_settings)
         m_settings.addAction(acc_settings)
+        if mini:
+            return
 
         # Herramientas de uso ocasional, agrupadas en un solo menú (antes
         # competían por espacio como botones sueltos en la barra).
@@ -661,6 +669,30 @@ class MainWindow(QMainWindow):
         m_herr.addActions(
             [acc_hist, acc_masters, acc_notas, acc_null, acc_ab_ciego, acc_convertidor,
              acc_tempo, acc_arbol])
+
+    def _exportar_mejoras(self):
+        """Guarda ajustes del master + aprendizaje en un .json para MixMaster mini."""
+        ruta, _ = QFileDialog.getSaveFileName(
+            self, "Exportar mejoras", str(Path.home() / "Desktop" / "mejoras_mixmaster.json"),
+            "Paquete de mejoras (*.json)")
+        if ruta:
+            from ..mejoras import exportar_paquete
+            exportar_paquete(Path(ruta))
+            self._status(f"Mejoras exportadas → {Path(ruta).name}")
+
+    def _importar_mejoras(self):
+        """Aplica un paquete de mejoras que mandó Bruno."""
+        ruta, _ = QFileDialog.getOpenFileName(
+            self, "Importar mejoras", str(Path.home() / "Downloads"), "Paquete de mejoras (*.json)")
+        if not ruta:
+            return
+        from ..mejoras import aplicar_paquete
+        try:
+            hechas = aplicar_paquete(Path(ruta))
+            QMessageBox.information(self, "Mejoras", "Actualizado: " + ", ".join(hechas))
+        except Exception as e:
+            log.exception("No se pudo importar el paquete de mejoras")
+            QMessageBox.warning(self, "Mejoras", f"No se pudo importar: {e}")
 
     def _crear_ui(self):
         """Layout: proyecto → guía → paso actual → navegación → resultados."""
@@ -818,8 +850,6 @@ class MainWindow(QMainWindow):
         self.medidores = MedidoresEnVivo(self._m50x_player)
         lay_m50x.addWidget(self.medidores)
 
-        lay3.addWidget(self.panel_m50x)
-
         # Perillas de revisión (como LANDR): después de escuchar, pedir un
         # cambio concreto y rehacer el master con eso
         self.panel_revision = QFrame()
@@ -847,7 +877,6 @@ class MainWindow(QMainWindow):
         fila_rev2.addWidget(self.lbl_revision, stretch=1)
         fila_rev2.addWidget(self.btn_rehacer)
         lay_rev.addLayout(fila_rev2)
-        lay3.addWidget(self.panel_revision)
 
         # Contenedor del panel A/B ciego embebido (se llena al pedirlo desde el menú)
         self.panel_ab_ciego_contenedor = QVBoxLayout()
@@ -855,6 +884,21 @@ class MainWindow(QMainWindow):
 
         lay3.addStretch()
         self.pila.addWidget(pag3)
+
+        # PASO 4: resultados — escucha comparada con VU, revisión y gráficas,
+        # sin botón MASTER (Bruno, 5/11/2026)
+        from PySide6.QtWidgets import QScrollArea
+        pag4 = QWidget()
+        lay4 = QVBoxLayout(pag4)
+        btn_inicio = QPushButton("⟲ Volver al PASO 1")
+        btn_inicio.clicked.connect(lambda: self._ir(0))
+        lay4.addWidget(btn_inicio, alignment=Qt.AlignLeft)
+        lay4.addWidget(self.panel_m50x)
+        lay4.addWidget(self.panel_revision)
+        self._graficas_paso4 = QScrollArea()
+        self._graficas_paso4.setWidgetResizable(True)
+        lay4.addWidget(self._graficas_paso4, stretch=1)
+        self.pila.addWidget(pag4)
 
         # Pasos + navegación arriba y resultados abajo, con un divisor que se
         # arrastra para agrandar las gráficas (Bruno, 5/11/2026)
@@ -940,10 +984,13 @@ class MainWindow(QMainWindow):
         for k in range(self.pila.count()):
             pag = self.pila.widget(k)
             if k == actual:
-                pag.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+                # el PASO 4 (resultados) ocupa todo el alto disponible
+                pag.setSizePolicy(QSizePolicy.Preferred,
+                                  QSizePolicy.Expanding if k == 3 else QSizePolicy.Maximum)
             else:
                 pag.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
-        self.pila.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+        self.pila.setSizePolicy(QSizePolicy.Preferred,
+                                QSizePolicy.Expanding if actual == 3 else QSizePolicy.Maximum)
         self.pila.updateGeometry()
 
     def _barra_activa(self, activa: bool, pasos: int = 14):
@@ -1024,8 +1071,13 @@ class MainWindow(QMainWindow):
                     and any(self.proyecto.dir_stems_niveladas.glob("*.wav")))
 
     def _ir(self, idx: int):
-        """Navega al paso idx (0-2) y refresca la guía."""
-        self.pila.setCurrentIndex(max(0, min(2, idx)))
+        """Navega al paso idx (0-3) y refresca la guía."""
+        idx = max(0, min(3, idx))
+        if idx != 3:   # la escucha vive en el PASO 4: al salir, deja de sonar
+            self._m50x_player.pause()
+            self.btn_m50x_play.setText("▶ Reproducir")
+        self.tabs_resultado.setVisible(idx != 3)   # en el PASO 4 las gráficas van en la página
+        self.pila.setCurrentIndex(idx)
         self._refrescar_estado()
 
     def _refrescar_estado(self):
@@ -1046,7 +1098,8 @@ class MainWindow(QMainWindow):
         self.btn_master.setEnabled(hay_proyecto and self._fuente_lista())
         self.btn_atras.setEnabled(idx > 0)
         self.btn_siguiente.setEnabled(
-            hay_proyecto and idx < 2 and (idx != 0 or self._fuente_lista()))
+            hay_proyecto and idx < 3 and (idx != 0 or self._fuente_lista())
+            and (idx != 2 or self._graficas_paso4.widget() is not None))
 
         if not hay_proyecto:
             self.lbl_guia.setText("<b>PASO 1 · Carga tu audio</b>")
@@ -2296,45 +2349,13 @@ class MainWindow(QMainWindow):
         except Exception:
             log.exception("No se pudo abrir la carpeta de salida")
         self._mostrar_graficas(resumen)
-        self._abrir_ventana_resultados(resumen)
+        self._ir(3)   # PASO 4: resultados
         self._generar_m50x(resumen)
         if hasattr(self, "_revision"):
             self.panel_revision.setVisible(True)
             self.panel_revision.setEnabled(True)
             self._revision_mostrar()
         self._preguntar_aprobado(resumen)
-
-    def _abrir_ventana_resultados(self, resumen: dict):
-        """Pantalla aparte y maximizada solo con resultados: escucha con VU y
-        espectro en vivo + gráficas, sin botón MASTER (Bruno, 5/11/2026)."""
-        try:
-            from PySide6.QtWidgets import QScrollArea
-            from .graficas import construir_panel_mastering
-            from .medidores import MedidoresEnVivo
-            v = QMainWindow(self)
-            v.setWindowTitle(f"Resultados — {Path(resumen['wav']).name}")
-            cont = QWidget()
-            lay = QVBoxLayout(cont)
-            player = QMediaPlayer(v)
-            salida = QAudioOutput(v)
-            player.setAudioOutput(salida)
-            player.setSource(QUrl.fromLocalFile(resumen["wav"]))
-            medidores = MedidoresEnVivo(player)
-            medidores.set_fuente(resumen["wav"])
-            btn = QPushButton("▶ / ⏸  Escuchar el master")
-            btn.clicked.connect(lambda: player.pause()
-                                if player.playbackState() == QMediaPlayer.PlayingState else player.play())
-            lay.addWidget(btn, alignment=Qt.AlignLeft)
-            lay.addWidget(medidores)
-            scroll = QScrollArea()
-            scroll.setWidgetResizable(True)
-            scroll.setWidget(construir_panel_mastering(resumen, self.diagnostico, self.wav_activo))
-            lay.addWidget(scroll, stretch=1)
-            v.setCentralWidget(cont)
-            v.showMaximized()
-            self._ventana_resultados = v
-        except Exception:
-            log.exception("No se pudo abrir la pantalla de resultados")
 
     def _mostrar_graficas(self, resumen: dict):
         """Genera el panel de gráficas (espectro pre/post + métricas) y lo muestra."""
@@ -2343,6 +2364,9 @@ class MainWindow(QMainWindow):
             panel = construir_panel_mastering(resumen, self.diagnostico, self.wav_activo)
             self._graficas_scroll.setWidget(panel)
             self.tabs_resultado.setCurrentIndex(1)  # salta a la pestaña de gráficas
+            # el PASO 4 lleva su propia copia, a pantalla completa
+            self._graficas_paso4.setWidget(
+                construir_panel_mastering(resumen, self.diagnostico, self.wav_activo))
         except Exception:
             log.exception("No se pudieron generar las gráficas")
 

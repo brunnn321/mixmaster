@@ -25,6 +25,8 @@ robocopy "$raiz\tempo" "$app\tempo" *.py *.md /NFL /NDL /NJH /NJS /NP | Out-Null
 Copiar "$raiz\config\generos"  "$app\config\generos"
 Copiar "$raiz\config\perfiles" "$app\config\perfiles"
 Copy-Item "$raiz\config\aprendizaje.json", "$raiz\config\master.json", "$raiz\config\stems.json", "$raiz\config\perfil_bruno.md" "$app\config"
+# version mini: solo masteriza, sin Herramientas, e importa paquetes de mejoras
+'{"mini": true}' | Set-Content "$app\config\settings.json" -Encoding ascii
 
 # 3. Python 3.14 portatil con todo lo que usa la app
 $py = (Get-Content "$raiz\.venv\pyvenv.cfg" | Select-String '^home = (.+)$').Matches[0].Groups[1].Value.Trim()
