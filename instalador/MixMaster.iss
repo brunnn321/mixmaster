@@ -28,7 +28,6 @@ Name: "escritorio"; Description: "Crear acceso directo en el escritorio"
 
 [Files]
 Source: "build\MixMaster\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "build\modelos\torch\*"; DestDir: "{%USERPROFILE}\.cache\torch\hub\checkpoints"; Flags: onlyifdoesntexist uninsneveruninstall
 Source: "build\modelos\hf\*"; DestDir: "{%USERPROFILE}\.cache\huggingface\hub"; Flags: onlyifdoesntexist recursesubdirs createallsubdirs uninsneveruninstall
 
 [Icons]

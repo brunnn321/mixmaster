@@ -39,7 +39,6 @@ from ..stems import procesar_stems, reporte_stems_legible
 from ..voice_processing import cargar_config_voz, procesar_voz
 from . import hardware as hw
 from . import tema
-from .historial_dialog import HistorialDialog
 from .settings_dialog import SettingsDialog
 
 log = get_logger("mixmaster.ui")
@@ -634,6 +633,7 @@ class MainWindow(QMainWindow):
         if mini:
             return
 
+        # <herramientas>  (el instalador mini quita este bloque)
         # Herramientas de uso ocasional, agrupadas en un solo menú (antes
         # competían por espacio como botones sueltos en la barra).
         m_herr = self.menuBar().addMenu("🛠 &Herramientas")
@@ -665,6 +665,7 @@ class MainWindow(QMainWindow):
         m_herr.addActions(
             [acc_hist, acc_masters, acc_notas, acc_null, acc_ab_ciego, acc_convertidor,
              acc_tempo, acc_arbol])
+        # </herramientas>
 
     def _exportar_mejoras(self):
         """Guarda ajustes del master + aprendizaje en un .json para MixMaster mini."""
@@ -870,9 +871,11 @@ class MainWindow(QMainWindow):
         fila_rev2.addWidget(self.btn_rehacer)
         lay_rev.addLayout(fila_rev2)
 
+        # <herramientas>  (el instalador mini quita este bloque)
         # Contenedor del panel A/B ciego embebido (se llena al pedirlo desde el menú)
         self.panel_ab_ciego_contenedor = QVBoxLayout()
         lay3.addLayout(self.panel_ab_ciego_contenedor)
+        # </herramientas>
 
         lay3.addStretch()
         self.pila.addWidget(pag3)
@@ -1387,11 +1390,13 @@ class MainWindow(QMainWindow):
             log.exception("No se pudo abrir el log")
             QMessageBox.information(self, "Registro", f"El log está en:\n{LOG_FILE}")
 
+    # <herramientas>  (el instalador mini quita este bloque)
     def _abrir_historial(self):
         """Abre el historial de decisiones (ver / editar feedback / borrar)."""
         if not self.proyecto:
             QMessageBox.information(self, "Historial", "Abre o crea un proyecto primero.")
             return
+        from .historial_dialog import HistorialDialog
         HistorialDialog(self.proyecto, self).exec()
 
     def _abrir_null_test(self):
@@ -1551,6 +1556,7 @@ class MainWindow(QMainWindow):
         self.panel_ab_ciego_contenedor.addWidget(
             PanelABCiego(self.proyecto, fijo, contra, self))
         self._ir(2)  # asegura estar en PASO 3 para verlo
+    # </herramientas>
 
     # ------------------------------------------------------- paso 1: fuente
 

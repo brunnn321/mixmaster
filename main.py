@@ -100,6 +100,7 @@ def main() -> int:
 
     settings = Settings()
 
+    # <herramientas>  (el instalador mini quita este bloque)
     # Interfaz MM-01 (el mockup aprobado) a prueba: `python main.py --consola`.
     # Sin la bandera, arranca la interfaz de siempre.
     if "--consola" in sys.argv:
@@ -111,6 +112,7 @@ def main() -> int:
         _traer_al_frente(ventana)
         log.info("MixMaster iniciado (interfaz MM-01)")
         return app.exec()
+    # </herramientas>
 
     ventana = MainWindow(settings)
 
