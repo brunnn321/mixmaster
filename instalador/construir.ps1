@@ -34,7 +34,8 @@ Copy-Item "$raiz\config\aprendizaje.json", "$raiz\config\master.json", "$raiz\co
 # 3. Python 3.14 portatil con todo lo que usa la app
 $py = (Get-Content "$raiz\.venv\pyvenv.cfg" | Select-String '^home = (.+)$').Matches[0].Groups[1].Value.Trim()
 Copiar $py "$app\python" @('Doc', 'include', 'Scripts')
-Copiar "$raiz\.venv\Lib\site-packages" "$app\python\Lib\site-packages"
+# sin QML ni cabeceras de PySide6 (la app no los usa): sus rutas superan los 260 caracteres de Windows
+Copiar "$raiz\.venv\Lib\site-packages" "$app\python\Lib\site-packages" @('qml', 'include', 'objects-Debug', 'tests')
 
 # 4. Quitar del codigo los bloques de herramientas y comprobar que compila
 & "$raiz\.venv\Scripts\python.exe" "$PSScriptRoot\limpiar_mini.py" $app

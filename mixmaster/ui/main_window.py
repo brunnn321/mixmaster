@@ -2441,10 +2441,14 @@ class MainWindow(QMainWindow):
 
     def _m50x_posicion_cambio(self, pos_ms: int):
         """Actualiza la barra y el tiempo mientras suena (sin pelear con el arrastre)."""
-        # el master no debe correrse de la mezcla: se realinea si se aleja más de 80 ms
+        # las dos pistas no deben separarse: se realinea solo la que está en silencio
+        # (mover la que suena producía el corte que oyó Bruno, 6/11/2026)
         if (self._m50x_path_premaster and self._escucha_b.playbackState() == QMediaPlayer.PlayingState
-                and abs(self._escucha_b.position() - pos_ms) > 80):
-            self._escucha_b.setPosition(pos_ms)
+                and abs(self._escucha_b.position() - pos_ms) > 60):
+            if self._escucha_b_out.volume() == 0.0:
+                self._escucha_b.setPosition(pos_ms)
+            elif self._m50x_audio_out.volume() == 0.0:
+                self._m50x_player.setPosition(self._escucha_b.position())
         if not self.slider_escucha.isSliderDown():
             self.slider_escucha.setValue(pos_ms)
         self.lbl_tiempo.setText(
