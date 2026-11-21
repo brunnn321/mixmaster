@@ -75,17 +75,20 @@ def analizar_carpetas(carpetas: list[Path], progreso=None, parar=lambda: False) 
     """
     ARCHIVO.parent.mkdir(parents=True, exist_ok=True)
     hechos = ya_analizados()
-    pendientes = [(p, Path(c)) for c in carpetas for p in sorted(Path(c).rglob("*"))
+    # cada carpeta puede venir con su género escrito por Bruno: (ruta, "rock")
+    pares = [c if isinstance(c, tuple) else (c, "") for c in carpetas]
+    pendientes = [(p, Path(c), g) for c, g in pares for p in sorted(Path(c).rglob("*"))
                   if p.suffix.lower() in EXTENSIONES and str(p) not in hechos]
     avisar = progreso or (lambda *a: None)
     sumados = 0
     with open(ARCHIVO, "a", encoding="utf-8") as f:
-        for i, (p, raiz) in enumerate(pendientes, 1):
+        for i, (p, raiz, genero) in enumerate(pendientes, 1):
             if parar():
                 break
             avisar(i, len(pendientes), p.name, 0)
             try:
                 informe = analizar_archivo(p, raiz, lambda pct, i=i, p=p: avisar(i, len(pendientes), p.name, pct))
+                informe["genero"] = genero.strip()
                 f.write(json.dumps(informe, ensure_ascii=False, default=str) + "\n")
                 f.flush()   # si se corta, lo hecho queda guardado
                 sumados += 1

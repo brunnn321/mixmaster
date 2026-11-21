@@ -29,7 +29,8 @@ def _valores(inf: dict) -> dict:
         "corr": est.get("correlacion_global", inf.get("correlacion")),
         "zonas": inf.get("zonas_db") or {},
         "qc": {c["nombre"]: c["estado"] for c in inf.get("qc") or []},
-        "grupo": " / ".join(inf.get("carpetas") or []) or "(sin carpeta)",
+        # si Bruno escribió el género, se agrupa por género; si no, por carpeta
+        "grupo": inf.get("genero") or " / ".join(inf.get("carpetas") or []) or "(sin carpeta)",
     }
 
 
@@ -94,7 +95,7 @@ def resumir() -> str:
             L.append(f"- **{nombre}:** {r[0]:.1f} {unidad} (de {r[1]:.1f} a {r[2]:.1f})")
     L.append("- La app usa por defecto: −10,5 LUFS (tu zona aprobada), techo −1 dBTP y crest objetivo ~10 dB.")
 
-    L += ["", "## 2. Por carpeta (artista o género)", "",
+    L += ["", "## 2. Por género (o carpeta, si no tiene género)", "",
           "| Carpeta | Temas | LUFS | Crest | Pico | Correl. | Retumbe | Barro | Encajonado | Aspereza | Sibilancia |",
           "|---|---|---|---|---|---|---|---|---|---|---|"]
     grupos = defaultdict(list)

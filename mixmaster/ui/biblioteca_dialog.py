@@ -3,9 +3,10 @@ las analiza sola en segundo plano y acumula un informe por tema."""
 
 from pathlib import Path
 
-from PySide6.QtCore import QThread, Signal
+from PySide6.QtCore import QThread, Qt, Signal
 from PySide6.QtWidgets import (
-    QDialog, QFileDialog, QHBoxLayout, QLabel, QListWidget, QProgressBar, QPushButton, QVBoxLayout,
+    QDialog, QFileDialog, QHBoxLayout, QHeaderView, QLabel, QProgressBar, QPushButton, QTableWidget,
+    QTableWidgetItem, QVBoxLayout,
 )
 
 from ..biblioteca import ARCHIVO, analizar_carpetas, ya_analizados
@@ -44,15 +45,20 @@ class BibliotecaDialog(QDialog):
         lay = QVBoxLayout(self)
         lay.addWidget(QLabel("Arrastra aquí carpetas de música (o usa Agregar). La app analiza cada tema\n"
                              "sola y guarda un informe por tema; puedes cerrar este panel y seguir usando la app."))
-        self.lista = QListWidget()
+        # carpeta + género (lo escribe Bruno, opcional; doble clic para editar)
+        self.lista = QTableWidget(0, 2)
+        self.lista.setHorizontalHeaderLabels(["Carpeta", "Género (escríbelo tú)"])
+        self.lista.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.lista.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.lista.verticalHeader().setVisible(False)
         lay.addWidget(self.lista, stretch=1)
 
         fila = QHBoxLayout()
         btn_agregar = QPushButton("+ Agregar carpeta")
         btn_agregar.clicked.connect(self._agregar)
         btn_quitar = QPushButton("− Quitar")
-        btn_quitar.clicked.connect(lambda: [self.lista.takeItem(self.lista.row(i))
-                                            for i in self.lista.selectedItems()])
+        btn_quitar.clicked.connect(lambda: [self.lista.removeRow(r) for r in
+                                            sorted({i.row() for i in self.lista.selectedItems()}, reverse=True)])
         self.btn_analizar = QPushButton("▶ Analizar")
         self.btn_analizar.clicked.connect(self._analizar)
         fila.addWidget(btn_agregar)
@@ -81,9 +87,21 @@ class BibliotecaDialog(QDialog):
         fila2.addWidget(btn_resumen)
         lay.addLayout(fila2)
 
+    def _carpetas(self) -> list[tuple[Path, str]]:
+        filas = []
+        for r in range(self.lista.rowCount()):
+            g = self.lista.item(r, 1)
+            filas.append((Path(self.lista.item(r, 0).text()), g.text() if g else ""))
+        return filas
+
     def _sumar(self, ruta: str):
-        if Path(ruta).is_dir() and ruta not in [self.lista.item(i).text() for i in range(self.lista.count())]:
-            self.lista.addItem(ruta)
+        if Path(ruta).is_dir() and Path(ruta) not in [c for c, _ in self._carpetas()]:
+            r = self.lista.rowCount()
+            self.lista.insertRow(r)
+            celda = QTableWidgetItem(ruta)
+            celda.setFlags(celda.flags() & ~Qt.ItemIsEditable)
+            self.lista.setItem(r, 0, celda)
+            self.lista.setItem(r, 1, QTableWidgetItem(""))
 
     def _agregar(self):
         carpeta = QFileDialog.getExistingDirectory(self, "Carpeta de música", r"E:\Música")
@@ -103,7 +121,7 @@ class BibliotecaDialog(QDialog):
             self._worker.cancelar = True
             self.lbl_estado.setText("Deteniendo al terminar el tema actual (lo hecho queda guardado)…")
             return
-        carpetas = [Path(self.lista.item(i).text()) for i in range(self.lista.count())]
+        carpetas = self._carpetas()
         if not carpetas:
             self.lbl_estado.setText("Agrega al menos una carpeta.")
             return
