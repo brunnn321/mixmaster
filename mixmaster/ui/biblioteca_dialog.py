@@ -75,6 +75,10 @@ class BibliotecaDialog(QDialog):
         btn_abrir = QPushButton("📂 Abrir carpeta")
         btn_abrir.clicked.connect(self._abrir_carpeta)
         fila2.addWidget(btn_abrir)
+        btn_resumen = QPushButton("📝 Hacer resumen")
+        btn_resumen.setToolTip("Escribe resumen.md: dónde se equivoca la app frente a masters profesionales.")
+        btn_resumen.clicked.connect(self._resumen)
+        fila2.addWidget(btn_resumen)
         lay.addLayout(fila2)
 
     def _sumar(self, ruta: str):
@@ -123,6 +127,13 @@ class BibliotecaDialog(QDialog):
         self.barra_total.setValue(100 if n else 0)
         self.btn_analizar.setText("▶ Analizar")
         self.lbl_estado.setText(f"Listo: {n} tema(s) nuevos. Total analizados: {len(ya_analizados())}.")
+
+    def _resumen(self):
+        from ..biblioteca_resumen import resumir
+        from .abrir import mostrar_en_carpeta
+        ruta = resumir()
+        self.lbl_estado.setText(f"Resumen escrito: {ruta}")
+        mostrar_en_carpeta(ruta)
 
     def _abrir_carpeta(self):
         from .abrir import mostrar_en_carpeta
