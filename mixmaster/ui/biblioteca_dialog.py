@@ -5,7 +5,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QThread, Signal
 from PySide6.QtWidgets import (
-    QDialog, QFileDialog, QHBoxLayout, QLabel, QListWidget, QPushButton, QVBoxLayout,
+    QDialog, QFileDialog, QHBoxLayout, QLabel, QListWidget, QProgressBar, QPushButton, QVBoxLayout,
 )
 
 from ..biblioteca import ARCHIVO, analizar_carpetas, ya_analizados
@@ -15,7 +15,7 @@ log = get_logger("mixmaster.ui.biblioteca")
 
 
 class _Worker(QThread):
-    progreso = Signal(str)
+    progreso = Signal(int, int, str, int)
     terminado = Signal(int)
 
     def __init__(self, carpetas):
@@ -64,6 +64,12 @@ class BibliotecaDialog(QDialog):
         self.lbl_estado = QLabel(f"{len(ya_analizados())} tema(s) ya analizados.")
         self.lbl_estado.setWordWrap(True)
         lay.addWidget(self.lbl_estado)
+        self.barra_tema = QProgressBar()
+        self.barra_tema.setFormat("Canción actual: %p%")
+        self.barra_total = QProgressBar()
+        self.barra_total.setFormat("Total: %p%")
+        lay.addWidget(self.barra_tema)
+        lay.addWidget(self.barra_total)
         fila2 = QHBoxLayout()
         fila2.addWidget(QLabel(f"Informes: {ARCHIVO}"))
         btn_abrir = QPushButton("📂 Abrir carpeta")
@@ -99,12 +105,22 @@ class BibliotecaDialog(QDialog):
             return
         self._worker = _Worker(carpetas)
         self._worker.setParent(self.parent() or self)   # sigue aunque se cierre el panel
-        self._worker.progreso.connect(self.lbl_estado.setText)
+        self._worker.progreso.connect(self._progreso)
         self._worker.terminado.connect(self._terminado)
         self._worker.start()
         self.btn_analizar.setText("⏹ Detener")
 
+    def _progreso(self, i: int, total: int, nombre: str, pct: int):
+        if pct < 0:   # aviso suelto (un tema que no se pudo leer)
+            self.lbl_estado.setText(nombre)
+            return
+        self.lbl_estado.setText(f"Canción {i} de {total}: {nombre}")
+        self.barra_tema.setValue(pct)
+        self.barra_total.setValue(int(((i - 1) + pct / 100) / total * 100))
+
     def _terminado(self, n: int):
+        self.barra_tema.setValue(100 if n else 0)
+        self.barra_total.setValue(100 if n else 0)
         self.btn_analizar.setText("▶ Analizar")
         self.lbl_estado.setText(f"Listo: {n} tema(s) nuevos. Total analizados: {len(ya_analizados())}.")
 

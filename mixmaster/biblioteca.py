@@ -29,47 +29,63 @@ def ya_analizados() -> set[str]:
     return hechos
 
 
-def analizar_archivo(ruta: Path, raiz: Path | None = None) -> dict:
-    """Informe de un tema. Artista y álbum salen de las carpetas que lo contienen."""
+def analizar_archivo(ruta: Path, raiz: Path | None = None, paso=lambda pct: None) -> dict:
+    """Informe de un tema. Artista y álbum salen de las carpetas que lo contienen.
+    `paso(pct)` avisa cuánto lleva del tema (0–100)."""
     from .audio_analysis import (
         analisis_estereo, cargar_audio, crest_factor_db, lufs_integrado, true_peak_db,
     )
     from .qc import nivel_zonas
+    paso(5)
     audio, sr = cargar_audio(ruta)
+    paso(30)
     # la carpeta elegida también cuenta: si es la del artista, su nombre queda guardado
     carpetas = ((raiz.name,) + ruta.relative_to(raiz).parts[:-1]
                 if raiz and ruta.is_relative_to(raiz) else ruta.parts[-3:-1])
+    lufs = round(float(lufs_integrado(audio, sr)), 1)
+    paso(45)
+    tp = round(float(true_peak_db(audio, sr)), 1)
+    paso(60)
+    corr = round(float(analisis_estereo(audio, sr)["correlacion_global"]), 2)
+    paso(80)
+    zonas = {z: round(v, 1) for z, v in nivel_zonas(audio, sr).items()}
+    paso(100)
     return {
         "ruta": str(ruta),
         "carpetas": list(carpetas),   # p. ej. ["Matthew Mcghee"] o ["Rock", "Artista", "Álbum"]
         "fecha": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "duracion_s": round(len(audio) / sr, 1),
-        "lufs": round(float(lufs_integrado(audio, sr)), 1),
-        "true_peak_db": round(float(true_peak_db(audio, sr)), 1),
+        "lufs": lufs,
+        "true_peak_db": tp,
         "crest_db": round(float(crest_factor_db(audio)), 1),
-        "correlacion": round(float(analisis_estereo(audio, sr)["correlacion_global"]), 2),
-        "zonas_db": {z: round(v, 1) for z, v in nivel_zonas(audio, sr).items()},
+        "correlacion": corr,
+        "zonas_db": zonas,
     }
 
 
 def analizar_carpetas(carpetas: list[Path], progreso=None, parar=lambda: False) -> int:
-    """Recorre las carpetas y agrega un informe por tema nuevo. Devuelve cuántos sumó."""
+    """Recorre todas las carpetas (y sus subcarpetas) en cola, un tema por vez, y
+    agrega un informe por tema nuevo. Devuelve cuántos sumó.
+
+    `progreso(i, total, nombre, pct_tema)` avisa en qué tema va (1..total) y
+    cuánto lleva de ese tema; `progreso(0, 0, texto, -1)` es un aviso suelto.
+    """
     ARCHIVO.parent.mkdir(parents=True, exist_ok=True)
     hechos = ya_analizados()
     pendientes = [(p, Path(c)) for c in carpetas for p in sorted(Path(c).rglob("*"))
                   if p.suffix.lower() in EXTENSIONES and str(p) not in hechos]
+    avisar = progreso or (lambda *a: None)
     sumados = 0
     with open(ARCHIVO, "a", encoding="utf-8") as f:
         for i, (p, raiz) in enumerate(pendientes, 1):
             if parar():
                 break
-            if progreso:
-                progreso(f"Biblioteca {i}/{len(pendientes)}: {p.name}")
+            avisar(i, len(pendientes), p.name, 0)
             try:
-                f.write(json.dumps(analizar_archivo(p, raiz), ensure_ascii=False) + "\n")
+                informe = analizar_archivo(p, raiz, lambda pct, i=i, p=p: avisar(i, len(pendientes), p.name, pct))
+                f.write(json.dumps(informe, ensure_ascii=False) + "\n")
                 f.flush()   # si se corta, lo hecho queda guardado
                 sumados += 1
             except Exception as e:
-                if progreso:
-                    progreso(f"No se pudo analizar {p.name}: {e}")
+                avisar(0, 0, f"No se pudo analizar {p.name}: {e}", -1)
     return sumados
