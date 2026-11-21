@@ -49,6 +49,7 @@ def registrar_aprobado(genero: str, resumen: dict) -> int:
         "mono_bass_hz": resumen.get("mono_bass_hz"),
         "score": resumen.get("score"),
         "referencias": resumen.get("referencias"),
+        "etapas": resumen.get("etapas"),
     })
     _guardar(datos)
     n = len(g["aprobados"])
@@ -80,6 +81,7 @@ def registrar_rechazado(genero: str, resumen: dict) -> int:
         "mono_bass_hz": resumen.get("mono_bass_hz"),
         "score": resumen.get("score"),
         "referencias": resumen.get("referencias"),
+        "etapas": resumen.get("etapas"),
     })
     _guardar(datos)
     n = len(rechazados)
@@ -326,6 +328,18 @@ def resumen_pares(genero: str, umbral: float = 0.3) -> str | None:
     if not gustos:
         return f"Con {n} comparación(es) todavía no hay una preferencia clara."
     return f"Con {n} comparación(es), te gustan los masters con {', '.join(gustos)}."
+
+
+def factor_etapa(genero: str, etapa: str) -> float:
+    """Cuánto aplicar una etapa de la cadena limpia según tus votos (0 a 1).
+
+    Cuenta en cuántos masters aprobados y rechazados del género estuvo la
+    etapa. Si perdió por 2 o más, va a la mitad; por 4 o más, se apaga.
+    """
+    g = _cargar().get(genero, {})
+    a = sum(etapa in (m.get("etapas") or []) for m in g.get("aprobados", []))
+    r = sum(etapa in (m.get("etapas") or []) for m in g.get("rechazados", []))
+    return 0.0 if r - a >= 4 else (0.5 if r - a >= 2 else 1.0)
 
 
 def olvidar(genero: str | None = None) -> None:

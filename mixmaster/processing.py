@@ -211,12 +211,9 @@ CONFIG_MASTER_DEFAULT = {
         "wav_32_float": True,
     },
     # Cadena Limpia (21/11/2026, portada de bitwize-music-studio, CC0): procesar
-    # poco. Corte suave de medios-agudos + compresor 1.5:1 + limitador; el resto
-    # de las etapas se apaga (ver config_limpia).
+    # poco. Tono + compresor 1.5:1 + limitador; cada etapa extra se enciende solo
+    # si el diagnóstico (mixmaster/qc.py) encuentra su problema.
     "limpio": {
-        "corte_highmid_db": -2.0,
-        "highmid_hz": 3500.0,
-        "highmid_q": 1.5,
         "ratio": 1.5,
         "apagar": ["multibanda", "resonancias", "resonancias_dinamicas", "abrir_mono",
                    "transient_shaping", "dinamica_secciones", "eq_perceptual",
@@ -2284,6 +2281,51 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
             grupo_eq = soxr.resample(grupo_eq, sr, SR_ENTREGA, quality="VHQ")
         sr = SR_ENTREGA
 
+    # Control de calidad y diagnóstico de la mezcla (reglas de los skills de
+    # bitwize y ableton-skills). En la cadena limpia el diagnóstico decide qué
+    # etapas se encienden: cada una solo si su problema está (21/11/2026).
+    from .qc import control_calidad, problemas_mezcla
+    qc_antes = control_calidad(audio, sr)
+    decisiones, etapas = [], []
+    cfg_lp = cfg.get("limpio", {})
+    if cfg_lp.get("activo", False):
+        from .learning import factor_etapa
+        gen = genero or "sin_genero"
+        nombres = {"retumbe": "retumbaba", "embarrado": "estaba embarrado",
+                   "encajonado": "sonaba encajonado", "aspero": "estaba áspero",
+                   "sibilante": "tenía sibilancia"}
+        cortes = []
+        for zona, pr in problemas_mezcla(audio, sr).items():
+            factor = factor_etapa(gen, zona)
+            if factor == 0:
+                decisiones.append(f"No corrijo que {nombres[zona]}: en tus votos esa corrección perdió.")
+                continue
+            corte = round(pr["corte_db"] * factor, 1)
+            cortes.append((pr["freq"], corte, pr["q"]))
+            etapas.append(zona)
+            decisiones.append(f"Bajé {abs(corte):g} dB en {pr['freq']:g} Hz porque {nombres[zona]} "
+                              f"({pr['exceso_db']:+g} dB sobre un master profesional).")
+        cfg_lp["cortes"] = cortes
+        qc = {c["nombre"]: c for c in qc_antes}
+        if qc["Mono"]["valor"] >= 3.0 or qc["Fase"]["valor"] < 0.3:
+            cfg.setdefault("mono_bass", {})["activo"] = True
+            etapas.append("mono_bass")
+            decisiones.append("Puse el grave en mono: la mezcla perdía mucho al sumarse a mono.")
+        if crest_factor_db(audio) < 8.0 and factor_etapa(gen, "transient_shaping") > 0:
+            cfg.setdefault("transient_shaping", {})["activo"] = True
+            etapas.append("transient_shaping")
+            decisiones.append("Realcé un poco los golpes: la mezcla llegaba con poca dinámica.")
+        if "casi sin sub-graves" in qc["Balance"]["texto"] and factor_etapa(gen, "exciter_graves") > 0:
+            cfg.setdefault("exciter_graves", {})["activo"] = True
+            etapas.append("exciter_graves")
+            decisiones.append("Agregué armónicos al grave para que se oiga en parlantes chicos.")
+        # se cuidan solas: solo actúan si encuentran algo (resonancia persistente,
+        # o un limitador que tendría que bajar más de 3 dB)
+        cfg.setdefault("resonancias", {})["activo"] = True
+        cfg.setdefault("densidad", {})["activo"] = True
+        if not decisiones:
+            decisiones.append("La mezcla no tenía problemas que corregir: solo tono, compresión suave y volumen.")
+
     # Sin top-and-tail (Bruno, 2/11/2026): el master conserva el largo y los
     # silencios de la mezcla, para que calce en el DAW donde estaba.
     largo_previo = audio.shape[0]
@@ -2579,14 +2621,12 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
 
     cfg_lp = cfg.get("limpio", {})
     if cfg_lp.get("activo", False):
-        corte = float(cfg_lp.get("corte_highmid_db", -2.0))
-        if corte:
-            b, a = _peaking_biquad(float(cfg_lp.get("highmid_hz", 3500.0)), corte,
-                                   float(cfg_lp.get("highmid_q", 1.5)), sr)
+        for freq, corte, q in cfg_lp.get("cortes", []):
+            b, a = _peaking_biquad(freq, corte, q, sr)
             audio = signal.lfilter(b, a, audio, axis=0)
         audio, red_lp = _compresor_bus(audio, sr, ratio=float(cfg_lp.get("ratio", 1.5)),
                                        attack_ms=30.0, release_ms=200.0)
-        avisar(f"Cadena limpia: medios-agudos {corte:+g} dB, compresor "
+        avisar(f"Cadena limpia: {len(cfg_lp.get('cortes', []))} corrección(es), compresor "
                f"{cfg_lp.get('ratio', 1.5):g}:1 ({red_lp:.1f} dB)")
 
     cfg_bus = cfg.get("bus_master", {})
@@ -2766,6 +2806,7 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
 
     lufs_final = lufs_integrado(audio, sr)
     tp_final = true_peak_db(audio, sr)
+    qc_despues = control_calidad(audio, sr, float(cfg_lim.get("ceiling_dbtp", -1.0)))
     crest_final = crest_factor_db(audio)
 
     # Aviso de sobre-limitación / sub-procesamiento (pendiente #2, tanda real
@@ -2893,6 +2934,10 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         "target_lufs": target_lufs,
         "target_por_crest": auto_crest,
         "recorte_silencio_s": {"inicio": recorte_inicio_s, "fin": recorte_fin_s},
+        "qc_antes": qc_antes,
+        "qc_despues": qc_despues,
+        "decisiones": decisiones,
+        "etapas": etapas,
         "muestras_declipeadas": muestras_declipeadas,
         "eq_aplicado_db": correccion,
         "ajuste_ancho_db": ajuste_ancho,

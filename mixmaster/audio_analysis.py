@@ -934,6 +934,14 @@ def generar_alertas(diag: dict, umbrales: dict | None = None) -> list[str]:
             f"Sub-graves en {bandas['sub']:.1f} dB (<{u['sub_min_db']:g}) — {u['nota_sub']}"
         )
 
+    # ¿Mezcla lista para master? (mastering-prep de ableton-skills): margen y zonas
+    dichos = {"retumbe": "retumba (40–80 Hz)", "embarrado": "está embarrada (200–400 Hz)",
+              "encajonado": "suena encajonada (400–800 Hz)", "aspero": "está áspera (2–5 kHz)",
+              "sibilante": "tiene sibilancia (5–8 kHz)"}
+    for zona, pr in (diag.get("problemas_mezcla") or {}).items():
+        alertas.append(f"La mezcla {dichos[zona]}: {pr['exceso_db']:+g} dB sobre un master profesional; "
+                       f"mejor bajarlo {abs(pr['corte_db']):g} dB en la mezcla (el master lo corrige si no)")
+
     # Agudos ausentes (weirdFishes, 2/11/2026): un master no puede crearlos,
     # hay que avisar antes de masterizar para revisar la exportación.
     if bandas.get("high") is not None and bandas["high"] < bandas["mid"] - 35:
@@ -976,7 +984,8 @@ def generar_alertas(diag: dict, umbrales: dict | None = None) -> list[str]:
     # True peak por encima de -1 dBTP (seguridad streaming)
     if g["true_peak_db"] > -1.0:
         alertas.append(
-            f"True peak {g['true_peak_db']:.1f} dBTP (>-1.0) — riesgo de distorsión en códecs de streaming"
+            f"True peak {g['true_peak_db']:.1f} dBTP (>-1.0) — para masterizar conviene dejar la "
+            "mezcla con el pico entre −3 y −6 (bajar el master del DAW, sin limitador)"
         )
 
     # Compatibilidad mono
@@ -1449,6 +1458,8 @@ def analizar_wav(path_wav: Path, marcadores_txt: str = "",
             diag["vs_referencia"] = {"error": "No se pudo analizar la referencia (ver app.log)"}
 
     avisar("Generando alertas…")
+    from .qc import problemas_mezcla
+    diag["problemas_mezcla"] = problemas_mezcla(audio, sr)
     diag["alertas"] = generar_alertas(diag, umbrales)
 
     avisar("Análisis completado.")

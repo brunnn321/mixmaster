@@ -663,6 +663,12 @@ class MainWindow(QMainWindow):
             "Genealogía de 92 géneros en 3D: de dónde viene cada uno y con qué\n"
             "perfil de master lo trata la app. Se abre en el navegador.")
         acc_arbol.triggered.connect(self._abrir_arbol_generos)
+        acc_biblio = QAction("📚 Analizar biblioteca de música…", self)
+        acc_biblio.setToolTip(
+            "Analiza sola todas las canciones de una carpeta (volumen, dinámica, zonas)\n"
+            "y guarda un informe por tema en config/biblioteca/analisis.jsonl.")
+        acc_biblio.triggered.connect(self._analizar_biblioteca)
+        m_herr.addAction(acc_biblio)
         m_herr.addActions(
             [acc_hist, acc_masters, acc_notas, acc_null, acc_ab_ciego, acc_convertidor,
              acc_tempo, acc_arbol])
@@ -1399,6 +1405,14 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Registro", f"El log está en:\n{LOG_FILE}")
 
     # <herramientas>  (el instalador mini quita este bloque)
+    def _analizar_biblioteca(self):
+        """Panel de la biblioteca de conocimiento (sigue analizando aunque se cierre)."""
+        if getattr(self, "_dlg_biblioteca", None) is None:
+            from .biblioteca_dialog import BibliotecaDialog
+            self._dlg_biblioteca = BibliotecaDialog(self)
+        self._dlg_biblioteca.show()
+        self._dlg_biblioteca.raise_()
+
     def _abrir_historial(self):
         """Abre el historial de decisiones (ver / editar feedback / borrar)."""
         if not self.proyecto:

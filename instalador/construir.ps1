@@ -19,7 +19,8 @@ New-Item -ItemType Directory -Force $app, $hf | Out-Null
 Copy-Item "$raiz\main.py", "$raiz\requirements.txt" $app
 Copy-Item "$PSScriptRoot\MANUAL-mini.md" "$app\MANUAL.md"
 $fuera = @('tempo_dialog.py', 'convertidor_dialog.py', 'convertidor.py', 'null_test.py',
-           'ab_ciego_dialog.py', 'notas_dialog.py', 'historial_dialog.py', 'consola_web.py')
+           'ab_ciego_dialog.py', 'notas_dialog.py', 'historial_dialog.py', 'consola_web.py',
+           'biblioteca_dialog.py', 'biblioteca.py')
 robocopy "$raiz\mixmaster" "$app\mixmaster" /E /NFL /NDL /NJH /NJS /NP /XD __pycache__ web /XF @fuera | Out-Null
 if ($LASTEXITCODE -ge 8) { throw 'robocopy fallo: mixmaster' }
 Copiar "$raiz\assets" "$app\assets" @('consola')

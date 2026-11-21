@@ -807,3 +807,15 @@ Hecho y subido:
 - 🟡 3 Escucha comparada (paso 4): al cambiar entre mezcla y master el audio se corta / hace glitch (Bruno, 5/11). Hoy son dos QMediaPlayer y se cambia el volumen; probar mezclar las dos fuentes en un solo stream propio (QAudioSink) para que el cambio sea sin corte.
 - 🟡 3 Instalador mini: `instalador/construir.ps1` corregido (htdemucs desde Hugging Face) pero sin terminar de armar; falta generar y probar el .exe.
 - 🔵 2 Paso 4 sin verificar del todo en la app real (VU/espectro ahora se mueven por sondeo del reproductor).
+
+## 21/11/2026 — Lo que aportan los skills de Daniel (plan aprobado por Bruno)
+Repos: glincker/ableton-skills (MIT, reglas de mezcla/pre-master, no procesa audio) y bitwize-music-studio/claude-ai-music-skills (CC0, motor de master/mezcla/QC en Python). Suenan mejor porque procesan poco y solo donde hay problema.
+- [x] 🟢 1 Cadena limpia: tono + compresor 1.5:1 + limitador -1 dBTP; selector Completa/Limpia en el paso 3; archivos con `_limpio`.
+- [x] 🔵 2 QC con semáforo (`mixmaster/qc.py`, umbrales de bitwize): mono, fase, saturación, pico real, clics, silencio, balance; antes y después, en el paso 4.
+- [x] 🔵 2 "¿Mezcla lista?" en el paso 1: zonas embarrado/áspero/encajonado/retumbe/sibilante (mixer-doctor) y margen de pico (mastering-prep).
+- [x] 🟡 3 Etapas condicionales: la cadena limpia corta solo las zonas que se salen de un master profesional (normas medidas en las 11 referencias de Bruno) y explica cada decisión; mono, golpes y armónicos de grave solo si hacen falta.
+- [ ] 🟡 3 A/B ciego de la cadena limpia contra el v04 aprobado de weirdFishes (lo decide Bruno).
+- [x] 🟠 4 Aprendizaje por etapa: una corrección que pierde en tus votos se aplica a la mitad (2 de diferencia) o se apaga (4).
+- [ ] 🟠 4 Pendiente: mezcla de stems con presets por instrumento, álbum parejo, MCP y skill de MixMaster.
+- [x] 🔵 2 Biblioteca de conocimiento (Herramientas → 📚 Analizar biblioteca de música): panel donde se arrastran carpetas; la app analiza sola cada tema (LUFS, pico, crest, correlación, zonas) y acumula informes en `config/biblioteca/analisis.jsonl`. Claude los lee y ordena cuando Bruno lo pide, para sacar normas de master por género. Primera prueba: 16 temas de Matthew McGhee.
+- weirdFishes v05 (cadena limpia + Emotions): -10.4 LUFS, -1.7 dBTP, crest 11.0; cortó 300 Hz (-2.8, embarrado) y 600 Hz (-2.2, encajonado). Falta el A/B de Bruno contra el v04.

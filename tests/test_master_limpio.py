@@ -45,7 +45,10 @@ def main() -> int:
     check("true peak bajo techo", tp <= cfg["limitador"]["ceiling_dbtp"] + 0.1, f"tp={tp:.2f}")
     c_in = analisis_estereo(*cargar_audio(mezcla))["correlacion_global"]
     c_out = analisis_estereo(a, sr)["correlacion_global"]
-    check("imagen estéreo sin cambio", abs(c_in - c_out) < 0.05, f"{c_in:.2f} → {c_out:.2f}")
+    # la cadena limpia nunca procesa el lado (side) ni el ancho: lo que corrige va
+    # igual en L y R (un corte de zona puede mover la correlación, y está bien)
+    check("no toca el ancho ni el side", not res["ajuste_ancho_db"] and not res["eq_side_db"],
+          f"{c_in:.2f} → {c_out:.2f} {res['etapas']}")
     check("nombre marca la cadena limpia", Path(res["wav"]).stem.endswith("_limpio"))
 
     print("RESULTADO:", "todos los checks pasaron" if not fallos else f"{len(fallos)} fallo(s): {fallos}")

@@ -508,6 +508,44 @@ def _tarjeta_metrica(titulo: str, antes, despues, unidad: str = "",
     return f
 
 
+def _bloque_decisiones_qc(resumen: dict) -> QFrame | None:
+    """Qué decidió el master y por qué, más el semáforo de calidad antes/después."""
+    decisiones = resumen.get("decisiones") or []
+    qc_a, qc_d = resumen.get("qc_antes") or [], resumen.get("qc_despues") or []
+    if not decisiones and not qc_d:
+        return None
+    f = QFrame()
+    f.setStyleSheet(
+        "QFrame { background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
+        " stop:0 #232019, stop:1 #141110); border:1px solid #4a4438;"
+        " border-radius:12px; }")
+    lay = QVBoxLayout(f)
+    lay.setContentsMargins(14, 12, 14, 12)
+    if decisiones:
+        tit = QLabel("🎛 QUÉ HIZO EL MASTER Y POR QUÉ")
+        tit.setStyleSheet(f"border:none; color:{_INK_DIM}; font-family:{_MONO}; font-size:10px; letter-spacing:2px;")
+        lay.addWidget(tit)
+        for d in decisiones:
+            lbl = QLabel(f"• {d}")
+            lbl.setWordWrap(True)
+            lbl.setStyleSheet("border:none; color:#ede6d9; font-size:12px;")
+            lay.addWidget(lbl)
+    if qc_d:
+        tit = QLabel("🚦 CONTROL DE CALIDAD  (mezcla → master)")
+        tit.setStyleSheet(f"border:none; color:{_INK_DIM}; font-family:{_MONO}; font-size:10px; letter-spacing:2px; margin-top:8px;")
+        lay.addWidget(tit)
+        color = {"ok": "#8fb865", "aviso": "#e8a33d", "mal": "#d64933"}
+        antes = {c["nombre"]: c for c in qc_a}
+        for c in qc_d:
+            a = antes.get(c["nombre"])
+            previo = (f"<span style='color:{color[a['estado']]}'>●</span> {a['texto']}  →  " if a else "")
+            lbl = QLabel(f"<b>{c['nombre']}</b>: {previo}<span style='color:{color[c['estado']]}'>●</span> {c['texto']}")
+            lbl.setTextFormat(Qt.RichText)
+            lbl.setStyleSheet("border:none; color:#ede6d9; font-size:12px;")
+            lay.addWidget(lbl)
+    return f
+
+
 def _bloque_proceso(resumen: dict) -> QFrame:
     f = QFrame()
     f.setStyleSheet(
@@ -724,6 +762,9 @@ def construir_panel_mastering(resumen: dict, diagnostico: dict | None,
         cl2.addWidget(_LoudnessWarScore(resumen["lufs_final"], resumen["crest_final"]))
         lay.addWidget(caja_lws)
 
+    bloque_dq = _bloque_decisiones_qc(resumen)
+    if bloque_dq is not None:
+        lay.addWidget(bloque_dq)
     lay.addWidget(_bloque_proceso(resumen))
 
     nota = QLabel("Ámbar = master · Crema = referencia · Las tarjetas comparan antes → después.")
