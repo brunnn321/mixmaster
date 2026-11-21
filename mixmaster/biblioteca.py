@@ -23,43 +23,46 @@ def ya_analizados() -> set[str]:
     hechos = set()
     for linea in ARCHIVO.read_text(encoding="utf-8").splitlines():
         try:
-            hechos.add(json.loads(linea)["ruta"])
+            informe = json.loads(linea)
+            if "diagnostico" in informe:   # los informes básicos viejos se rehacen completos
+                hechos.add(informe["ruta"])
         except Exception:
             continue
     return hechos
 
 
 def analizar_archivo(ruta: Path, raiz: Path | None = None, paso=lambda pct: None) -> dict:
-    """Informe de un tema. Artista y álbum salen de las carpetas que lo contienen.
+    """Informe completo de un tema: el mismo diagnóstico del PASO 1 (espectro fino
+    de 40 bandas, balance por bandas, LUFS/LRA/PLR/true peak/crest, estéreo y fase
+    por banda y momento a momento, carácter tonal, punch, secciones) + zonas de
+    mixer-doctor + semáforo de calidad. Artista y álbum salen de las carpetas.
     `paso(pct)` avisa cuánto lleva del tema (0–100)."""
-    from .audio_analysis import (
-        analisis_estereo, cargar_audio, crest_factor_db, lufs_integrado, true_peak_db,
-    )
-    from .qc import nivel_zonas
-    paso(5)
+    from .audio_analysis import analizar_wav, cargar_audio
+    from .qc import control_calidad, nivel_zonas
+    pasos = {"n": 0}
+
+    def avance(_msg):   # analizar_wav avisa ~15 etapas: cada una suma un tramo
+        pasos["n"] += 1
+        paso(min(85, 5 + pasos["n"] * 6))
+
+    paso(2)
+    diag = analizar_wav(ruta, "", None, version="BIB", progreso=avance)
     audio, sr = cargar_audio(ruta)
-    paso(30)
+    paso(90)
+    zonas = {z: round(v, 1) for z, v in nivel_zonas(audio, sr).items()}
+    qc = control_calidad(audio, sr)
+    paso(100)
     # la carpeta elegida también cuenta: si es la del artista, su nombre queda guardado
     carpetas = ((raiz.name,) + ruta.relative_to(raiz).parts[:-1]
                 if raiz and ruta.is_relative_to(raiz) else ruta.parts[-3:-1])
-    lufs = round(float(lufs_integrado(audio, sr)), 1)
-    paso(45)
-    tp = round(float(true_peak_db(audio, sr)), 1)
-    paso(60)
-    corr = round(float(analisis_estereo(audio, sr)["correlacion_global"]), 2)
-    paso(80)
-    zonas = {z: round(v, 1) for z, v in nivel_zonas(audio, sr).items()}
-    paso(100)
     return {
         "ruta": str(ruta),
         "carpetas": list(carpetas),   # p. ej. ["Matthew Mcghee"] o ["Rock", "Artista", "Álbum"]
         "fecha": datetime.now().strftime("%Y-%m-%d %H:%M"),
         "duracion_s": round(len(audio) / sr, 1),
-        "lufs": lufs,
-        "true_peak_db": tp,
-        "crest_db": round(float(crest_factor_db(audio)), 1),
-        "correlacion": corr,
         "zonas_db": zonas,
+        "qc": qc,
+        "diagnostico": diag,
     }
 
 
@@ -83,7 +86,7 @@ def analizar_carpetas(carpetas: list[Path], progreso=None, parar=lambda: False) 
             avisar(i, len(pendientes), p.name, 0)
             try:
                 informe = analizar_archivo(p, raiz, lambda pct, i=i, p=p: avisar(i, len(pendientes), p.name, pct))
-                f.write(json.dumps(informe, ensure_ascii=False) + "\n")
+                f.write(json.dumps(informe, ensure_ascii=False, default=str) + "\n")
                 f.flush()   # si se corta, lo hecho queda guardado
                 sumados += 1
             except Exception as e:
