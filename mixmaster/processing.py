@@ -210,6 +210,19 @@ CONFIG_MASTER_DEFAULT = {
     "exportar": {
         "wav_32_float": True,
     },
+    # Cadena Limpia (21/11/2026, portada de bitwize-music-studio, CC0): procesar
+    # poco. Corte suave de medios-agudos + compresor 1.5:1 + limitador; el resto
+    # de las etapas se apaga (ver config_limpia).
+    "limpio": {
+        "corte_highmid_db": -2.0,
+        "highmid_hz": 3500.0,
+        "highmid_q": 1.5,
+        "ratio": 1.5,
+        "apagar": ["multibanda", "resonancias", "resonancias_dinamicas", "abrir_mono",
+                   "transient_shaping", "dinamica_secciones", "eq_perceptual",
+                   "eq_por_seccion", "bus_master", "clipper", "exciter_graves",
+                   "densidad", "mono_bass"],
+    },
     "limitador": {
         "ceiling_dbtp": -1.0,
         "release_ms": 50,
@@ -271,6 +284,19 @@ def cargar_config_master(genero: str | None = None) -> dict:
         log.exception("master.json ilegible; se usan defaults")
         return _aplicar_preset_genero(
             json.loads(json.dumps(CONFIG_MASTER_DEFAULT)), genero)
+
+
+def config_limpia(genero: str | None = None) -> dict:
+    """Config de la cadena Limpia: la Completa con las etapas extra apagadas,
+    EQ solo de tono y un limitador de banda completa."""
+    cfg = cargar_config_master(genero)
+    lp = cfg["limpio"]
+    for etapa in lp["apagar"]:
+        cfg.setdefault(etapa, {})["activo"] = False
+    cfg["limitador"]["multibanda"] = False
+    cfg["eq_correctivo"].update(modo="fino", segunda_pasada=False)
+    lp["activo"] = True
+    return cfg
 
 
 def _aplicar_preset_genero(base: dict, genero: str | None) -> dict:
@@ -2551,6 +2577,18 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
         avisar(f"Revisión: brillo {revision.get('brillo_db', 0):+g} dB, "
                f"grave {revision.get('grave_db', 0):+g} dB")
 
+    cfg_lp = cfg.get("limpio", {})
+    if cfg_lp.get("activo", False):
+        corte = float(cfg_lp.get("corte_highmid_db", -2.0))
+        if corte:
+            b, a = _peaking_biquad(float(cfg_lp.get("highmid_hz", 3500.0)), corte,
+                                   float(cfg_lp.get("highmid_q", 1.5)), sr)
+            audio = signal.lfilter(b, a, audio, axis=0)
+        audio, red_lp = _compresor_bus(audio, sr, ratio=float(cfg_lp.get("ratio", 1.5)),
+                                       attack_ms=30.0, release_ms=200.0)
+        avisar(f"Cadena limpia: medios-agudos {corte:+g} dB, compresor "
+               f"{cfg_lp.get('ratio', 1.5):g}:1 ({red_lp:.1f} dB)")
+
     cfg_bus = cfg.get("bus_master", {})
     if cfg_bus.get("activo", False):
         tipo = str(cfg_bus.get("saturacion", "cinta"))
@@ -2778,6 +2816,8 @@ def masterizar(path_mezcla: Path | None, path_referencia: Path | None,
     dir_entregables.mkdir(parents=True, exist_ok=True)
     # el nombre lleva el loudness objetivo (marca lo específico del master, ej. -7)
     base_nombre = f"master_{version.lower()}_{nombre_base}_{target_lufs:g}LUFS"
+    if cfg.get("limpio", {}).get("activo", False):
+        base_nombre += "_limpio"
     out_wav = dir_masters / f"{base_nombre}.wav"
     out_mp3 = dir_entregables / f"{base_nombre}.mp3"
 

@@ -29,7 +29,7 @@ from ..learning import (
     registrar_rechazado,
 )
 from ..logger import get_logger
-from ..processing import cargar_config_master, masterizar
+from ..processing import cargar_config_master, config_limpia, masterizar
 from ..profiles import listar_referencias_genero
 from ..project import Project, abrir_proyecto, crear_proyecto, nombre_seguro
 from ..references import detectar_etiqueta_sugerida
@@ -336,8 +336,9 @@ class MasterWorker(QThread):
     fallo = Signal(str)
 
     def __init__(self, mezcla, referencia, target, dir_masters, dir_entregables,
-                 version, carpeta_stems=None, genero=None, revision=None):
+                 version, carpeta_stems=None, genero=None, revision=None, cfg=None):
         super().__init__()
+        self.cfg = cfg
         self.mezcla, self.referencia, self.target = mezcla, referencia, target
         self.dir_masters, self.dir_entregables, self.version = dir_masters, dir_entregables, version
         self.carpeta_stems, self.genero, self.revision = carpeta_stems, genero, revision
@@ -350,7 +351,7 @@ class MasterWorker(QThread):
                 self.dir_masters, self.dir_entregables,
                 version=self.version, carpeta_stems=self.carpeta_stems,
                 progreso=self.progreso.emit, genero=self.genero,
-                revision=self.revision,
+                revision=self.revision, cfg=self.cfg,
             )
             self.terminado.emit(resumen)
         except Exception as e:
@@ -806,6 +807,13 @@ class MainWindow(QMainWindow):
             "Config editable en config/master.json")
         self.btn_master.clicked.connect(self._masterizar)
         lay3.addWidget(self.btn_master, alignment=Qt.AlignHCenter)  # el botón más importante
+        # Cadena de master: Completa (la de siempre) o Limpia (procesa poco, 21/11/2026)
+        self.combo_cadena = QComboBox()
+        self.combo_cadena.addItems(["Cadena completa", "Cadena limpia"])
+        self.combo_cadena.setCurrentIndex(1 if self.settings.get("cadena") == "limpia" else 0)
+        self.combo_cadena.currentIndexChanged.connect(
+            lambda i: self.settings.set("cadena", "limpia" if i == 1 else "completa"))
+        lay3.addWidget(self.combo_cadena, alignment=Qt.AlignHCenter)
 
         # Panel de escucha comparada: mezcla original / master
         self.panel_m50x = QFrame()
@@ -2243,7 +2251,9 @@ class MainWindow(QMainWindow):
         self._master_worker = MasterWorker(
             self.wav_activo, self.referencia, target,
             self.proyecto.dir_masters, self.proyecto.dir_entregables,
-            version, carpeta_stems, self.settings.genero_activo(), revision)
+            version, carpeta_stems, self.settings.genero_activo(), revision,
+            cfg=config_limpia(self.settings.genero_activo())
+            if self.combo_cadena.currentIndex() == 1 else None)
         self._master_worker.setParent(self)
         self._master_worker.progreso.connect(self._progreso)
         self._master_worker.terminado.connect(self._master_ok)
